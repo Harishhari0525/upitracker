@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.upitracker.data.AppDatabase
@@ -19,10 +20,12 @@ import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.util.Theme
 import kotlinx.coroutines.launch
 import androidx.core.net.toUri
+import com.example.upitracker.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
 
     private var smsReceiver: SmsReceiver? = null
+    private val mainViewModel: MainViewModel by viewModels()
 
     // Permission launcher for READ_SMS
     private val requestPermission =
@@ -45,10 +48,8 @@ class MainActivity : ComponentActivity() {
             onTransactionParsed = { transaction ->
                 lifecycleScope.launch { dao.insert(transaction) }
             },
-            onUpiLiteSummary = { summaryText ->
-                runOnUiThread {
-                    Toast.makeText(this, summaryText, Toast.LENGTH_LONG).show()
-                }
+            onUpiLiteSummary = { summary ->
+                mainViewModel.addUpiLiteSummary(summary)
             }
         )
         val filter = IntentFilter("android.provider.Telephony.SMS_RECEIVED")
@@ -67,7 +68,8 @@ class MainActivity : ComponentActivity() {
                         } else {
                             requestPermission.launch(Manifest.permission.READ_SMS)
                         }
-                    }
+                    },
+                    mainViewModel = mainViewModel // <-- pass the instance!
                 )
             }
         }
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     // Try UPI Lite summary
                     val liteSummary = parseUpiLiteSummarySms(body)
                     if (liteSummary != null) {
+                        mainViewModel.addUpiLiteSummary(liteSummary) // <-- store in ViewModel for tab!
                         lastLiteSummary = liteSummary
                         liteSummaryCount++
                     }

@@ -10,7 +10,7 @@ import com.example.upitracker.viewmodel.MainViewModel
 @Composable
 fun MainNavHost(
     mainViewModel: MainViewModel = viewModel(),
-    onImportOldSms: () -> Unit
+    onImportOldSms: () -> Unit    // <-- Must be present!
 ) {
     val navController = rememberNavController()
     NavHost(
@@ -21,7 +21,7 @@ fun MainNavHost(
             HomeScreen(
                 onNavigateToDetail = { /* Add logic here */ },
                 onNavigateToSettings = { navController.navigate("settings") },
-                onImportOldSms = onImportOldSms,
+               // onImportOldSms = onImportOldSms,
                 mainViewModel = mainViewModel
             )
         }
@@ -29,7 +29,8 @@ fun MainNavHost(
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 mainViewModel = mainViewModel,
-                onEditRegex = { navController.navigate("regexEditor") } // <-- This line!
+                onImportOldSms = onImportOldSms,       // <-- This is important!
+                onEditRegex = { navController.navigate("regexEditor") }
             )
         }
         composable("regexEditor") {
@@ -37,4 +38,3 @@ fun MainNavHost(
         }
     }
 }
-

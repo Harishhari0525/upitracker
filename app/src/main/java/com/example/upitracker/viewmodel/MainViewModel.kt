@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
+import com.example.upitracker.data.UpiLiteSummary
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import com.example.upitracker.util.ThemePreference
 
@@ -16,6 +16,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val transactions = dao.getAllTransactions().stateIn(
         viewModelScope, SharingStarted.Eagerly, emptyList()
     )
+
+    // In-memory list for UPI Lite summaries
+    private val _upiLiteSummaries = MutableStateFlow<List<UpiLiteSummary>>(emptyList())
+    val upiLiteSummaries: StateFlow<List<UpiLiteSummary>> = _upiLiteSummaries
+
+    // To add summaries when parsing SMS
+    fun addUpiLiteSummary(summary: UpiLiteSummary) {
+        _upiLiteSummaries.value = _upiLiteSummaries.value + summary
+    }
+
+    // (Optional) clear summaries
+    fun clearUpiLiteSummaries() {
+        _upiLiteSummaries.value = emptyList()
+    }
+
     val isDarkMode = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
@@ -27,11 +42,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun insertTransaction(transaction: Transaction) = viewModelScope.launch {
         dao.insert(transaction)
     }
-
     fun deleteTransaction(transaction: Transaction) = viewModelScope.launch {
         dao.delete(transaction)
     }
-
     fun deleteAllTransactions() = viewModelScope.launch {
         dao.deleteAll()
     }

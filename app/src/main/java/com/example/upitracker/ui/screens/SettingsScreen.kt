@@ -14,6 +14,7 @@ import com.example.upitracker.viewmodel.MainViewModel
 fun SettingsScreen(
     onBack: () -> Unit,
     mainViewModel: MainViewModel,
+    onImportOldSms: () -> Unit,
     onEditRegex: () -> Unit   // <-- NEW PARAM
 ) {
     Scaffold(
@@ -36,7 +37,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("App Preferences", style = MaterialTheme.typography.titleMedium)
-            Divider()
+            HorizontalDivider()
 
             // Dark mode toggle (for demonstration)
             var isDark by remember { mutableStateOf(false) }
@@ -52,7 +53,7 @@ fun SettingsScreen(
             }
 
             // PIN/Biometric setup (placeholder)
-            var isPinSet by remember { mutableStateOf(false) }
+            val isPinSet by remember { mutableStateOf(false) }
             Button(onClick = { /* Launch PIN set screen */ }) {
                 Text(if (isPinSet) "Change PIN" else "Set PIN")
             }
@@ -66,7 +67,9 @@ fun SettingsScreen(
             Button(onClick = { /* Implement CSV Export */ }) {
                 Text("Export Transactions to CSV")
             }
-
+            Button(onClick = onImportOldSms) {
+                Text("Import Old UPI SMS")
+            }
             // Danger zone: delete all transactions
             OutlinedButton(
                 onClick = { mainViewModel.deleteAllTransactions() },

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.telephony.SmsMessage
 import com.example.upitracker.data.Transaction
+import com.example.upitracker.data.UpiLiteSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,9 +14,8 @@ import android.util.Log
 
 class SmsReceiver(
     private val onTransactionParsed: (Transaction) -> Unit,
-    private val onUpiLiteSummary: ((summary: String) -> Unit)? = null
+    private val onUpiLiteSummary: ((UpiLiteSummary) -> Unit)? = null  // Update type!
 ) : BroadcastReceiver() {
-
     override fun onReceive(context: Context, intent: Intent) {
         val bundle = intent.extras ?: return
         val pdus = bundle.get("pdus") as? Array<*>
@@ -28,12 +28,9 @@ class SmsReceiver(
                 val sender = sms.originatingAddress.orEmpty()
                 val smsTimestamp = sms.timestampMillis
 
-                // Try parsing as summary
                 val summary = parseUpiLiteSummarySms(body)
                 if (summary != null) {
-                    onUpiLiteSummary?.invoke(
-                        "UPI Lite Summary: ${summary.transactionCount} transactions, Rs. ${summary.totalAmount}, Date: ${summary.date}, Bank: ${summary.bank}"
-                    )
+                    onUpiLiteSummary?.invoke(summary) // Pass summary object!
                     Log.d("UPI_LITE_SUMMARY", summary.toString())
                     return@forEach
                 }
@@ -48,7 +45,6 @@ class SmsReceiver(
         }
     }
 
-    // Helper function: avoid deprecated warnings in main logic
     private fun createSmsMessageFromPdu(pdu: Any?, format: String?): SmsMessage? {
         return try {
             if (pdu is ByteArray) {
