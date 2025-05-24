@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -10,15 +11,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 
+@SuppressLint("MutableCollectionMutableState")
 @Composable
 fun RegexEditorScreen(
     currentRegex: List<String>,
     onSave: (List<String>) -> Unit,
     onBack: () -> Unit
 ) {
-    var regexes by remember { mutableStateOf(currentRegex.toMutableList()) }
+    val regexes by remember { mutableStateOf(currentRegex.toMutableList()) }
     var newRegex by remember { mutableStateOf("") }
 
     Scaffold(
@@ -27,7 +30,7 @@ fun RegexEditorScreen(
                 title = { Text("Edit UPI Regex") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -53,7 +56,7 @@ fun RegexEditorScreen(
                         Icon(Icons.Filled.Delete, contentDescription = "Remove")
                     }
                 }
-                Divider()
+                HorizontalDivider()
             }
             OutlinedTextField(
                 value = newRegex,

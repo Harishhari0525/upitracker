@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.core.net.toUri
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.sms.SmsReceiver
@@ -18,16 +19,14 @@ import com.example.upitracker.sms.parseUpiLiteSummarySms
 import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.util.Theme
-import kotlinx.coroutines.launch
-import androidx.core.net.toUri
 import com.example.upitracker.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
 
-    // Permission launcher for READ_SMS
     private val requestPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (!isGranted) {
@@ -40,7 +39,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Setup Room DB and DAO
         val db = AppDatabase.getDatabase(this)
         val dao = db.transactionDao()
 
@@ -49,9 +47,13 @@ class MainActivity : ComponentActivity() {
                 lifecycleScope.launch { dao.insert(transaction) }
             },
             onUpiLiteSummary = { summary ->
+                lifecycleScope.launch {
+                    db.upiLiteSummaryDao().insert(summary)
+                }
                 mainViewModel.addUpiLiteSummary(summary)
             }
         )
+
         val filter = IntentFilter("android.provider.Telephony.SMS_RECEIVED")
         registerReceiver(smsReceiver, filter)
 
@@ -69,17 +71,17 @@ class MainActivity : ComponentActivity() {
                             requestPermission.launch(Manifest.permission.READ_SMS)
                         }
                     },
-                    mainViewModel = mainViewModel // <-- pass the instance!
+                    mainViewModel = mainViewModel
                 )
             }
         }
     }
 
-    // Reads, parses, and imports all old SMS from inbox (both UPI transactions & UPI Lite summaries)
     private fun importOldUpiSms() {
         val smsList = getAllSms()
         val db = AppDatabase.getDatabase(this)
         val dao = db.transactionDao()
+        val liteDao = db.upiLiteSummaryDao()
         lifecycleScope.launch {
             var txnCount = 0
             var liteSummaryCount = 0
@@ -90,19 +92,19 @@ class MainActivity : ComponentActivity() {
                     dao.insert(transaction)
                     txnCount++
                 } else {
-                    // Try UPI Lite summary
                     val liteSummary = parseUpiLiteSummarySms(body)
                     if (liteSummary != null) {
-                        mainViewModel.addUpiLiteSummary(liteSummary) // <-- store in ViewModel for tab!
-                        lastLiteSummary = liteSummary
                         liteSummaryCount++
+                        lastLiteSummary = liteSummary
+                        liteDao.insert(liteSummary)
+                        mainViewModel.addUpiLiteSummary(liteSummary)
                     }
                 }
             }
             runOnUiThread {
-                val liteMsg = if (lastLiteSummary != null) {
-                    "\nLast UPI Lite: ${lastLiteSummary!!.transactionCount} transactions, ₹${lastLiteSummary!!.totalAmount} on ${lastLiteSummary!!.date}"
-                } else ""
+                val liteMsg = lastLiteSummary?.let {
+                    "\nLast UPI Lite: ${it.transactionCount} transactions, ₹${it.totalAmount} on ${it.date}"
+                } ?: ""
                 Toast.makeText(
                     this@MainActivity,
                     "Imported $txnCount UPI SMS!\nFound $liteSummaryCount UPI Lite summaries.$liteMsg",
@@ -112,7 +114,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Reads all SMS from inbox as (sender, body, date)
     private fun getAllSms(): List<Triple<String, String, Long>> {
         val smsList = mutableListOf<Triple<String, String, Long>>()
         val uriSms = "content://sms/inbox".toUri()

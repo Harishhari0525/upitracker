@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.example.upitracker.util.ThemePreference
 
@@ -16,21 +19,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val transactions = dao.getAllTransactions().stateIn(
         viewModelScope, SharingStarted.Eagerly, emptyList()
     )
-
-    // In-memory list for UPI Lite summaries
+    // UPI Lite Summaries (in-memory + observe DB)
     private val _upiLiteSummaries = MutableStateFlow<List<UpiLiteSummary>>(emptyList())
     val upiLiteSummaries: StateFlow<List<UpiLiteSummary>> = _upiLiteSummaries
 
-    // To add summaries when parsing SMS
+    init {
+        // Load existing UPI Lite summaries from DB on init
+        viewModelScope.launch {
+            db.upiLiteSummaryDao().getAllSummaries().collect { liteList ->
+                _upiLiteSummaries.value = liteList
+            }
+        }
+    }
+
     fun addUpiLiteSummary(summary: UpiLiteSummary) {
-        _upiLiteSummaries.value = _upiLiteSummaries.value + summary
+        // This is called when a new summary is inserted via MainActivity
+        val current = _upiLiteSummaries.value.toMutableList()
+        // Add or update if same date (or define your deduplication)
+        current.add(0, summary) // latest at top
+        _upiLiteSummaries.value = current
     }
 
-    // (Optional) clear summaries
-    fun clearUpiLiteSummaries() {
-        _upiLiteSummaries.value = emptyList()
-    }
-
+    // Theme Preference
     val isDarkMode = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
@@ -39,12 +49,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ThemePreference.setDarkMode(getApplication(), enabled)
         }
     }
+
     fun insertTransaction(transaction: Transaction) = viewModelScope.launch {
         dao.insert(transaction)
     }
+
     fun deleteTransaction(transaction: Transaction) = viewModelScope.launch {
         dao.delete(transaction)
     }
+
     fun deleteAllTransactions() = viewModelScope.launch {
         dao.deleteAll()
     }
