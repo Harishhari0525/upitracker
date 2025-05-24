@@ -20,7 +20,9 @@ import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.util.Theme
 import com.example.upitracker.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -41,6 +43,7 @@ class MainActivity : ComponentActivity() {
 
         val db = AppDatabase.getDatabase(this)
         val dao = db.transactionDao()
+        val liteDao = db.upiLiteSummaryDao()
 
         smsReceiver = SmsReceiver(
             onTransactionParsed = { transaction ->
@@ -48,9 +51,13 @@ class MainActivity : ComponentActivity() {
             },
             onUpiLiteSummary = { summary ->
                 lifecycleScope.launch {
-                    db.upiLiteSummaryDao().insert(summary)
+                    // Avoid duplicates at runtime as well
+                    val exists = liteDao.getSummaryByDateAndBank(summary.date, summary.bank)
+                    if (exists == null) {
+                        liteDao.insert(summary)
+                        mainViewModel.addUpiLiteSummary(summary)
+                    }
                 }
-                mainViewModel.addUpiLiteSummary(summary)
             }
         )
 
@@ -77,16 +84,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Now prevents UPI Lite duplicates by date & bank!
     private fun importOldUpiSms() {
-        val smsList = getAllSms()
         val db = AppDatabase.getDatabase(this)
         val dao = db.transactionDao()
         val liteDao = db.upiLiteSummaryDao()
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val smsList = getAllSms()
             var txnCount = 0
             var liteSummaryCount = 0
             var lastLiteSummary: UpiLiteSummary? = null
-            smsList.forEach { (sender, body, smsDate) ->
+            for ((sender, body, smsDate) in smsList) {
                 val transaction = parseUpiSms(body, sender, smsDate)
                 if (transaction != null) {
                     dao.insert(transaction)
@@ -94,27 +102,31 @@ class MainActivity : ComponentActivity() {
                 } else {
                     val liteSummary = parseUpiLiteSummarySms(body)
                     if (liteSummary != null) {
-                        liteSummaryCount++
-                        lastLiteSummary = liteSummary
-                        liteDao.insert(liteSummary)
-                        mainViewModel.addUpiLiteSummary(liteSummary)
+                        // Check for duplicate before inserting
+                        val exists = liteDao.getSummaryByDateAndBank(liteSummary.date, liteSummary.bank)
+                        if (exists == null) {
+                            liteDao.insert(liteSummary)
+                            mainViewModel.addUpiLiteSummary(liteSummary)
+                            liteSummaryCount++
+                            lastLiteSummary = liteSummary
+                        }
                     }
                 }
             }
-            runOnUiThread {
+            withContext(Dispatchers.Main) {
                 val liteMsg = lastLiteSummary?.let {
                     "\nLast UPI Lite: ${it.transactionCount} transactions, ₹${it.totalAmount} on ${it.date}"
                 } ?: ""
                 Toast.makeText(
                     this@MainActivity,
-                    "Imported $txnCount UPI SMS!\nFound $liteSummaryCount UPI Lite summaries.$liteMsg",
+                    "Imported $txnCount UPI SMS!\nFound $liteSummaryCount new UPI Lite summaries.$liteMsg",
                     Toast.LENGTH_LONG
                 ).show()
             }
         }
     }
 
-    private fun getAllSms(): List<Triple<String, String, Long>> {
+    private suspend fun getAllSms(): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
         val smsList = mutableListOf<Triple<String, String, Long>>()
         val uriSms = "content://sms/inbox".toUri()
         val cursor = contentResolver.query(
@@ -132,7 +144,7 @@ class MainActivity : ComponentActivity() {
                 smsList.add(Triple(address, body, date))
             }
         }
-        return smsList
+        smsList
     }
 
     override fun onDestroy() {

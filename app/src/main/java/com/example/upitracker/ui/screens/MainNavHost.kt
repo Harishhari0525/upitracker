@@ -7,10 +7,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.viewmodel.MainViewModel
 
+
 @Composable
 fun MainNavHost(
     mainViewModel: MainViewModel = viewModel(),
-    onImportOldSms: () -> Unit    // <-- Must be present!
+    onImportOldSms: () -> Unit,
+
 ) {
     val navController = rememberNavController()
     NavHost(
@@ -18,18 +20,13 @@ fun MainNavHost(
         startDestination = "home"
     ) {
         composable("home") {
-            HomeScreen(
-                onNavigateToDetail = { /* Add logic here */ },
-                onNavigateToSettings = { navController.navigate("settings") },
-               // onImportOldSms = onImportOldSms,
-                mainViewModel = mainViewModel
-            )
+            TabbedHomeScreen(mainViewModel = mainViewModel, navController = navController)
         }
         composable("settings") {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 mainViewModel = mainViewModel,
-                onImportOldSms = onImportOldSms,       // <-- This is important!
+                onImportOldSms = onImportOldSms,
                 onEditRegex = { navController.navigate("regexEditor") }
             )
         }

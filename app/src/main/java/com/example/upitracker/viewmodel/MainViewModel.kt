@@ -61,4 +61,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAllTransactions() = viewModelScope.launch {
         dao.deleteAll()
     }
+    fun deleteAllUpiLiteSummaries() = viewModelScope.launch {
+        db.upiLiteSummaryDao().deleteAll()
+        _upiLiteSummaries.value = emptyList() // if you use StateFlow/MutableStateFlow for UPI Lite
+    }
+
 }

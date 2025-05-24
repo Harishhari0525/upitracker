@@ -72,10 +72,13 @@ fun SettingsScreen(
             }
             // Danger zone: delete all transactions
             OutlinedButton(
-                onClick = { mainViewModel.deleteAllTransactions() },
+                onClick = {
+                    mainViewModel.deleteAllTransactions()
+                    mainViewModel.deleteAllUpiLiteSummaries()
+                },
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("Delete All Transactions")
+                Text("Delete All (UPI + UPI Lite)")
             }
         }
     }
