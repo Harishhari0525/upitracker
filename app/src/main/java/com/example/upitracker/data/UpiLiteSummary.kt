@@ -8,6 +8,6 @@ data class UpiLiteSummary(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val transactionCount: Int,
     val totalAmount: Double,
-    val date: String,     // Store as ISO string, or as Long if you prefer
+    val date: Long,     // ✨ Changed to Long (timestamp for the start of the day)
     val bank: String
 )
