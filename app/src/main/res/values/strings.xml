@@ -122,7 +122,15 @@
     <string name="pin_lock_forgot_change_pin_button">Forgot or Change PIN?</string>
     <string name="pin_lock_set_initial_pin_button">Set Initial PIN</string>
     <string name="empty_state_no_upi_transactions_history_filtered">No UPI transactions match the current filter.</string>
+    <string name="history_filter_date_range_desc">Filter by date range</string>
+    <string name="history_filter_start_date_label">Start Date</string>
+    <string name="history_filter_end_date_label">End Date</string>
+    <string name="history_filter_clear_dates_desc">Clear date filter</string>
+    <string name="empty_state_no_upi_lite_summaries_history_filtered">No UPI Lite summaries match the current filter.</string>
+    <string name="filter_chip_selected_desc">Selected</string>
+    <string name="graph_monthly_expenses_subtitle_empty">Monthly Debit Totals</string>
 
+    <string name="dialog_button_ok">OK</string>
     <string name="filter_type_all">All</string>
     <string name="filter_type_debit">Debit</string>
     <string name="filter_type_credit">Credit</string>

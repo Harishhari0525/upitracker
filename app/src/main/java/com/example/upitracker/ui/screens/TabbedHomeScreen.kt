@@ -24,7 +24,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState // ✨ CRUCIAL IMPORT for collectAsState
 import androidx.compose.runtime.getValue // ✨ CRUCIAL IMPORT for 'by' delegate with State
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +38,6 @@ import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.MainViewModel // Ensure this is correctly imported
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.StateFlow // Ensure StateFlow is imported if directly referencing its type
 
 @Composable
 fun TabbedHomeScreen(
@@ -56,7 +54,7 @@ fun TabbedHomeScreen(
     // Ensure MainViewModel.upiLiteSummaries is public and a StateFlow<List<UpiLiteSummary>>
     // Ensure MainViewModel.isImportingSms is public and a StateFlow<Boolean>
     val upiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
-    val liteSummaries: List<UpiLiteSummary> by mainViewModel.upiLiteSummaries.collectAsState()
+    val liteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState() // ✨ Use filteredUpiLiteSummaries ✨
     val isImporting: Boolean by mainViewModel.isImportingSms.collectAsState()
 
     val pagerState = rememberPagerState { tabTitles.size }
