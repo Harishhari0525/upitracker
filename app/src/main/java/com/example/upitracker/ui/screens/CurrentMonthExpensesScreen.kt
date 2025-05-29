@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
+import com.example.upitracker.ui.components.EditCategoryDialog
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -11,22 +12,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource // ✨ Import stringResource ✨
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.R // ✨ Import your app's R class ✨
+import androidx.navigation.NavController // ✨ Import NavController for navigation
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.TransactionCard
+// import com.example.upitracker.ui.screens.BottomNavItem // ✨ Import for route
 import com.example.upitracker.viewmodel.MainViewModel
 import java.text.NumberFormat
+import java.util.Calendar // ✨ Import Calendar
 import java.util.Locale
+
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun CurrentMonthExpensesScreen(
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
+    navController: NavController, // ✨ Add NavController parameter from MainAppScreen ✨
     modifier: Modifier = Modifier
 ) {
     val isImporting by mainViewModel.isImportingSms.collectAsState()
@@ -40,13 +47,22 @@ fun CurrentMonthExpensesScreen(
 
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
+    // --- State for Category Edit Dialog ---
+    var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
+    var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    val openCategoryEditDialog = { transaction: Transaction ->
+        transactionToEditCategory = transaction
+        showCategoryEditDialog = true
+    }
+
     Box(modifier = modifier.fillMaxSize().pullRefresh(pullRefreshState)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Summary Card for Total Expenses
+            // Summary Card for Total Expenses (as before)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -59,7 +75,7 @@ fun CurrentMonthExpensesScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        stringResource(R.string.home_current_month_expenses_title), // ✨
+                        stringResource(R.string.home_current_month_expenses_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -75,20 +91,18 @@ fun CurrentMonthExpensesScreen(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                stringResource(R.string.home_recent_expenses_title), // ✨
+                stringResource(R.string.home_recent_expenses_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
             if (currentMonthTransactions.isEmpty() && !isImporting) {
-                // This Box is different from the EmptyStateView used in TabbedHomeScreen for list content.
-                // You can choose to use your generic EmptyStateView here too if you prefer.
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(), // Takes remaining space
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        stringResource(R.string.home_no_expenses_this_month), // ✨
+                        stringResource(R.string.home_no_expenses_this_month),
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -96,22 +110,48 @@ fun CurrentMonthExpensesScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f), // Takes remaining space
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
-                    // No contentPadding here if the outer Column already has padding for the whole screen
                 ) {
                     items(currentMonthTransactions.take(10), key = { "current-month-txn-${it.id}" }) { transaction ->
-                        TransactionCard(transaction = transaction)
+                        TransactionCard(
+                            transaction = transaction,
+                            onClick = { openCategoryEditDialog(transaction) }
+                        )
                     }
                     if (currentMonthTransactions.size > 10) {
                         item {
                             TextButton(
-                                onClick = { /* TODO: Navigate to full history, filtered to current month */
-                                    mainViewModel.postSnackbarMessage("Navigation to full current month history: TBD")
+                                onClick = {
+                                    // ✨ Set date filter to current month and navigate to History screen ✨
+                                    val calendar = Calendar.getInstance()
+                                    // Start of current month
+                                    calendar.set(Calendar.DAY_OF_MONTH, 1)
+                                    calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+                                    val monthStartTimestamp = calendar.timeInMillis
+
+                                    // End of current month
+                                    calendar.add(Calendar.MONTH, 1)
+                                    calendar.add(Calendar.MILLISECOND, -1)
+                                    val monthEndTimestamp = calendar.timeInMillis
+
+                                    mainViewModel.setDateRangeFilter(monthStartTimestamp, monthEndTimestamp)
+                                    // Also ensure UPI type filter is set to ALL or DEBIT as desired for this view
+                                    mainViewModel.setUpiTransactionTypeFilter(com.example.upitracker.viewmodel.UpiTransactionTypeFilter.DEBIT) // Assuming we want to see DEBITs
+                                    navController.navigate(BottomNavItem.History.route) {
+                                        // Optional: Pop up to the start destination of the graph to avoid building up a large back stack
+                                        // This depends on your NavController structure (rootNavController vs contentNavController)
+                                        // If 'navController' here is the contentNavController from MainAppScreen:
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true // Save state of the home screen
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true // Restore state if coming back
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(stringResource(R.string.home_view_all_this_month_button, currentMonthTransactions.size)) // ✨
+                                Text(stringResource(R.string.home_view_all_this_month_button, currentMonthTransactions.size))
                             }
                         }
                     }
@@ -126,5 +166,20 @@ fun CurrentMonthExpensesScreen(
             backgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
             contentColor = MaterialTheme.colorScheme.primary
         )
+
+        if (showCategoryEditDialog && transactionToEditCategory != null) {
+            EditCategoryDialog( // Ensure this composable is accessible (defined or imported)
+                transaction = transactionToEditCategory!!,
+                onDismiss = {
+                    showCategoryEditDialog = false
+                    transactionToEditCategory = null
+                },
+                onSaveCategory = { transactionId, newCategory ->
+                    mainViewModel.updateTransactionCategory(transactionId, newCategory)
+                    showCategoryEditDialog = false
+                    transactionToEditCategory = null
+                }
+            )
+        }
     }
 }

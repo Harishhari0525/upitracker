@@ -129,10 +129,36 @@
     <string name="empty_state_no_upi_lite_summaries_history_filtered">No UPI Lite summaries match the current filter.</string>
     <string name="filter_chip_selected_desc">Selected</string>
     <string name="graph_monthly_expenses_subtitle_empty">Monthly Debit Totals</string>
+    <string name="category_removed_success">Category removed</string>
+    <string name="category_updated_success">Category updated to \'%1$s\'</string>
+    <string name="transaction_card_category_label">Category: %1$s</string>
+    <string name="edit_category_dialog_title">Edit Transaction Category</string>
+    <string name="set_category_dialog_title">Set Transaction Category</string>
+    <string name="category_label">Category</string>
+    <string name="category_textfield_placeholder">E.g., Food, Travel, Bills</string>
+    <string name="button_save">Save</string>
+    <string name="category_edit_icon_desc">Edit Category</string>
+    <string name="graph_tab_daily_trend">Daily Trend</string>
+    <string name="graph_tab_monthly_summary">Monthly Summary</string>
+    <string name="settings_export_csv_in_progress">Exporting in progress…</string>
+    <string name="csv_export_cancelled">CSV export cancelled.</string>
+    <string name="csv_export_no_transactions">No transactions to export.</string>
+    <string name="csv_export_success">Transactions exported successfully to CSV.</string>
+    <string name="csv_export_error">Error exporting CSV: %1$s</string>
+    <string name="csv_export_error_unexpected">An unexpected error occurred during CSV export.</string>
+    <string name="graph_tab_category_pie">By Category</string>
+    <string name="graph_category_pie_title">Spending by Category</string>
+    <string name="graph_category_pie_no_data">No categorized expenses found for the selected period, or no categories assigned yet.</string>
+    <string name="graph_pie_chart_no_data">No categorized expenses to display for the selected period.</string>
+    <string name="graph_legend_title">Categories</string>
 
     <string name="dialog_button_ok">OK</string>
     <string name="filter_type_all">All</string>
     <string name="filter_type_debit">Debit</string>
     <string name="filter_type_credit">Credit</string>
+    <string name="graph_daily_trend_title">Daily Expense Trend (Last 30 Days)</string>
+    <string name="graph_daily_trend_no_data">No daily expense data available for the period.</string>
+    <string name="graph_line_chart_no_data">No data to display line chart.</string>
+
 
 </resources>

@@ -9,11 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Clear // For clearing date filter
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.* // For Edit, Clear, DateRange, Check, etc.
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -24,6 +20,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.upitracker.R
+import com.example.upitracker.data.Transaction
+import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.MainViewModel
@@ -33,7 +31,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone // For UTC DatePicker
+import java.util.TimeZone
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue // For 'by' delegation
+import com.example.upitracker.ui.components.EditCategoryDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,53 +52,44 @@ fun TransactionHistoryScreen(
     val pagerState = rememberPagerState { tabTitles.size }
     val coroutineScope = rememberCoroutineScope()
 
-    // Collect filtered lists and filter states from ViewModel
+    // Collect Filter States from ViewModel
     val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
     val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
-
-    val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState() // ✨ Use new filtered list
+    // val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
+    // Around line 59 (or where you define it)
+    val filteredUpiLiteSummaries: List<UpiLiteSummary> by mainViewModel.filteredUpiLiteSummaries.collectAsState()
     val selectedStartDate by mainViewModel.selectedDateRangeStart.collectAsState()
     val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState()
 
-    // DatePickerDialog states
+    // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
-    val datePickerStateStart = rememberDatePickerState()
-    val datePickerStateEnd = rememberDatePickerState()
+    val datePickerStateStart = rememberDatePickerState(initialSelectedDateMillis = selectedStartDate)
+    val datePickerStateEnd = rememberDatePickerState(initialSelectedDateMillis = selectedEndDate)
 
-    // Date formatter for displaying selected dates
-    val displayDateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    LaunchedEffect(selectedStartDate) { datePickerStateStart.selectedDateMillis = selectedStartDate }
+    LaunchedEffect(selectedEndDate) { datePickerStateEnd.selectedDateMillis = selectedEndDate }
+
+    // ✨ --- State and Lambda for Category Edit Dialog - DEFINED HERE AT THE SCREEN LEVEL --- ✨
+    var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
+    var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    val openCategoryEditDialog = { transaction: Transaction ->
+        transactionToEditCategory = transaction
+        showCategoryEditDialog = true
+    }
+    // ✨ --- End of Category Edit Dialog State and Lambda --- ✨
 
     Column(modifier = modifier.fillMaxSize()) {
-        // --- Date Range Filter UI ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.history_filter_date_range_desc)) // ✨ New String
-                Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { showStartDatePicker = true }) {
-                    Text(selectedStartDate?.let { displayDateFormat.format(Date(it)) } ?: stringResource(R.string.history_filter_start_date_label)) // ✨ New String
-                }
-                Text(" - ", modifier = Modifier.padding(horizontal = 4.dp))
-                TextButton(onClick = { showEndDatePicker = true }) {
-                    Text(selectedEndDate?.let { displayDateFormat.format(Date(it)) } ?: stringResource(R.string.history_filter_end_date_label)) // ✨ New String
-                }
-            }
-            if (selectedStartDate != null || selectedEndDate != null) {
-                IconButton(onClick = { mainViewModel.clearDateRangeFilter() }) {
-                    Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.history_filter_clear_dates_desc)) // ✨ New String
-                }
-            }
-        }
+        DateFilterControls(
+            selectedStartDate = selectedStartDate,
+            selectedEndDate = selectedEndDate,
+            onStartDateClick = { showStartDatePicker = true },
+            onEndDateClick = { showEndDatePicker = true },
+            onClearDates = { mainViewModel.clearDateRangeFilter() }
+        )
         HorizontalDivider()
 
-
-        // --- Tabs ---
         TabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
@@ -131,14 +123,13 @@ fun TransactionHistoryScreen(
             when (pageIndex) {
                 0 -> { // UPI Transactions Tab
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // Type FilterChips
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp), // Reduced bottom padding
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            UpiTransactionTypeFilter.values().forEach { filterType ->
+                            UpiTransactionTypeFilter.entries.forEach { filterType ->
                                 FilterChip(
                                     selected = selectedUpiFilterType == filterType,
                                     onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
@@ -147,7 +138,7 @@ fun TransactionHistoryScreen(
                                             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() })
                                     },
                                     leadingIcon = if (selectedUpiFilterType == filterType) {
-                                        { Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.filter_chip_selected_desc)) } // ✨ New String
+                                        { Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.filter_chip_selected_desc)) }
                                     } else null
                                 )
                             }
@@ -158,27 +149,29 @@ fun TransactionHistoryScreen(
                         } else {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp), // Added top padding
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
-                                    TransactionCard(transaction = transaction)
+                                    TransactionCard(
+                                        transaction = transaction,
+                                        onClick = { openCategoryEditDialog(transaction) } // ✨ USING the lambda here ✨
+                                    )
                                 }
                             }
                         }
                     }
                 }
                 1 -> { // UPI Lite Summaries Tab
-                    // UPI Lite summaries will be filtered by date range from ViewModel
-                    if (filteredUpiLiteSummaries.isEmpty()) { // ✨ Use filtered list
-                        EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered)) // ✨ New String
+                    if (filteredUpiLiteSummaries.isEmpty()) {
+                        EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(all = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary -> // ✨ Use filtered list
+                            items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
                                 UpiLiteSummaryCard(summary = summary)
                             }
                         }
@@ -186,6 +179,22 @@ fun TransactionHistoryScreen(
                 }
             }
         }
+    }
+
+    // --- Category Edit Dialog Invocation - Placed within the scope of TransactionHistoryScreen ---
+    if (showCategoryEditDialog && transactionToEditCategory != null) {
+        EditCategoryDialog(
+            transaction = transactionToEditCategory!!,
+            onDismiss = {
+                showCategoryEditDialog = false
+                transactionToEditCategory = null
+            },
+            onSaveCategory = { transactionId, newCategory ->
+                mainViewModel.updateTransactionCategory(transactionId, newCategory)
+                showCategoryEditDialog = false
+                transactionToEditCategory = null
+            }
+        )
     }
 
     // --- DatePicker Dialogs ---
@@ -196,16 +205,13 @@ fun TransactionHistoryScreen(
                 TextButton(onClick = {
                     showStartDatePicker = false
                     datePickerStateStart.selectedDateMillis?.let {
-                        // Ensure start date is start of day in UTC for consistent filtering
                         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                         cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 0)
-                        cal.set(Calendar.MINUTE, 0)
-                        cal.set(Calendar.SECOND, 0)
-                        cal.set(Calendar.MILLISECOND, 0)
+                        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+                        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
                         mainViewModel.setDateRangeFilter(cal.timeInMillis, selectedEndDate)
                     }
-                }) { Text(stringResource(R.string.dialog_button_ok)) } // ✨ New String
+                }) { Text(stringResource(R.string.dialog_button_ok)) }
             },
             dismissButton = {
                 TextButton(onClick = { showStartDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
@@ -222,13 +228,10 @@ fun TransactionHistoryScreen(
                 TextButton(onClick = {
                     showEndDatePicker = false
                     datePickerStateEnd.selectedDateMillis?.let {
-                        // Ensure end date is end of day in UTC for inclusive filtering
                         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                         cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 23)
-                        cal.set(Calendar.MINUTE, 59)
-                        cal.set(Calendar.SECOND, 59)
-                        cal.set(Calendar.MILLISECOND, 999)
+                        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                        cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
                         mainViewModel.setDateRangeFilter(selectedStartDate, cal.timeInMillis)
                     }
                 }) { Text(stringResource(R.string.dialog_button_ok)) }
@@ -242,7 +245,63 @@ fun TransactionHistoryScreen(
     }
 }
 
-// EmptyStateHistoryView (as defined before)
+// --- Helper Composables for TransactionHistoryScreen ---
+
+@Composable
+fun DateFilterControls(
+    selectedStartDate: Long?,
+    selectedEndDate: Long?,
+    onStartDateClick: () -> Unit,
+    onEndDateClick: () -> Unit,
+    onClearDates: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val displayDateFormat = remember { SimpleDateFormat("dd MMM yy", Locale.getDefault()) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.DateRange,
+                contentDescription = stringResource(R.string.history_filter_date_range_desc),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = onStartDateClick) {
+                Text(
+                    selectedStartDate?.let { displayDateFormat.format(Date(it)) }
+                        ?: stringResource(R.string.history_filter_start_date_label)
+                )
+            }
+            Text(" - ", modifier = Modifier.padding(horizontal = 4.dp))
+            TextButton(onClick = onEndDateClick) {
+                Text(
+                    selectedEndDate?.let { displayDateFormat.format(Date(it)) }
+                        ?: stringResource(R.string.history_filter_end_date_label)
+                )
+            }
+        }
+        if (selectedStartDate != null || selectedEndDate != null) {
+            IconButton(onClick = onClearDates) {
+                Icon(
+                    Icons.Filled.Clear,
+                    contentDescription = stringResource(R.string.history_filter_clear_dates_desc),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            Spacer(Modifier.width(48.dp)) // Placeholder for consistent height
+        }
+    }
+}
+
 @Composable
 fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
     Box(

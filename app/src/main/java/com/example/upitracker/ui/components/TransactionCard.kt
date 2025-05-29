@@ -12,11 +12,15 @@ import com.example.upitracker.data.Transaction // Ensure this path is correct
 import java.text.SimpleDateFormat
 import java.util.*
 import java.text.ParseException
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.stringResource // ✨ Ensure this is imported
+import com.example.upitracker.R
 
 @Composable
 fun TransactionCard(
     modifier: Modifier = Modifier,
-    transaction: Transaction
+    transaction: Transaction,
+    onClick: (Transaction) -> Unit
 ) {
     val displayDate = remember(transaction.date) {
         try {
@@ -33,7 +37,10 @@ fun TransactionCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth()
+            .clickable{
+                onClick(transaction)
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp), // Subtle elevation
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
@@ -67,20 +74,38 @@ fun TransactionCard(
             Text(
                 text = transaction.description.trim(),
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2, // Keep it concise
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant // Less emphasis than primary details
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            if (transaction.senderOrReceiver.isNotBlank()) {
+            // Display category if it exists
+            transaction.category?.let { categoryValue ->
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = transaction.senderOrReceiver.trim(), // Consider a prefix like "To/From:"
+                    text = stringResource(R.string.transaction_card_category_label, categoryValue),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline, // Subtler detail
+                    color = MaterialTheme.colorScheme.secondary, // Use a distinct color for category
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+
+
+            if (transaction.senderOrReceiver.isNotBlank()) {
+                Spacer(Modifier.height(if (transaction.category == null) 8.dp else 4.dp)) // Adjust spacing based on category presence
+                Text(
+                    text = transaction.senderOrReceiver.trim(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                // Add spacer if category is present but sender/receiver is not, to maintain date position
+                if (transaction.category != null) {
+                    Spacer(Modifier.height(4.dp))
+                }
             }
 
             Spacer(Modifier.height(8.dp))

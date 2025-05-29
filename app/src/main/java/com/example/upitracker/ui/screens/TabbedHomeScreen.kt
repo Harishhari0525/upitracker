@@ -14,17 +14,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.* // Added Edit for dialog icon
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState // ✨ CRUCIAL IMPORT for collectAsState
-import androidx.compose.runtime.getValue // ✨ CRUCIAL IMPORT for 'by' delegate with State
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,26 +31,25 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
-import com.example.upitracker.viewmodel.MainViewModel // Ensure this is correctly imported
+// ✨ Import EditCategoryDialog if it's in a separate file ✨
+// import com.example.upitracker.ui.components.EditCategoryDialog
+import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
 @Composable
-fun TabbedHomeScreen(
+fun TabbedHomeScreen( // This screen might be your "History" tab's content now, or a standalone screen
     mainViewModel: MainViewModel,
-    navController: NavController,
+    navController: NavController, // This could be contentNavController or rootNavController depending on context
     onImportOldSms: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tabTitles = listOf(stringResource(R.string.tab_upi), stringResource(R.string.tab_upi_lite))
     val tabIcons = listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize)
 
-    // Line 49 and similar:
-    // Ensure MainViewModel.transactions is public and a StateFlow<List<Transaction>>
-    // Ensure MainViewModel.upiLiteSummaries is public and a StateFlow<List<UpiLiteSummary>>
-    // Ensure MainViewModel.isImportingSms is public and a StateFlow<Boolean>
+    // Using filteredUpiTransactions and filteredUpiLiteSummaries for consistency with History screen
     val upiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
-    val liteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState() // ✨ Use filteredUpiLiteSummaries ✨
-    val isImporting: Boolean by mainViewModel.isImportingSms.collectAsState()
+    val liteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState() // Assuming you want filtered summaries too
+    val isImporting by mainViewModel.isImportingSms.collectAsState()
 
     val pagerState = rememberPagerState { tabTitles.size }
     val coroutineScope = rememberCoroutineScope()
@@ -65,13 +59,23 @@ fun TabbedHomeScreen(
         onRefresh = onImportOldSms
     )
 
+    // ✨ --- State and Lambda for Category Edit Dialog --- ✨
+    var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
+    var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    val openCategoryEditDialog = { transaction: Transaction ->
+        transactionToEditCategory = transaction
+        showCategoryEditDialog = true
+    }
+    // ✨ --- End of Category Edit Dialog State and Lambda --- ✨
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tabbed_home_top_bar_title)) },
+                title = { Text(stringResource(R.string.tabbed_home_top_bar_title)) }, // Or a more specific title if this is for history
                 actions = {
-                    IconButton(onClick = { navController.navigate("settings") }) {
+                    IconButton(onClick = { navController.navigate("settings") }) { // Ensure this "settings" route is valid for the passed NavController
                         Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.tabbed_home_settings_icon_desc))
                     }
                 }
@@ -115,9 +119,15 @@ fun TabbedHomeScreen(
                         .weight(1f)
                 ) { pageIndex ->
                     when (pageIndex) {
-                        // The .take(100) should now work fine as upiTransactions is List<Transaction>
-                        0 -> UpiTransactionListContent(transactions = upiTransactions.take(100))
-                        1 -> UpiLiteSummaryListContent(summaries = liteSummaries.take(100))
+                        0 -> UpiTransactionListContent(
+                            transactions = upiTransactions.take(100), // Or full list if this is history
+                            onTransactionClick = { transaction -> // ✨ Pass lambda here ✨
+                                openCategoryEditDialog(transaction)
+                            }
+                        )
+                        1 -> UpiLiteSummaryListContent(
+                            summaries = liteSummaries.take(100) // Or full list
+                        )
                     }
                 }
             }
@@ -130,6 +140,22 @@ fun TabbedHomeScreen(
                 contentColor = MaterialTheme.colorScheme.primary
             )
         }
+    }
+
+    // ✨ --- Category Edit Dialog Invocation --- ✨
+    if (showCategoryEditDialog && transactionToEditCategory != null) {
+        EditCategoryDialog( // Ensure this composable is accessible (defined below or imported)
+            transaction = transactionToEditCategory!!,
+            onDismiss = {
+                showCategoryEditDialog = false
+                transactionToEditCategory = null
+            },
+            onSaveCategory = { transactionId, newCategory ->
+                mainViewModel.updateTransactionCategory(transactionId, newCategory)
+                showCategoryEditDialog = false
+                transactionToEditCategory = null
+            }
+        )
     }
 }
 
@@ -151,7 +177,10 @@ fun EmptyStateView(message: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun UpiTransactionListContent(transactions: List<Transaction>) {
+fun UpiTransactionListContent(
+    transactions: List<Transaction>,
+    onTransactionClick: (Transaction) -> Unit // ✨ Added parameter ✨
+) {
     if (transactions.isEmpty()) {
         EmptyStateView(message = stringResource(R.string.empty_state_no_upi_transactions))
         return
@@ -162,7 +191,10 @@ fun UpiTransactionListContent(transactions: List<Transaction>) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(transactions, key = { it.id }) { txn ->
-            TransactionCard(transaction = txn)
+            TransactionCard(
+                transaction = txn,
+                onClick = { onTransactionClick(txn) } // ✨ Call the passed lambda ✨
+            )
         }
     }
 }
@@ -178,8 +210,52 @@ fun UpiLiteSummaryListContent(summaries: List<UpiLiteSummary>) {
         contentPadding = PaddingValues(all = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(summaries, key = { "${it.date}-${it.bank}" }) { summary -> // Assuming UpiLiteSummary.id exists and is unique
-            UpiLiteSummaryCard(summary = summary)
+        items(summaries, key = { "${it.date}-${it.bank}" }) { summary ->
+            UpiLiteSummaryCard(summary = summary) // UpiLiteSummaryCard doesn't have onClick for category
         }
     }
+}
+
+// ✨ EditCategoryDialog definition (move to ui/components if not already there and import it) ✨
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditCategoryDialog(
+    transaction: Transaction,
+    onDismiss: () -> Unit,
+    onSaveCategory: (transactionId: Int, newCategory: String?) -> Unit
+) {
+    var categoryText by remember(transaction.id, transaction.category) { mutableStateOf(transaction.category ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.category_edit_icon_desc)) },
+        title = {
+            Text(
+                if (transaction.category.isNullOrBlank()) stringResource(R.string.set_category_dialog_title)
+                else stringResource(R.string.edit_category_dialog_title)
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = categoryText,
+                onValueChange = { categoryText = it },
+                label = { Text(stringResource(R.string.category_label)) },
+                placeholder = { Text(stringResource(R.string.category_textfield_placeholder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                onSaveCategory(transaction.id, categoryText.trim().takeIf { it.isNotBlank() })
+            }) {
+                Text(stringResource(R.string.button_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_button_cancel))
+            }
+        }
+    )
 }

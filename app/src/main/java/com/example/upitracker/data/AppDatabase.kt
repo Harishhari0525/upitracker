@@ -9,9 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Transaction::class, UpiLiteSummary::class],
-    version = 2, // ✨ Version Incremented to 2 ✨
-    exportSchema = false // ✨ Recommended: Set to true. Create a schemas folder in your app directory.
-    // After building, Room will generate a schema/2.json file there. Commit this to version control.
+    version = 3, // ✨ Version Incremented to 3 ✨
+    exportSchema = false // Keep this true for good practice
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
@@ -20,21 +19,27 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
-        // ✨ Define your Migration from version 1 to version 2 ✨
+        // Migration from version 1 to version 2 (UpiLiteSummary.date String to Long)
+        // This should remain if users might upgrade from version 1.
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // For UpiLiteSummary table: date column changed from TEXT (String) to INTEGER (Long).
-                // Converting "DD-MMM-YY" text to a proper timestamp in SQL is complex and error-prone.
-                // This migration will drop the old upi_lite_summaries table.
+                // This migration drops the old upi_lite_summaries table.
                 // Room will then automatically create the new upi_lite_summaries table
                 // based on the updated UpiLiteSummary entity definition.
-                // This means existing UpiLiteSummary data will be lost. Transaction data is unaffected.
+                // Existing UpiLiteSummary data will be lost. Transaction data is unaffected by this specific migration.
                 db.execSQL("DROP TABLE IF EXISTS upi_lite_summaries")
+                // Room will auto-create the new table structure based on the entity for version 2.
+            }
+        }
 
-                // Note: If the 'transactions' table schema had also changed,
-                // you would add SQL ALTER TABLE statements for it here.
-                // For example:
-                // db.execSQL("ALTER TABLE transactions ADD COLUMN new_column_name INTEGER DEFAULT 0 NOT NULL")
+        // ✨ New: Migration from version 2 to version 3 (Add 'category' column to 'transactions') ✨
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add the new 'category' column to the 'transactions' table.
+                // It's a TEXT type because String? maps to TEXT in SQLite.
+                // It can be NULL (nullable String).
+                db.execSQL("ALTER TABLE transactions ADD COLUMN category TEXT DEFAULT NULL")
             }
         }
 
@@ -45,12 +50,12 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "upi_tracker_db"
                 )
-                    // ✨ Add the migration path from version 1 to version 2 ✨
-                    .addMigrations(MIGRATION_1_2)
+                    // ✨ Add ALL your migration paths ✨
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     // If you want to handle cases where a migration path isn't defined for other future versions
                     // (especially during development), you can still add a fallback.
-                    // However, for defined paths like 1 to 2, MIGRATION_1_2 will be used.
-                    // .fallbackToDestructiveMigration() // Remove this if you are providing all necessary migrations
+                    // However, for defined paths like 1 to 2 and 2 to 3, these migrations will be used.
+                    // .fallbackToDestructiveMigration() // Consider removing if you are providing all necessary migrations.
                     .build()
                 INSTANCE = instance
                 instance

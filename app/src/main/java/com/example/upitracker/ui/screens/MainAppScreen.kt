@@ -103,7 +103,11 @@ fun MainAppScreen(
             // .navigationBarsPadding() // Use if bottom content is obscured and bottom bar isn't opaque
         ) {
             composable(BottomNavItem.Home.route) {
-                CurrentMonthExpensesScreen(mainViewModel, onImportOldSms, modifier = Modifier.fillMaxSize())
+                CurrentMonthExpensesScreen(
+                    mainViewModel = mainViewModel,
+                    onImportOldSms = onImportOldSms,
+                    navController = contentNavController // ✨ Pass the contentNavController ✨
+                )
             }
             composable(BottomNavItem.Graphs.route) {
                 GraphsScreen(mainViewModel, modifier = Modifier.fillMaxSize())

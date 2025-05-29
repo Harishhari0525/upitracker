@@ -13,8 +13,9 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.SystemUpdateAlt
-// ... (keep other imports) ...
+import androidx.activity.compose.rememberLauncherForActivityResult // ✨ Import
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,9 @@ import com.example.upitracker.ui.components.OldPinVerificationComponent // ✨ I
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.util.PinStorage
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // ✨ Enum to manage PIN change steps ✨
 private enum class PinChangeStep {
@@ -53,12 +57,26 @@ fun SettingsScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val isImportingSms by mainViewModel.isImportingSms.collectAsState()
+    val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
 
     // Update isPinSet when the screen is shown or when dialog sequence finishes
     LaunchedEffect(Unit, currentPinChangeStep) {
         if (currentPinChangeStep == PinChangeStep.NONE) { // Re-check only when no dialog is active
             isPinSet = PinStorage.isPinSet(context)
             oldPinVerifiedSuccessfully = false // Reset verification flag
+        }
+    }
+
+    val createCsvFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv") // MIME type for CSV
+    ) { uri ->
+        uri?.let {
+            // User selected a location and filename, URI is provided
+            mainViewModel.exportTransactionsToCsv(it, context.contentResolver)
+        } ?: run {
+            // User cancelled the file picker
+            mainViewModel.postSnackbarMessage("CSV export cancelled.") // TODO: String resource
+            mainViewModel.setSmsImportingState(false) // Also reset export state if it was set before launching picker
         }
     }
 
@@ -102,6 +120,7 @@ fun SettingsScreen(
 
             // --- Security Section ---
             item { SettingsSectionTitle(stringResource(R.string.settings_section_security)) }
+
             item {
                 SettingItemRow(
                     icon = Icons.Filled.Lock,
@@ -121,6 +140,7 @@ fun SettingsScreen(
 
             // --- Data Management Section ---
             item { SettingsSectionTitle(stringResource(R.string.settings_section_data_management)) }
+
             item {
                 SettingItemRow(
                     icon = Icons.AutoMirrored.Filled.ReceiptLong,
@@ -129,16 +149,41 @@ fun SettingsScreen(
                     onClick = onEditRegex
                 )
             }
+
             item {
+                // ✨ Updated CSV Export Row ✨
                 SettingItemRow(
-                    icon = Icons.Filled.SystemUpdateAlt,
+                    icon = Icons.Filled.Download, // Changed icon
                     title = stringResource(R.string.settings_export_csv),
-                    summary = stringResource(R.string.settings_export_csv_summary),
+                    summary = if (isExportingCsv) "Exporting in progress..." else stringResource(R.string.settings_export_csv_summary), // TODO: String resources
                     onClick = {
-                        mainViewModel.postSnackbarMessage(context.getString(R.string.settings_export_csv_not_implemented))
+                        if (!isExportingCsv) {
+                            // Generate a default filename with timestamp
+                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            val fileName = "upi_tracker_export_$timestamp.csv"
+                            createCsvFileLauncher.launch(fileName) // Launch SAF
+                        }
+                    },
+                    titleColor = if (isExportingCsv) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    iconTint = if (isExportingCsv) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                ) { // Trailing content
+                    if (isExportingCsv) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     }
-                )
+                }
             }
+
+
+//            item {
+//                SettingItemRow(
+//                    icon = Icons.Filled.SystemUpdateAlt,
+//                    title = stringResource(R.string.settings_export_csv),
+//                    summary = stringResource(R.string.settings_export_csv_summary),
+//                    onClick = {
+//                        mainViewModel.postSnackbarMessage(context.getString(R.string.settings_export_csv_not_implemented))
+//                    }
+//                )
+//            }
             item {
                 SettingItemRow(
                     icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,

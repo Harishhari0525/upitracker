@@ -17,6 +17,9 @@ interface TransactionDao {
     // However, your getTransactionByDetails check handles manual duplicate prevention well.
     suspend fun insert(transaction: Transaction)
 
+    @Update // ✨ New: Method to update an existing transaction ✨
+    suspend fun update(transaction: Transaction)
+
     @Delete
     suspend fun delete(transaction: Transaction)
 
