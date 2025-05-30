@@ -35,6 +35,8 @@ import java.util.TimeZone
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue // For 'by' delegation
 import com.example.upitracker.ui.components.EditCategoryDialog
+import com.example.upitracker.viewmodel.SortOrder // ✨ Import SortOrder
+import com.example.upitracker.viewmodel.SortableTransactionField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +75,10 @@ fun TransactionHistoryScreen(
     // ✨ --- State and Lambda for Category Edit Dialog - DEFINED HERE AT THE SCREEN LEVEL --- ✨
     var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
     var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    // ✨ Collect Sort States from ViewModel ✨
+    val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
+    val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
 
     val openCategoryEditDialog = { transaction: Transaction ->
         transactionToEditCategory = transaction
@@ -143,6 +149,11 @@ fun TransactionHistoryScreen(
                                 )
                             }
                         }
+                        SortControls(
+                            currentSortField = upiSortField,
+                            currentSortOrder = upiSortOrder,
+                            onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
+                        )
 
                         if (filteredUpiTransactions.isEmpty()) {
                             EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
@@ -315,6 +326,69 @@ fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+@Composable
+fun SortButton(
+    text: String,
+    isSelected: Boolean,
+    sortOrder: SortOrder,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp) // Compact button
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium, // Smaller text for sort buttons
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (isSelected) {
+            Icon(
+                imageVector = if (sortOrder == SortOrder.ASCENDING) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                contentDescription = stringResource(if (sortOrder == SortOrder.ASCENDING) R.string.history_sort_order_ascending_desc else R.string.history_sort_order_descending_desc),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp).padding(start = 2.dp) // Smaller icon
+            )
+        }
+    }
+}
+
+@Composable
+fun SortControls(
+    currentSortField: SortableTransactionField,
+    currentSortOrder: SortOrder,
+    onSortFieldSelected: (SortableTransactionField) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 0.dp), // Reduced vertical padding
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End), // Align to end, less space
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall) // Smaller label
+
+        SortButton(
+            text = stringResource(R.string.history_sort_by_date),
+            isSelected = currentSortField == SortableTransactionField.DATE,
+            sortOrder = if (currentSortField == SortableTransactionField.DATE) currentSortOrder else SortOrder.DESCENDING, // Default for non-active
+            onClick = { onSortFieldSelected(SortableTransactionField.DATE) }
+        )
+        SortButton(
+            text = stringResource(R.string.history_sort_by_amount),
+            isSelected = currentSortField == SortableTransactionField.AMOUNT,
+            sortOrder = if (currentSortField == SortableTransactionField.AMOUNT) currentSortOrder else SortOrder.DESCENDING,
+            onClick = { onSortFieldSelected(SortableTransactionField.AMOUNT) }
+        )
+        SortButton(
+            text = stringResource(R.string.history_sort_by_category),
+            isSelected = currentSortField == SortableTransactionField.CATEGORY,
+            sortOrder = if (currentSortField == SortableTransactionField.CATEGORY) currentSortOrder else SortOrder.ASCENDING, // Default category to Asc
+            onClick = { onSortFieldSelected(SortableTransactionField.CATEGORY) }
         )
     }
 }

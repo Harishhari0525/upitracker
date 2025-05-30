@@ -6,10 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Telephony
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat // ✨ Import WindowCompat ✨
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.UpiLiteSummary
@@ -43,8 +44,9 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.upitracker.util.BiometricHelper // ✨ Import BiometricHelper
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
@@ -60,30 +62,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // ✨ Enable edge-to-edge display BEFORE setContent ✨
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        val db = AppDatabase.getDatabase(this)
-        val dao = db.transactionDao()
-        val liteDao = db.upiLiteSummaryDao()
-
+        // ... (db, dao, smsReceiver setup remains the same)
+        val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
         smsReceiver = SmsReceiver(
-            onTransactionParsed = { transaction ->
-                lifecycleScope.launch { dao.insert(transaction) }
-            },
+            onTransactionParsed = { transaction -> lifecycleScope.launch { dao.insert(transaction) } },
             onUpiLiteSummaryReceived = { newSummary ->
                 lifecycleScope.launch {
                     val existingSummary = liteDao.getSummaryByDateAndBank(newSummary.date, newSummary.bank)
-                    if (existingSummary == null) {
-                        liteDao.insert(newSummary)
+                    if (existingSummary == null) { liteDao.insert(newSummary)
                     } else {
                         if (existingSummary.transactionCount != newSummary.transactionCount || existingSummary.totalAmount != newSummary.totalAmount) {
-                            val updatedSummary = existingSummary.copy(
-                                transactionCount = newSummary.transactionCount,
-                                totalAmount = newSummary.totalAmount
-                            )
-                            liteDao.update(updatedSummary)
+                            liteDao.update(existingSummary.copy(transactionCount = newSummary.transactionCount, totalAmount = newSummary.totalAmount))
                         }
                     }
                 }
@@ -94,7 +85,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val isDarkMode by mainViewModel.isDarkMode.collectAsState()
-            Theme(darkTheme = isDarkMode) { // Theme now handles status bar color and icon appearance
+            Theme(darkTheme = isDarkMode) {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val coroutineScope = rememberCoroutineScope()
 
@@ -113,58 +104,91 @@ class MainActivity : ComponentActivity() {
                 var pinUnlocked by rememberSaveable { mutableStateOf(false) }
                 var pinIsActuallySet by rememberSaveable { mutableStateOf(false) }
 
-                LaunchedEffect(onboardingCompleted) {
+                LaunchedEffect(onboardingCompleted, pinUnlocked) { // Re-check PIN status if onboarding or unlock status changes
                     if (onboardingCompleted) {
                         pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
-                        pinUnlocked = !pinIsActuallySet
+                        if (!pinIsActuallySet && !pinUnlocked) { // If no PIN is set after onboarding, consider it "unlocked" for main app view
+                            // Or, if PinLockScreen handles initial setup, this might not be needed
+                            // Forcing initial setup if !pinIsActuallySet will be handled by PinLockScreen's internal logic
+                        } else if (pinIsActuallySet && !pinUnlocked) {
+                            // PIN is set but locked, do nothing here, PinLockScreen will handle
+                        } else { // No PIN or PIN is set and unlocked
+                            pinUnlocked = true
+                        }
                     }
                 }
 
+                LaunchedEffect(pinIsActuallySet, onboardingCompleted) {
+                    pinUnlocked = if (onboardingCompleted) {
+                        !pinIsActuallySet // If onboarding is done, unlock if no PIN is set
+                    } else {
+                        false // If onboarding not done, assume locked (will show onboarding first)
+                    }
+                }
                 Scaffold(
-                    // This Scaffold is now mainly for the SnackbarHost.
-                    // The modifier.padding(innerPadding) will be passed to MainNavHost,
-                    // but MainNavHost's children (like MainAppScreen) will handle their own insets
-                    // if they have TopAppBars/BottomNavBars drawing in system bar areas.
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-                    // Set container color to transparent if you want content below to handle all backgrounds
-                    // when edge-to-edge. This might be needed if MainActivity's Scaffold was opaque.
-                    // containerColor = Color.Transparent
-                ) { innerPadding -> // This padding is from MainActivity's Scaffold (mostly for Snackbar)
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                ) { innerPadding ->
                     if (!onboardingCompleted) {
                         OnboardingScreen(
-                            // Pass padding if OnboardingScreen itself doesn't have a Scaffold
-                            // and needs to respect MainActivity's Scaffold (e.g., snackbar area)
                             modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                            onOnboardingComplete = {
-                                mainViewModel.markOnboardingComplete()
-                            }
+                            onOnboardingComplete = { mainViewModel.markOnboardingComplete() }
                         )
                     } else {
-                        if (!pinIsActuallySet) {
-                            PinLockScreen(
-                                modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                                onUnlock = { /* Should not be called if no PIN is set */ },
-                                onSetPin = {
-                                    coroutineScope.launch {
-                                        pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
-                                        pinUnlocked = true
-                                    }
-                                }
-                            )
-                        } else if (!pinUnlocked) {
+                        // Onboarding is complete, now handle PIN logic
+                        if (!pinUnlocked && pinIsActuallySet) { // PIN is set AND app is locked
                             PinLockScreen(
                                 modifier = Modifier.padding(innerPadding).fillMaxSize(),
                                 onUnlock = { pinUnlocked = true },
+                                onSetPin = { // Called when PIN is set/changed from PinLockScreen
+                                    coroutineScope.launch {
+                                        pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
+                                        pinUnlocked = true // Assume unlock after successful PIN set/change
+                                    }
+                                },
+                                onAttemptBiometricUnlock = { // ✨ Handle biometric unlock attempt ✨
+                                    if (BiometricHelper.isBiometricReady(this@MainActivity)) {
+                                        val promptInfo = BiometricHelper.getPromptInfo(
+                                            title = getString(R.string.biometric_prompt_title),
+                                            subtitle = getString(R.string.biometric_prompt_subtitle),
+                                            negativeButtonText = getString(R.string.biometric_prompt_use_pin) // Or "Cancel"
+                                        )
+                                        val biometricPrompt = BiometricHelper.getBiometricPrompt(
+                                            activity = this@MainActivity, // Pass the Activity
+                                            onAuthenticationSucceeded = {
+                                                pinUnlocked = true // Unlock the app
+                                            },
+                                            onAuthenticationError = { errorCode, errString ->
+                                                // Don't show PIN screen again if user cancelled or used negative button for PIN
+                                                if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON && errorCode != BiometricPrompt.ERROR_USER_CANCELED) {
+                                                    mainViewModel.postSnackbarMessage(getString(R.string.biometric_auth_error_generic, errString))
+                                                }
+                                            },
+                                            onAuthenticationFailed = {
+                                                mainViewModel.postSnackbarMessage(getString(R.string.biometric_auth_failed))
+                                            }
+                                        )
+                                        biometricPrompt.authenticate(promptInfo)
+                                    } else {
+                                        mainViewModel.postSnackbarMessage(getString(R.string.biometric_not_available_or_enrolled))
+                                    }
+                                }
+                            )
+                        } else if (!pinIsActuallySet) { // No PIN set after onboarding, PinLockScreen handles setup mode
+                            PinLockScreen(
+                                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                                onUnlock = { /* Not expected */ },
                                 onSetPin = {
                                     coroutineScope.launch {
                                         pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
                                         pinUnlocked = true
                                     }
-                                }
+                                },
+                                onAttemptBiometricUnlock = { /* Biometrics typically for unlock, not initial setup */ }
                             )
-                        } else {
+                        }
+                        else { // Onboarding complete, and ( (PIN is set AND unlocked) OR (no PIN set and initial setup handled) )
                             MainNavHost(
-                                modifier = Modifier.padding(innerPadding), // Pass padding to MainNavHost
+                                modifier = Modifier.padding(innerPadding),
                                 onImportOldSms = { requestSmsPermissionAndImport() },
                                 mainViewModel = mainViewModel
                             )

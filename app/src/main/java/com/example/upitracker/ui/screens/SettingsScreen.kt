@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
-import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.ui.components.OldPinVerificationComponent // ✨ Import new component
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.util.PinStorage
@@ -34,6 +33,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.upitracker.ui.components.PinSetupScreen
 
 // ✨ Enum to manage PIN change steps ✨
 private enum class PinChangeStep {

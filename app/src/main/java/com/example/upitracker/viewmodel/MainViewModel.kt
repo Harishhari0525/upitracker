@@ -23,20 +23,24 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-// --- Data class for Graph Data ---
+// --- Data classes and Enums (should be defined here or imported if in separate files) ---
 data class MonthlyExpense(
-    val yearMonth: String, // e.g., "May '23"
+    val yearMonth: String,
     val totalAmount: Double,
-    val timestamp: Long // Start of the month timestamp for sorting/reference
+    val timestamp: Long
 )
 
 data class DailyExpensePoint(
-    val dayTimestamp: Long,    // Timestamp for the start of the day
+    val dayTimestamp: Long,
     val totalAmount: Double,
-    val dayLabel: String       // e.g., "27 May"
+    val dayLabel: String
 )
 
-// --- Sealed interface for Combined History List (if used) ---
+data class CategoryExpense(
+    val categoryName: String,
+    val totalAmount: Double
+)
+
 sealed interface HistoryListItem {
     val displayDate: Long
     val itemType: String
@@ -52,22 +56,22 @@ data class SummaryHistoryItem(val summary: UpiLiteSummary) : HistoryListItem {
     override val itemType: String get() = "UpiLiteSummary"
 }
 
-data class CategoryExpense(
-    val categoryName: String,
-    val totalAmount: Double
-    // We can add percentage later if needed when displaying
-)
-
-// --- Enum for UPI Transaction Type Filter ---
 enum class UpiTransactionTypeFilter {
     ALL, DEBIT, CREDIT
 }
 
-// --- Enum for Graph Period Selection ---
 enum class GraphPeriod(val months: Int, val displayName: String) {
     THREE_MONTHS(3, "3M"),
     SIX_MONTHS(6, "6M"),
     TWELVE_MONTHS(12, "12M")
+}
+
+enum class SortableTransactionField {
+    DATE, AMOUNT, CATEGORY
+}
+
+enum class SortOrder {
+    ASCENDING, DESCENDING
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -80,7 +84,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
-        upiLiteSummaryDao.getAllSummaries()
+        upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // --- UI State Flows (Public) ---
@@ -97,7 +101,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    // --- Filter States (Private backing, Public immutable exposure) ---
+    private val _isExportingCsv = MutableStateFlow(false)
+    val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
+
+    // --- Filter & Sort States (Private backing, Public immutable exposure) ---
     private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
     val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> = _selectedUpiTransactionType.asStateFlow()
 
@@ -110,58 +117,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
 
-    private val _isExportingCsv = MutableStateFlow(false)
-    val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
+    private val _upiTransactionSortField = MutableStateFlow(SortableTransactionField.DATE)
+    val upiTransactionSortField: StateFlow<SortableTransactionField> = _upiTransactionSortField.asStateFlow()
 
+    private val _upiTransactionSortOrder = MutableStateFlow(SortOrder.DESCENDING)
+    val upiTransactionSortOrder: StateFlow<SortOrder> = _upiTransactionSortOrder.asStateFlow()
 
-    // --- Derived (Filtered) Data for UI (Public) ---
+    private val _selectedDateRange = combine(
+        _selectedDateRangeStart,
+        _selectedDateRangeEnd
+    ) { start, end -> start to end }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null to null)
+
     val filteredUpiTransactions: StateFlow<List<Transaction>> =
         combine(
             _transactions,
             _selectedUpiTransactionType,
-            _selectedDateRangeStart,
-            _selectedDateRangeEnd
-        ) { transactions, filterType, startDate, endDate ->
-            val typeFilteredTransactions = when (filterType) {
-                UpiTransactionTypeFilter.ALL -> transactions
-                UpiTransactionTypeFilter.DEBIT -> transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
+            _selectedDateRange,
+            _upiTransactionSortField,
+            _upiTransactionSortOrder
+        ) { transactions, filterType, dateRange, sortField, sortOrder ->
+            val (startDate, endDate) = dateRange
+
+            // 1. Type filter
+            val byType = when (filterType) {
+                UpiTransactionTypeFilter.ALL    -> transactions
+                UpiTransactionTypeFilter.DEBIT  -> transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
                 UpiTransactionTypeFilter.CREDIT -> transactions.filter { it.type.equals("CREDIT", ignoreCase = true) }
             }
-            // Apply date filter
-            if (startDate != null && endDate != null) {
-                typeFilteredTransactions.filter { it.date in startDate..endDate }
-            } else if (startDate != null) {
-                typeFilteredTransactions.filter { it.date >= startDate }
-            } else if (endDate != null) {
-                val endOfDay = Calendar.getInstance().apply {
-                    timeInMillis = endDate
-                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
-                }.timeInMillis
-                typeFilteredTransactions.filter { it.date <= endOfDay }
-            } else {
-                typeFilteredTransactions
+
+            // 2. Date filter
+            val byDate = when {
+                startDate != null && endDate != null -> byType.filter { it.date in startDate..endDate }
+                startDate != null                   -> byType.filter { it.date >= startDate }
+                endDate != null                     -> byType.filter { it.date <= endDate }
+                else                                -> byType
             }
+
+            // 3. Sort
+            val sorted = when (sortField) {
+                SortableTransactionField.DATE     ->
+                    if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.date }
+                    else                                byDate.sortedByDescending { it.date }
+
+                SortableTransactionField.AMOUNT   ->
+                    if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.amount }
+                    else                                byDate.sortedByDescending { it.amount }
+
+                SortableTransactionField.CATEGORY ->
+                    if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.category ?: "" }
+                    else                                byDate.sortedByDescending { it.category ?: "" }
+            }
+
+            sorted
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // 3) You can do the same two-into-one trick for summaries if you like:
     val filteredUpiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
-        combine(
-            _upiLiteSummaries,
-            _selectedDateRangeStart,
-            _selectedDateRangeEnd
-        ) { summaries, startDate, endDate ->
-            if (startDate != null && endDate != null) {
-                summaries.filter { it.date in startDate..endDate }
-            } else if (startDate != null) {
-                summaries.filter { it.date >= startDate }
-            } else if (endDate != null) {
-                val endOfDay = Calendar.getInstance().apply {
-                    timeInMillis = endDate
-                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
-                }.timeInMillis
-                summaries.filter { it.date <= endOfDay }
-            } else {
-                summaries
+        combine(_upiLiteSummaries, _selectedDateRange) { summaries, dateRange ->
+            val (startDate, endDate) = dateRange
+            summaries.filter {
+                (startDate == null || it.date >= startDate) &&
+                        (endDate   == null || it.date <= endDate)
             }
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -193,34 +211,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // --- Graph Data (Public) ---
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
         combine(_transactions, _selectedGraphPeriod) { allTransactions, period ->
-            Log.d("ViewModelDebug", "Recalculating lastNMonthsExpenses. Input transactions: ${allTransactions.size}, Period: ${period.displayName} (${period.months} months)")
+            // Log.d("ViewModelDebug", "Recalculating lastNMonthsExpenses. Input transactions: ${allTransactions.size}, Period: ${period.displayName} (${period.months} months)")
             val result = calculateLastNMonthsExpenses(allTransactions, period.months)
-            Log.d("ViewModelDebug", "Resulting monthly expenses for graph: ${result.size} items")
+            // Log.d("ViewModelDebug", "Resulting monthly expenses for graph: ${result.size} items")
             result
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, N: Int): List<MonthlyExpense> {
-        Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: START. Input transaction count: ${transactions.size}, N: $N")
+        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: START. Input transaction count: ${transactions.size}, N: $N")
         if (transactions.isEmpty() || N <= 0) {
-            Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No input transactions or N is invalid. Returning empty list.")
+            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No input transactions or N is invalid. Returning empty list.")
             return emptyList()
         }
         val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
         val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+
         val debitTransactions = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
-        Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Filtered DEBIT transactions count: ${debitTransactions.size}")
+        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Filtered DEBIT transactions count: ${debitTransactions.size}")
         if (debitTransactions.isEmpty()) {
-            Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No DEBIT transactions found. Returning empty list.")
+            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No DEBIT transactions found. Returning empty list.")
             return emptyList()
         }
+
         val expensesByYearMonth = debitTransactions
             .groupBy { transaction -> yearMonthKeyFormat.format(Date(transaction.date)) }
             .mapValues { entry -> entry.value.sumOf { it.amount } }
-        Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Expenses grouped by year-month: $expensesByYearMonth")
-        if (expensesByYearMonth.isEmpty() && debitTransactions.isNotEmpty()) {
-            Log.w("ViewModelDebug", "calculateLastNMonthsExpenses: Grouping resulted in empty map, but there were debit transactions. Check date ranges/formats.")
-        }
+        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Expenses grouped by year-month: $expensesByYearMonth")
+
+        // if (expensesByYearMonth.isEmpty() && debitTransactions.isNotEmpty()) {
+        //     Log.w("ViewModelDebug", "calculateLastNMonthsExpenses: Grouping resulted in empty map, but there were debit transactions. Check date ranges/formats.")
+        // }
+
         val calendar = Calendar.getInstance()
         val monthlyExpensesData = mutableListOf<MonthlyExpense>()
         for (i in 0 until N) {
@@ -231,10 +253,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val monthStartTimestamp = targetCalendar.timeInMillis
             val amountForMonth = expensesByYearMonth[yearMonthKey] ?: 0.0
             monthlyExpensesData.add(MonthlyExpense(yearMonth = displayLabel, totalAmount = amountForMonth, timestamp = monthStartTimestamp))
-            Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: For period $displayLabel ($yearMonthKey),  Timestamp: $monthStartTimestamp, Amount: $amountForMonth")
+            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: For period $displayLabel ($yearMonthKey),  Timestamp: $monthStartTimestamp, Amount: $amountForMonth")
         }
         val result = monthlyExpensesData.reversed()
-        Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: END. Final data size: ${result.size}, Data: $result")
+        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: END. Final data size: ${result.size}, Data: $result")
         return result
     }
 
@@ -270,16 +292,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return Pair(startDate, endDate)
     }
 
-    // ✨ New: StateFlow for Category Expenses (Pie Chart Data) ✨
     val categoryExpensesData: StateFlow<List<CategoryExpense>> =
         combine(
-            _transactions,
-            _selectedDateRangeStart, // Apply date filters to pie chart as well
+            _transactions, // Using all transactions as base for category expenses
+            _selectedDateRangeStart,
             _selectedDateRangeEnd
         ) { transactions, startDate, endDate ->
-            Log.d("MainViewModel", "Calculating category expenses. Transactions: ${transactions.size}, Start: $startDate, End: $endDate")
+            // Log.d("MainViewModel", "Calculating category expenses. Transactions: ${transactions.size}, Start: $startDate, End: $endDate")
             var filteredForDate = transactions
-            // Apply date filter
             if (startDate != null && endDate != null) {
                 filteredForDate = transactions.filter { it.date in startDate..endDate }
             } else if (startDate != null) {
@@ -294,71 +314,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val result = filteredForDate
                 .filter { it.type.equals("DEBIT", ignoreCase = true) && !it.category.isNullOrBlank() }
-                .groupBy { it.category!! } // Group by non-null category
+                .groupBy { it.category!! }
                 .map { (categoryName, transactionsInCategory) ->
                     CategoryExpense(
                         categoryName = categoryName,
                         totalAmount = transactionsInCategory.sumOf { it.amount }
                     )
                 }
-                .sortedByDescending { it.totalAmount } // Show largest categories first
-            Log.d("MainViewModel", "Category expenses calculated: $result")
+                .sortedByDescending { it.totalAmount }
+            // Log.d("MainViewModel", "Category expenses calculated: $result")
             result
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    fun exportTransactionsToCsv(uri: Uri, contentResolver: ContentResolver) {
-        viewModelScope.launch {
-            _isExportingCsv.value = true
-            val appName = getApplication<Application>().getString(R.string.app_name) // For snackbar messages
-            try {
-                // We want to export ALL transactions, not just filtered ones from UI state
-                val allTransactions = _transactions.value // Get current snapshot of all transactions
-                if (allTransactions.isEmpty()) {
-                    postSnackbarMessage("No transactions to export.") // TODO: String resource
-                    _isExportingCsv.value = false
-                    return@launch
-                }
-
-                val csvString = CsvExporter.exportTransactionsToCsvString(allTransactions)
-
-                withContext(Dispatchers.IO) { // Perform file I/O on IO dispatcher
-                    contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(csvString.toByteArray())
-                        outputStream.flush()
-                    } ?: throw IOException("Failed to open output stream for URI: $uri")
-                }
-                postSnackbarMessage("Transactions exported successfully to CSV.") // TODO: String resource
-            } catch (e: IOException) {
-                Log.e("MainViewModelCSV", "Error exporting CSV: ${e.message}", e)
-                postSnackbarMessage("Error exporting CSV: ${e.message}") // TODO: String resource
-            } catch (e: Exception) {
-                Log.e("MainViewModelCSV", "Unexpected error exporting CSV: ${e.message}", e)
-                postSnackbarMessage("An unexpected error occurred during CSV export.") // TODO: String resource
-            } finally {
-                _isExportingCsv.value = false
-            }
-        }
-    }
-
-    fun updateTransactionCategory(transactionId: Int, category: String?) {
-        viewModelScope.launch {
-            val transactionToUpdate = _transactions.value.find { it.id == transactionId }
-            transactionToUpdate?.let {
-                val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
-                val updatedTransaction = it.copy(category = newCategoryValue)
-                transactionDao.update(updatedTransaction)
-
-                // ✨ Using string resources for Snackbar messages ✨
-                val message = if (newCategoryValue.isNullOrBlank()) {
-                    getApplication<Application>().getString(R.string.category_removed_success)
-                } else {
-                    getApplication<Application>().getString(R.string.category_updated_success, newCategoryValue)
-                }
-                postSnackbarMessage(message)
-            }
-        }
-    }
 
     // --- Action Methods (Public) ---
     fun setUpiTransactionTypeFilter(filter: UpiTransactionTypeFilter) {
@@ -379,6 +346,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGraphPeriod.value = period
     }
 
+    fun setUpiTransactionSort(field: SortableTransactionField) {
+        if (_upiTransactionSortField.value == field) {
+            // same field → just flip the order
+            _upiTransactionSortOrder.value = when (_upiTransactionSortOrder.value) {
+                SortOrder.ASCENDING  -> SortOrder.DESCENDING
+                SortOrder.DESCENDING -> SortOrder.ASCENDING
+            }
+        } else {
+            // new field → set it and pick a sensible default order
+            _upiTransactionSortField.value = field
+            _upiTransactionSortOrder.value =
+                if (field == SortableTransactionField.CATEGORY) SortOrder.ASCENDING
+                else                                       SortOrder.DESCENDING
+        }
+    }
+
+
+    fun updateTransactionCategory(transactionId: Int, category: String?) {
+        viewModelScope.launch {
+            val transactionToUpdate = _transactions.value.find { it.id == transactionId }
+            transactionToUpdate?.let {
+                val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                val updatedTransaction = it.copy(category = newCategoryValue)
+                transactionDao.update(updatedTransaction)
+                val message = if (newCategoryValue.isNullOrBlank()) {
+                    getApplication<Application>().getString(R.string.category_removed_success)
+                } else {
+                    getApplication<Application>().getString(R.string.category_updated_success, newCategoryValue)
+                }
+                postSnackbarMessage(message)
+            }
+        }
+    }
+
     fun addUpiLiteSummary(summary: UpiLiteSummary) {
         viewModelScope.launch {
             upiLiteSummaryDao.insert(summary)
@@ -391,9 +392,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun insertTransaction(transaction: Transaction) {
+    fun insertTransaction(transaction: Transaction) { // This is a general insert
         viewModelScope.launch {
-            transactionDao.insert(transaction)
+            transactionDao.insert(transaction) // Default OnConflictStrategy.REPLACE will handle if ID exists
         }
     }
 
@@ -428,6 +429,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun markOnboardingComplete() {
         viewModelScope.launch {
             OnboardingPreference.setOnboardingCompleted(getApplication(), true)
+        }
+    }
+
+    fun exportTransactionsToCsv(uri: Uri, contentResolver: ContentResolver) {
+        viewModelScope.launch {
+            _isExportingCsv.value = true
+            try {
+                val allTransactions = _transactions.value
+                if (allTransactions.isEmpty()) {
+                    postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_no_transactions))
+                    _isExportingCsv.value = false
+                    return@launch
+                }
+                val csvString = CsvExporter.exportTransactionsToCsvString(allTransactions)
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(csvString.toByteArray())
+                        outputStream.flush()
+                    } ?: throw IOException("Failed to open output stream for URI: $uri")
+                }
+                postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_success))
+            } catch (e: IOException) {
+                Log.e("MainViewModelCSV", "Error exporting CSV: ${e.message}", e)
+                postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_error, e.message ?: "Unknown IO Error"))
+            } catch (e: Exception) {
+                Log.e("MainViewModelCSV", "Unexpected error exporting CSV: ${e.message}", e)
+                postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_error_unexpected))
+            } finally {
+                _isExportingCsv.value = false
+            }
         }
     }
 
