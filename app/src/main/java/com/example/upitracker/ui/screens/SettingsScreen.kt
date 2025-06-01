@@ -1,21 +1,21 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Lock
-import androidx.activity.compose.rememberLauncherForActivityResult // ✨ Import
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Lock
+import androidx.activity.compose.rememberLauncherForActivityResult // ✨
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,20 +26,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
-import com.example.upitracker.ui.components.OldPinVerificationComponent // ✨ Import new component
+import com.example.upitracker.ui.components.OldPinVerificationComponent
+import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.util.PinStorage
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.example.upitracker.ui.components.PinSetupScreen
 
-// ✨ Enum to manage PIN change steps ✨
 private enum class PinChangeStep {
-    NONE,          // No dialog
-    VERIFY_OLD,    // Prompt for current PIN
-    SET_NEW        // Prompt for new PIN (after verification or if no PIN was set)
+    NONE,
+    VERIFY_OLD,
+    SET_NEW
 }
 
 @Composable
@@ -51,211 +50,209 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) } // ✨ Manage steps
-    var isPinSet by remember { mutableStateOf(false) } // Still needed for button text
-    var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) } // Track if old PIN was verified
+    var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
+    var isPinSet by remember { mutableStateOf(false) }
+    var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val isImportingSms by mainViewModel.isImportingSms.collectAsState()
     val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
 
-    // Update isPinSet when the screen is shown or when dialog sequence finishes
+    // Re-compute isPinSet when no dialog is active
     LaunchedEffect(Unit, currentPinChangeStep) {
-        if (currentPinChangeStep == PinChangeStep.NONE) { // Re-check only when no dialog is active
+        if (currentPinChangeStep == PinChangeStep.NONE) {
             isPinSet = PinStorage.isPinSet(context)
-            oldPinVerifiedSuccessfully = false // Reset verification flag
+            oldPinVerifiedSuccessfully = false
         }
     }
 
     val createCsvFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv") // MIME type for CSV
+        contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         uri?.let {
-            // User selected a location and filename, URI is provided
             mainViewModel.exportTransactionsToCsv(it, context.contentResolver)
         } ?: run {
-            // User cancelled the file picker
-            mainViewModel.postSnackbarMessage("CSV export cancelled.") // TODO: String resource
-            mainViewModel.setSmsImportingState(false) // Also reset export state if it was set before launching picker
+            mainViewModel.postSnackbarMessage("CSV export cancelled.")
+            mainViewModel.setSmsImportingState(false)
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = { /* ... (TopAppBar remains the same, using stringResource) ... */
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back_button_description))
-                    }
+    // ←――――――――— NO more Scaffold or inner TopAppBar! ―――――――――→
+
+    // Use only a LazyColumn (MainAppScreen’s TopAppBar is already visible)
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp)
+    ) {
+        // Appearance Section
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_appearance)) }
+        item {
+            val isDarkMode by mainViewModel.isDarkMode.collectAsState()
+            SettingItemRow(
+                icon = Icons.Filled.BrightnessMedium,
+                title = stringResource(R.string.settings_dark_mode),
+                summary = if (isDarkMode) stringResource(R.string.settings_dark_mode_enabled)
+                else stringResource(R.string.settings_dark_mode_disabled),
+                onClick = { mainViewModel.toggleDarkMode(!isDarkMode) }
+            ) {
+                Switch(
+                    checked = isDarkMode,
+                    onCheckedChange = { mainViewModel.toggleDarkMode(it) }
+                )
+            }
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+
+        // Security Section
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_security)) }
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Lock,
+                title = if (isPinSet)
+                    stringResource(R.string.settings_change_pin)
+                else
+                    stringResource(R.string.settings_set_pin),
+                summary = if (isPinSet)
+                    stringResource(R.string.settings_pin_protected_summary)
+                else
+                    stringResource(R.string.settings_set_pin_summary),
+                onClick = {
+                    currentPinChangeStep = if (isPinSet) PinChangeStep.VERIFY_OLD
+                    else PinChangeStep.SET_NEW
                 }
             )
         }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            // ... (Appearance Section remains the same, using stringResource) ...
-            item { SettingsSectionTitle(stringResource(R.string.settings_section_appearance)) }
-            item {
-                val isDarkMode by mainViewModel.isDarkMode.collectAsState()
-                SettingItemRow( /* ... uses stringResource ... */
-                    icon = Icons.Filled.BrightnessMedium,
-                    title = stringResource(R.string.settings_dark_mode),
-                    summary = if (isDarkMode) stringResource(R.string.settings_dark_mode_enabled) else stringResource(R.string.settings_dark_mode_disabled),
-                    onClick = { mainViewModel.toggleDarkMode(!isDarkMode) }
-                ) {
-                    Switch(
-                        checked = isDarkMode,
-                        onCheckedChange = { mainViewModel.toggleDarkMode(it) }
-                    )
-                }
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
 
-
-            // --- Security Section ---
-            item { SettingsSectionTitle(stringResource(R.string.settings_section_security)) }
-
-            item {
-                SettingItemRow(
-                    icon = Icons.Filled.Lock,
-                    title = if (isPinSet) stringResource(R.string.settings_change_pin) else stringResource(R.string.settings_set_pin),
-                    summary = if (isPinSet) stringResource(R.string.settings_pin_protected_summary) else stringResource(R.string.settings_set_pin_summary),
-                    onClick = {
-                        currentPinChangeStep = if (isPinSet) {
-                            PinChangeStep.VERIFY_OLD // ✨ Start old PIN verification
-                        } else {
-                            PinChangeStep.SET_NEW    // ✨ Directly go to set new PIN
-                        }
-                    }
-                )
-            }
-            // ... (Rest of the settings items remain the same, using stringResource where applicable) ...
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-
-            // --- Data Management Section ---
-            item { SettingsSectionTitle(stringResource(R.string.settings_section_data_management)) }
-
-            item {
-                SettingItemRow(
-                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                    title = stringResource(R.string.settings_edit_sms_regex),
-                    summary = stringResource(R.string.settings_edit_sms_regex_summary),
-                    onClick = onEditRegex
-                )
-            }
-
-            item {
-                // ✨ Updated CSV Export Row ✨
-                SettingItemRow(
-                    icon = Icons.Filled.Download, // Changed icon
-                    title = stringResource(R.string.settings_export_csv),
-                    summary = if (isExportingCsv) "Exporting in progress..." else stringResource(R.string.settings_export_csv_summary), // TODO: String resources
-                    onClick = {
-                        if (!isExportingCsv) {
-                            // Generate a default filename with timestamp
-                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                            val fileName = "upi_tracker_export_$timestamp.csv"
-                            createCsvFileLauncher.launch(fileName) // Launch SAF
-                        }
-                    },
-                    titleColor = if (isExportingCsv) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    iconTint = if (isExportingCsv) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                ) { // Trailing content
-                    if (isExportingCsv) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    }
-                }
-            }
-
-
-//            item {
-//                SettingItemRow(
-//                    icon = Icons.Filled.SystemUpdateAlt,
-//                    title = stringResource(R.string.settings_export_csv),
-//                    summary = stringResource(R.string.settings_export_csv_summary),
-//                    onClick = {
-//                        mainViewModel.postSnackbarMessage(context.getString(R.string.settings_export_csv_not_implemented))
-//                    }
-//                )
-//            }
-            item {
-                SettingItemRow(
-                    icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
-                    title = stringResource(R.string.settings_import_old_sms),
-                    summary = if (isImportingSms) stringResource(R.string.settings_import_old_sms_in_progress) else stringResource(R.string.settings_import_old_sms_summary),
-                    onClick = {
-                        if (!isImportingSms) {
-                            onImportOldSms()
-                        }
-                    },
-                    titleColor = if (isImportingSms) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    iconTint = if (isImportingSms) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                ) {
-                    if (isImportingSms) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    }
-                }
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-
-            // --- Danger Zone Section ---
-            item { SettingsSectionTitle(stringResource(R.string.settings_section_danger_zone), titleColor = MaterialTheme.colorScheme.error) }
-            item {
-                var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
-                SettingItemRow(
-                    icon = Icons.Filled.DeleteForever,
-                    title = stringResource(R.string.settings_delete_all_data),
-                    summary = stringResource(R.string.settings_delete_all_data_summary),
-                    onClick = { showDeleteConfirmationDialog = true },
-                    titleColor = MaterialTheme.colorScheme.error,
-                    iconTint = MaterialTheme.colorScheme.error
-                )
-                if (showDeleteConfirmationDialog) {
-                    DeleteConfirmationDialog( /* ... uses stringResource ... */
-                        onConfirm = {
-                            coroutineScope.launch {
-                                mainViewModel.deleteAllTransactions()
-                                mainViewModel.deleteAllUpiLiteSummaries()
-                                mainViewModel.postSnackbarMessage(context.getString(R.string.settings_delete_all_data_success))
-                            }
-                            showDeleteConfirmationDialog = false
-                        },
-                        onDismiss = { showDeleteConfirmationDialog = false }
-                    )
-                }
-            }
-            item { Spacer(Modifier.height(20.dp)) }
-
-            // --- About Section ---
-            item { SettingsSectionTitle(stringResource(R.string.settings_section_about)) }
-            item {
-                val versionName = stringResource(R.string.settings_app_version_placeholder)
-                SettingItemRow(
-                    icon = Icons.AutoMirrored.Filled.HelpOutline,
-                    title = stringResource(R.string.settings_about_app),
-                    summary = stringResource(R.string.settings_app_version_summary, versionName),
-                    onClick = { mainViewModel.postSnackbarMessage(context.getString(R.string.settings_about_app_coming_soon)) }
-                )
-            }
-            item { Spacer(Modifier.height(16.dp)) }
+        // Data Management Section
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_data_management)) }
+        item {
+            SettingItemRow(
+                icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                title = stringResource(R.string.settings_edit_sms_regex),
+                summary = stringResource(R.string.settings_edit_sms_regex_summary),
+                onClick = onEditRegex
+            )
         }
+
+        item {
+            // CSV Export row
+            SettingItemRow(
+                icon = Icons.Filled.Download,
+                title = stringResource(R.string.settings_export_csv),
+                summary = if (isExportingCsv) "Exporting in progress..."
+                else stringResource(R.string.settings_export_csv_summary),
+                onClick = {
+                    if (!isExportingCsv) {
+                        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                            .format(Date())
+                        val fileName = "upi_tracker_export_$timestamp.csv"
+                        createCsvFileLauncher.launch(fileName)
+                    }
+                },
+                titleColor = if (isExportingCsv) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface,
+                iconTint = if (isExportingCsv) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.secondary
+            ) {
+                if (isExportingCsv) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
+
+        item {
+            SettingItemRow(
+                icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
+                title = stringResource(R.string.settings_import_old_sms),
+                summary = if (isImportingSms)
+                    stringResource(R.string.settings_import_old_sms_in_progress)
+                else stringResource(R.string.settings_import_old_sms_summary),
+                onClick = {
+                    if (!isImportingSms) onImportOldSms()
+                },
+                titleColor = if (isImportingSms) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface,
+                iconTint = if (isImportingSms) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.secondary
+            ) {
+                if (isImportingSms) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+
+        // Danger Zone Section
+        item {
+            SettingsSectionTitle(
+                stringResource(R.string.settings_section_danger_zone),
+                titleColor = MaterialTheme.colorScheme.error
+            )
+        }
+        item {
+            var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+            SettingItemRow(
+                icon = Icons.Filled.DeleteForever,
+                title = stringResource(R.string.settings_delete_all_data),
+                summary = stringResource(R.string.settings_delete_all_data_summary),
+                onClick = { showDeleteConfirmationDialog = true },
+                titleColor = MaterialTheme.colorScheme.error,
+                iconTint = MaterialTheme.colorScheme.error
+            )
+            if (showDeleteConfirmationDialog) {
+                DeleteConfirmationDialog(
+                    onConfirm = {
+                        coroutineScope.launch {
+                            mainViewModel.deleteAllTransactions()
+                            mainViewModel.deleteAllUpiLiteSummaries()
+                            mainViewModel.postSnackbarMessage(
+                                context.getString(R.string.settings_delete_all_data_success)
+                            )
+                        }
+                        showDeleteConfirmationDialog = false
+                    },
+                    onDismiss = { showDeleteConfirmationDialog = false }
+                )
+            }
+        }
+        item { Spacer(Modifier.height(20.dp)) }
+
+        // About Section
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_about)) }
+        item {
+            val versionName = stringResource(R.string.settings_app_version_placeholder)
+            SettingItemRow(
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                title = stringResource(R.string.settings_about_app),
+                summary = stringResource(R.string.settings_app_version_summary, versionName),
+                onClick = { mainViewModel.postSnackbarMessage(context.getString(R.string.settings_about_app_coming_soon)) }
+            )
+        }
+        item { Spacer(Modifier.height(16.dp)) }
     }
 
+    // PIN-change dialogs
     if (currentPinChangeStep != PinChangeStep.NONE) {
         AlertDialog(
             onDismissRequest = { currentPinChangeStep = PinChangeStep.NONE },
             title = {
                 Text(
                     when (currentPinChangeStep) {
-                        PinChangeStep.VERIFY_OLD -> stringResource(R.string.pin_change_enter_current_pin_title)
-                        PinChangeStep.SET_NEW -> if (isPinSet && oldPinVerifiedSuccessfully) stringResource(R.string.dialog_set_pin_title_change) else stringResource(R.string.dialog_set_pin_title_new)
-                        else -> "" // Should not happen
+                        PinChangeStep.VERIFY_OLD ->
+                            stringResource(R.string.pin_change_enter_current_pin_title)
+                        PinChangeStep.SET_NEW ->
+                            if (isPinSet && oldPinVerifiedSuccessfully)
+                                stringResource(R.string.dialog_set_pin_title_change)
+                            else
+                                stringResource(R.string.dialog_set_pin_title_new)
+                        else -> ""
                     }
                 )
             },
@@ -265,7 +262,7 @@ fun SettingsScreen(
                         OldPinVerificationComponent(
                             onOldPinVerified = {
                                 oldPinVerifiedSuccessfully = true
-                                currentPinChangeStep = PinChangeStep.SET_NEW // Proceed to set new PIN
+                                currentPinChangeStep = PinChangeStep.SET_NEW
                             },
                             onCancel = { currentPinChangeStep = PinChangeStep.NONE }
                         )
@@ -274,9 +271,14 @@ fun SettingsScreen(
                         PinSetupScreen(
                             onPinSet = {
                                 coroutineScope.launch {
-                                    isPinSet = PinStorage.isPinSet(context) // Re-confirm PIN status
+                                    isPinSet = PinStorage.isPinSet(context)
                                     mainViewModel.postSnackbarMessage(
-                                        context.getString(if (oldPinVerifiedSuccessfully) R.string.pin_change_success_pin_changed else R.string.pin_setup_pin_set_success)
+                                        context.getString(
+                                            if (oldPinVerifiedSuccessfully)
+                                                R.string.pin_change_success_pin_changed
+                                            else
+                                                R.string.pin_setup_pin_set_success
+                                        )
                                     )
                                 }
                                 currentPinChangeStep = PinChangeStep.NONE
@@ -284,19 +286,23 @@ fun SettingsScreen(
                             onCancel = { currentPinChangeStep = PinChangeStep.NONE }
                         )
                     }
-                    PinChangeStep.NONE -> {} // Should not happen here
+                    else -> {}
                 }
             },
-            confirmButton = {}, // Buttons are now part of the inner components
+            confirmButton = {},
             dismissButton = {}
         )
     }
 }
 
-// SettingsSectionTitle, SettingItemRow, DeleteConfirmationDialog composables (as provided before, using string resources)
-// ... (ensure these helper composables are present in your file or imported)
+// ─────────────── Helper Composables ───────────────
+
 @Composable
-fun SettingsSectionTitle(title: String, modifier: Modifier = Modifier, titleColor: Color = MaterialTheme.colorScheme.primary) {
+fun SettingsSectionTitle(
+    title: String,
+    modifier: Modifier = Modifier,
+    titleColor: Color = MaterialTheme.colorScheme.primary
+) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleSmall,
@@ -355,7 +361,13 @@ fun SettingItemRow(
 fun DeleteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.settings_delete_all_data), tint = MaterialTheme.colorScheme.error) },
+        icon = {
+            Icon(
+                Icons.Filled.DeleteForever,
+                contentDescription = stringResource(R.string.settings_delete_all_data),
+                tint = MaterialTheme.colorScheme.error
+            )
+        },
         title = { Text(stringResource(R.string.dialog_confirm_deletion_title)) },
         text = { Text(stringResource(R.string.dialog_confirm_deletion_message)) },
         confirmButton = {

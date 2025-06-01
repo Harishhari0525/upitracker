@@ -89,11 +89,17 @@
     <string name="pin_setup_confirm_pin_label">Confirm New PIN</string>
     <string name="pin_setup_pin_updated_success">PIN Updated!</string>
     <string name="pin_setup_pin_set_success">PIN Set!</string>
+    <string name="graph_monthly_bar_selected_details">%1$s: %2$s</string>
 
     <string name="onboarding_welcome_title">Welcome to UPI Tracker!</string>
     <string name="onboarding_welcome_icon_desc">Welcome to UPI Tracker Icon</string>
     <string name="onboarding_description">Automatically track your UPI credit &amp; debit SMS.\nGrant SMS permission to get started and optionally add custom SMS formats for enhanced accuracy.</string>
     <string name="onboarding_get_started">Get Started</string>
+    <string name="graph_selected_bar_details">%1$s: %2$s</string>
+    <string name="graph_selected_line_point_details">%1$s: %2$s</string>
+    <string name="graph_legend_and_more">… and %1$d more</string>
+    <string name="graph_selected_pie_slice_details">%1$s: %2$s (%3$d%%)</string>
+    <string name="graph_line_chart_not_enough_data">Not enough data to display line chart.</string>
 
     <string name="tab_upi">UPI</string>
     <string name="tab_upi_lite">UPI Lite</string>

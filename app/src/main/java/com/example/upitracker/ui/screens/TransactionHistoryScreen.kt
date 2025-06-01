@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue // For 'by' delegation
 import com.example.upitracker.ui.components.EditCategoryDialog
 import com.example.upitracker.viewmodel.SortOrder // ✨ Import SortOrder
 import com.example.upitracker.viewmodel.SortableTransactionField
+import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +63,8 @@ fun TransactionHistoryScreen(
     val filteredUpiLiteSummaries: List<UpiLiteSummary> by mainViewModel.filteredUpiLiteSummaries.collectAsState()
     val selectedStartDate by mainViewModel.selectedDateRangeStart.collectAsState()
     val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState()
+    val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
+    val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
 
     // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -174,16 +177,25 @@ fun TransactionHistoryScreen(
                     }
                 }
                 1 -> { // UPI Lite Summaries Tab
-                    if (filteredUpiLiteSummaries.isEmpty()) {
-                        EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(all = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
-                                UpiLiteSummaryCard(summary = summary)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // ✨ Sorting Controls for UPI Lite Summaries ✨
+                        UpiLiteSummarySortControls(
+                            currentSortField = upiLiteSortField,
+                            currentSortOrder = upiLiteSortOrder,
+                            onSortFieldSelected = { field -> mainViewModel.setUpiLiteSummarySort(field) }
+                        )
+
+                        if (filteredUpiLiteSummaries.isEmpty()) {
+                            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(all = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
+                                    UpiLiteSummaryCard(summary = summary)
+                                }
                             }
                         }
                     }
@@ -390,5 +402,61 @@ fun SortControls(
             sortOrder = if (currentSortField == SortableTransactionField.CATEGORY) currentSortOrder else SortOrder.ASCENDING, // Default category to Asc
             onClick = { onSortFieldSelected(SortableTransactionField.CATEGORY) }
         )
+    }
+}
+
+@Composable
+fun UpiTransactionSortControls(
+    currentSortField: SortableTransactionField,
+    currentSortOrder: SortOrder,
+    onSortFieldSelected: (SortableTransactionField) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
+        SortableTransactionField.entries.forEach { field ->
+            SortButton(
+                text = stringResource( // Use specific string resources for each field
+                    when(field) {
+                        SortableTransactionField.DATE -> R.string.history_sort_by_date
+                        SortableTransactionField.AMOUNT -> R.string.history_sort_by_amount
+                        SortableTransactionField.CATEGORY -> R.string.history_sort_by_category
+                    }
+                ),
+                isSelected = currentSortField == field,
+                sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING, // Default for non-active
+                onClick = { onSortFieldSelected(field) }
+            )
+        }
+    }
+}
+
+// ✨ New: SortControls for UPI Lite Summaries ✨
+@Composable
+fun UpiLiteSummarySortControls(
+    currentSortField: SortableUpiLiteSummaryField,
+    currentSortOrder: SortOrder,
+    onSortFieldSelected: (SortableUpiLiteSummaryField) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
+        // Define display names or string resources for SortableUpiLiteSummaryField values
+        SortableUpiLiteSummaryField.entries.forEach { field ->
+            SortButton(
+                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }, // Or use stringResource
+                isSelected = currentSortField == field,
+                sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING,
+                onClick = { onSortFieldSelected(field) }
+            )
+        }
     }
 }

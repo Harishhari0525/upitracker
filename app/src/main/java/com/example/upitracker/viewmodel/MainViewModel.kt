@@ -74,6 +74,13 @@ enum class SortOrder {
     ASCENDING, DESCENDING
 }
 
+enum class SortableUpiLiteSummaryField {
+    DATE,
+    TOTAL_AMOUNT,
+    TRANSACTION_COUNT,
+    BANK
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
@@ -122,6 +129,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _upiTransactionSortOrder = MutableStateFlow(SortOrder.DESCENDING)
     val upiTransactionSortOrder: StateFlow<SortOrder> = _upiTransactionSortOrder.asStateFlow()
+
+    private val _upiLiteSummarySortField = MutableStateFlow(SortableUpiLiteSummaryField.DATE)
+    val upiLiteSummarySortField: StateFlow<SortableUpiLiteSummaryField> = _upiLiteSummarySortField.asStateFlow()
+
+    private val _upiLiteSummarySortOrder = MutableStateFlow(SortOrder.DESCENDING)
+    val upiLiteSummarySortOrder: StateFlow<SortOrder> = _upiLiteSummarySortOrder.asStateFlow()
 
     private val _selectedDateRange = combine(
         _selectedDateRangeStart,
@@ -175,14 +188,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // 3) You can do the same two-into-one trick for summaries if you like:
     val filteredUpiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
-        combine(_upiLiteSummaries, _selectedDateRange) { summaries, dateRange ->
-            val (startDate, endDate) = dateRange
-            summaries.filter {
-                (startDate == null || it.date >= startDate) &&
-                        (endDate   == null || it.date <= endDate)
+        combine(
+            _upiLiteSummaries,
+            _selectedDateRangeStart,
+            _selectedDateRangeEnd,
+            _upiLiteSummarySortField, // ✨ Add sort field
+            _upiLiteSummarySortOrder  // ✨ Add sort order
+        ) { summaries, startDate, endDate, sortField, sortOrder ->
+            // 1. Apply Date Filter
+            val dateFilteredSummaries = if (startDate != null && endDate != null) {
+                summaries.filter { it.date in startDate..endDate }
+            } else if (startDate != null) {
+                summaries.filter { it.date >= startDate }
+            } else if (endDate != null) {
+                val endOfDay = java.util.Calendar.getInstance().apply { timeInMillis = endDate; set(java.util.Calendar.HOUR_OF_DAY, 23); set(java.util.Calendar.MINUTE, 59); set(java.util.Calendar.SECOND, 59); set(java.util.Calendar.MILLISECOND, 999) }.timeInMillis
+                summaries.filter { it.date <= endOfDay }
+            } else {
+                summaries
+            }
+            // 2. Apply Sorting
+            when (sortField) {
+                SortableUpiLiteSummaryField.DATE -> {
+                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.date }
+                    else dateFilteredSummaries.sortedByDescending { it.date }
+                }
+                SortableUpiLiteSummaryField.TOTAL_AMOUNT -> {
+                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.totalAmount }
+                    else dateFilteredSummaries.sortedByDescending { it.totalAmount }
+                }
+                SortableUpiLiteSummaryField.TRANSACTION_COUNT -> {
+                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.transactionCount }
+                    else dateFilteredSummaries.sortedByDescending { it.transactionCount }
+                }
+                SortableUpiLiteSummaryField.BANK -> {
+                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.bank }
+                    else dateFilteredSummaries.sortedByDescending { it.bank }
+                }
             }
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+
 
     // --- Current Month Data (Public) ---
     private fun getCurrentMonthDateRange(): Pair<Long, Long> {
@@ -344,6 +390,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSelectedGraphPeriod(period: GraphPeriod) {
         _selectedGraphPeriod.value = period
+    }
+
+    fun setUpiLiteSummarySort(field: SortableUpiLiteSummaryField) {
+        if (_upiLiteSummarySortField.value == field) {
+            _upiLiteSummarySortOrder.value = if (_upiLiteSummarySortOrder.value == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+        } else {
+            _upiLiteSummarySortField.value = field
+            _upiLiteSummarySortOrder.value = SortOrder.DESCENDING // Default new field sort
+        }
     }
 
     fun setUpiTransactionSort(field: SortableTransactionField) {

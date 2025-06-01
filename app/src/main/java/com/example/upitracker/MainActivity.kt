@@ -37,6 +37,7 @@ import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.util.Theme
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import com.example.upitracker.data.ArchivedSmsMessage
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -218,6 +219,8 @@ class MainActivity : FragmentActivity() {
         val db = AppDatabase.getDatabase(this)
         val dao = db.transactionDao()
         val liteDao = db.upiLiteSummaryDao()
+        val archivedSmsDao = db.archivedSmsMessageDao()
+
         mainViewModel.setSmsImportingState(true)
         lifecycleScope.launch(Dispatchers.IO) {
             val smsList = getAllSms()
@@ -231,8 +234,11 @@ class MainActivity : FragmentActivity() {
                 }
             }
             for ((sender, body, smsDate) in smsList) {
+                var isUpiRelatedForBackup = false // Flag for backup
+
                 val liteSummary = parseUpiLiteSummarySms(body)
                 if (liteSummary != null) {
+                    isUpiRelatedForBackup = true // Mark as UPI related for backup
                     val existingSummary = liteDao.getSummaryByDateAndBank(liteSummary.date, liteSummary.bank)
                     if (existingSummary == null) {
                         liteDao.insert(liteSummary); liteSummaryCount++; lastLiteSummaryForSnackbar = liteSummary
@@ -246,8 +252,19 @@ class MainActivity : FragmentActivity() {
                 }
                 val transaction = parseUpiSms(body, sender, smsDate, customRegexPatterns)
                 if (transaction != null) {
+                    isUpiRelatedForBackup = true // Mark as UPI related for backup
                     val exists = dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description)
                     if (exists == null) { dao.insert(transaction); txnCount++ }
+                }
+                if (isUpiRelatedForBackup) {
+                    val archivedSms = ArchivedSmsMessage(
+                        originalSender = sender,
+                        originalBody = body,
+                        originalTimestamp = smsDate,
+                        backupTimestamp = System.currentTimeMillis()
+                    )
+                    archivedSmsDao.insertArchivedSms(archivedSms)
+                    // Log.d("MainActivityImport", "SMS from $sender backed up during old import.") // Optional log
                 }
             }
             withContext(Dispatchers.Main) {
