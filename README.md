@@ -10,19 +10,7 @@ UPI Tracker is an Android application built with Kotlin and Jetpack Compose that
 - Transaction history and category-based views  
 - Interactive charts (pie and line) for daily and monthly spending  
 - Export functionality for CSV backups  
-- Dark/light theme support and user preferences for customization  
-
-Below are representative screenshots of key screens in the app:
-
-- **PIN Setup Screen**
-  Users create a 4-digit PIN to secure their data. 
-  ![ChatGPT Image Jun 2, 2025, 02_21_57 PM](https://github.com/user-attachments/assets/63f3e5a1-12ae-4ecd-8c2b-f2ff434d71b8) 
-
-- **Transaction History Screen**  
-  Lists parsed UPI transactions chronologically with merchant name, category, date, and amount (green = credit, red = debit).  
-  ![ChatGPT Image Jun 2, 2025, 02_22_04 PM](https://github.com/user-attachments/assets/f5dead39-ba29-405c-a7dd-890d2776614b) 
-  
----
+- Dark/light theme support and user preferences for customization.
 
 ## Key Features
 
