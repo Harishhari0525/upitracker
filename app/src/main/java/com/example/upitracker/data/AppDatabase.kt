@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UpiLiteSummary::class,
         ArchivedSmsMessage::class // ✨ Add new entity ✨
     ],
-    version = 4, // ✨ Version Incremented to 4 ✨
+    version = 5, // ✨ Version Incremented to 4 ✨
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,6 +53,14 @@ abstract class AppDatabase : RoomDatabase() {
                 """.trimIndent())
             }
         }
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add the new 'isArchived' column to the 'transactions' table.
+                // It's an INTEGER because Boolean maps to INTEGER (0 or 1) in SQLite.
+                // Default to 0 (false). NOT NULL constraint is good practice.
+                db.execSQL("ALTER TABLE transactions ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -61,7 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "upi_tracker_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4) // ✨ Add new migration ✨
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

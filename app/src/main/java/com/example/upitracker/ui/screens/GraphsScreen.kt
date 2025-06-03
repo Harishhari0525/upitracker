@@ -5,6 +5,7 @@ package com.example.upitracker.ui.screens
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Log
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -98,15 +99,15 @@ fun GraphsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize().animateContentSize()
     ) {
-        Text(
-            stringResource(R.string.bottom_nav_graphs),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier
-                .padding(16.dp)
-                .align(Alignment.CenterHorizontally)
-        )
+//        Text(
+//            stringResource(R.string.bottom_nav_graphs),
+//            style = MaterialTheme.typography.headlineSmall,
+//            modifier = Modifier
+//                .padding(16.dp)
+//                .align(Alignment.CenterHorizontally)
+//        )
         TabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,11 +22,12 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.TransactionCard
-// import com.example.upitracker.ui.screens.BottomNavItem // ✨ Import for route
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
 import java.text.NumberFormat
 import java.util.Calendar // ✨ Import Calendar
 import java.util.Locale
+import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
 
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
@@ -50,6 +52,15 @@ fun CurrentMonthExpensesScreen(
     // --- State for Category Edit Dialog ---
     var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
     var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    val openDeleteConfirmDialog = { transaction: Transaction ->
+        transactionToDelete = transaction
+        showDeleteConfirmDialog = true
+    }
+
+    val context = LocalContext.current
 
     val openCategoryEditDialog = { transaction: Transaction ->
         transactionToEditCategory = transaction
@@ -116,7 +127,16 @@ fun CurrentMonthExpensesScreen(
                     items(currentMonthTransactions.take(10), key = { "current-month-txn-${it.id}" }) { transaction ->
                         TransactionCard(
                             transaction = transaction,
-                            onClick = { openCategoryEditDialog(transaction) }
+                            onClick = { openCategoryEditDialog(transaction) },
+                            onLongClick = { openDeleteConfirmDialog(transaction) },
+                            onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
+                                // Snackbar for archive/restore is posted by ViewModel
+                            },
+                            onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
+                                // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
+                                openDeleteConfirmDialog(txnToDeleteFromSwipe)
+                            }
                         )
                     }
                     if (currentMonthTransactions.size > 10) {
@@ -137,7 +157,8 @@ fun CurrentMonthExpensesScreen(
 
                                     mainViewModel.setDateRangeFilter(monthStartTimestamp, monthEndTimestamp)
                                     // Also ensure UPI type filter is set to ALL or DEBIT as desired for this view
-                                    mainViewModel.setUpiTransactionTypeFilter(com.example.upitracker.viewmodel.UpiTransactionTypeFilter.DEBIT) // Assuming we want to see DEBITs
+                                    mainViewModel.setUpiTransactionTypeFilter(
+                                        UpiTransactionTypeFilter.DEBIT) // Assuming we want to see DEBITs
                                     navController.navigate(BottomNavItem.History.route) {
                                         // Optional: Pop up to the start destination of the graph to avoid building up a large back stack
                                         // This depends on your NavController structure (rootNavController vs contentNavController)
@@ -155,6 +176,21 @@ fun CurrentMonthExpensesScreen(
                             }
                         }
                     }
+                }
+                if (showDeleteConfirmDialog && transactionToDelete != null) {
+                    DeleteTransactionConfirmationDialog(
+                        transactionDescription = transactionToDelete!!.description,
+                        onConfirm = {
+                            mainViewModel.deleteTransaction(transactionToDelete!!)
+                            mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar))
+                            showDeleteConfirmDialog = false
+                            transactionToDelete = null
+                        },
+                        onDismiss = {
+                            showDeleteConfirmDialog = false
+                            transactionToDelete = null
+                        }
+                    )
                 }
             }
         }

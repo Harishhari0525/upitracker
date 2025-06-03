@@ -12,5 +12,6 @@ data class Transaction(
     val description: String,
     val senderOrReceiver: String,
     val note: String = "",
-    val category: String? = null // ✨ New nullable field for category ✨
+    val category: String? = null, // ✨ New nullable field for category ✨
+    val isArchived: Boolean = false
 )

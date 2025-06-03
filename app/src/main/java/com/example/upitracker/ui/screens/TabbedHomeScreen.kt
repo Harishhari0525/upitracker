@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,10 +32,10 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
-// ✨ Import EditCategoryDialog if it's in a separate file ✨
-// import com.example.upitracker.ui.components.EditCategoryDialog
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
+import com.example.upitracker.ui.components.EditCategoryDialog
 
 @Composable
 fun TabbedHomeScreen( // This screen might be your "History" tab's content now, or a standalone screen
@@ -62,6 +63,14 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
     // ✨ --- State and Lambda for Category Edit Dialog --- ✨
     var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
     var showCategoryEditDialog by remember { mutableStateOf(false) }
+
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    val openDeleteConfirmDialog = { transaction: Transaction ->
+        transactionToDelete = transaction
+        showDeleteConfirmDialog = true
+    }
+    val context = LocalContext.current
 
     val openCategoryEditDialog = { transaction: Transaction ->
         transactionToEditCategory = transaction
@@ -123,7 +132,10 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
                             transactions = upiTransactions.take(100), // Or full list if this is history
                             onTransactionClick = { transaction -> // ✨ Pass lambda here ✨
                                 openCategoryEditDialog(transaction)
-                            }
+                            },
+                            onTransactionLongClick = { transaction -> openDeleteConfirmDialog(transaction)},
+                            onTransactionArchive = { transaction -> mainViewModel.toggleTransactionArchiveStatus(transaction) },
+                            onTransactionDeleteSwipe = { transaction -> openDeleteConfirmDialog(transaction) }
                         )
                         1 -> UpiLiteSummaryListContent(
                             summaries = liteSummaries.take(100) // Or full list
@@ -157,6 +169,21 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
             }
         )
     }
+    if (showDeleteConfirmDialog && transactionToDelete != null) {
+        DeleteTransactionConfirmationDialog(
+            transactionDescription = transactionToDelete!!.description,
+            onConfirm = {
+                mainViewModel.deleteTransaction(transactionToDelete!!)
+                mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar))
+                showDeleteConfirmDialog = false
+                transactionToDelete = null
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                transactionToDelete = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -179,7 +206,10 @@ fun EmptyStateView(message: String, modifier: Modifier = Modifier) {
 @Composable
 fun UpiTransactionListContent(
     transactions: List<Transaction>,
-    onTransactionClick: (Transaction) -> Unit // ✨ Added parameter ✨
+    onTransactionClick: (Transaction) -> Unit,
+    onTransactionLongClick: (Transaction) -> Unit, // ✨ Added parameter ✨
+    onTransactionArchive: (Transaction) -> Unit, // ✨ Added parameter ✨
+    onTransactionDeleteSwipe: (Transaction) -> Unit
 ) {
     if (transactions.isEmpty()) {
         EmptyStateView(message = stringResource(R.string.empty_state_no_upi_transactions))
@@ -193,7 +223,10 @@ fun UpiTransactionListContent(
         items(transactions, key = { it.id }) { txn ->
             TransactionCard(
                 transaction = txn,
-                onClick = { onTransactionClick(txn) } // ✨ Call the passed lambda ✨
+                onClick = { onTransactionClick(txn) },
+                onLongClick = { onTransactionLongClick(txn) },
+                onArchiveSwipeAction = { onTransactionArchive(txn) },      // ✨ Pass to Card ✨
+                onDeleteSwipeAction = { onTransactionDeleteSwipe(txn) }
             )
         }
     }

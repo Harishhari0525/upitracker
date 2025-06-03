@@ -34,6 +34,7 @@ import java.util.Locale
 import java.util.TimeZone
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue // For 'by' delegation
+import androidx.compose.ui.platform.LocalContext
 import com.example.upitracker.ui.components.EditCategoryDialog
 import com.example.upitracker.viewmodel.SortOrder // ✨ Import SortOrder
 import com.example.upitracker.viewmodel.SortableTransactionField
@@ -82,6 +83,14 @@ fun TransactionHistoryScreen(
     // ✨ Collect Sort States from ViewModel ✨
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
+
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val openDeleteConfirmDialog = { transaction: Transaction ->
+        transactionToDelete = transaction
+        showDeleteConfirmDialog = true
+    }
 
     val openCategoryEditDialog = { transaction: Transaction ->
         transactionToEditCategory = transaction
@@ -169,7 +178,16 @@ fun TransactionHistoryScreen(
                                 items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
                                     TransactionCard(
                                         transaction = transaction,
-                                        onClick = { openCategoryEditDialog(transaction) } // ✨ USING the lambda here ✨
+                                        onClick = { openCategoryEditDialog(transaction) },
+                                        onLongClick = { openDeleteConfirmDialog(transaction) },// ✨ USING the lambda here ✨
+                                        onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                            mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
+                                            // Snackbar for archive/restore is posted by ViewModel
+                                        },
+                                        onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
+                                            // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
+                                            openDeleteConfirmDialog(txnToDeleteFromSwipe)
+                                        }
                                     )
                                 }
                             }
@@ -216,6 +234,23 @@ fun TransactionHistoryScreen(
                 mainViewModel.updateTransactionCategory(transactionId, newCategory)
                 showCategoryEditDialog = false
                 transactionToEditCategory = null
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && transactionToDelete != null) {
+        val context = LocalContext.current // Get context for Snackbar message
+        DeleteTransactionConfirmationDialog(
+            transactionDescription = transactionToDelete!!.description, // Pass some identifying info
+            onConfirm = {
+                mainViewModel.deleteTransaction(transactionToDelete!!)
+                mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar)) // ✨ Use new string
+                showDeleteConfirmDialog = false
+                transactionToDelete = null
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                transactionToDelete = null
             }
         )
     }
@@ -460,3 +495,30 @@ fun UpiLiteSummarySortControls(
         }
     }
 }
+@Composable
+fun DeleteTransactionConfirmationDialog(
+    transactionDescription: String, // To show some context in the dialog
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.settings_delete_all_data), tint = MaterialTheme.colorScheme.error) },
+        title = { Text(stringResource(R.string.delete_transaction_dialog_title)) },
+        text = { Text(stringResource(R.string.delete_transaction_dialog_message) + "\n\n\"${transactionDescription.take(50)}${if (transactionDescription.length > 50) "..." else ""}\"") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text(stringResource(R.string.button_delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_button_cancel))
+            }
+        }
+    )
+}
+

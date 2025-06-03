@@ -100,6 +100,10 @@
     <string name="graph_legend_and_more">… and %1$d more</string>
     <string name="graph_selected_pie_slice_details">%1$s: %2$s (%3$d%%)</string>
     <string name="graph_line_chart_not_enough_data">Not enough data to display line chart.</string>
+    <string name="settings_sync_sms_backup">Refresh SMS Backup</string>
+    <string name="settings_sync_sms_backup_summary">Re-scan SMS inbox to ensure all UPI/Lite messages are backed up in the app.</string>
+    <string name="settings_sync_sms_backup_in_progress">Refreshing SMS archive…</string>
+    <string name="sms_archive_refreshed_message">SMS Archive refreshed: %1$d SMS backed up/verified. (%2$d new transactions, %3$d new/updated summaries)</string>
 
     <string name="tab_upi">UPI</string>
     <string name="tab_upi_lite">UPI Lite</string>
@@ -172,6 +176,12 @@
     <string name="graph_category_pie_no_data">No categorized expenses found for the selected period, or no categories assigned yet.</string>
     <string name="graph_pie_chart_no_data">No categorized expenses to display for the selected period.</string>
     <string name="graph_legend_title">Categories</string>
+    <string name="transaction_archived_snackbar">Transaction \"%1$s…\" archived.</string>
+    <string name="transaction_restored_snackbar">Transaction \"%1$s…\" restored.</string>
+    <string name="swipe_action_delete">Delete</string>
+    <string name="swipe_action_archive">Archive</string>
+    <string name="swipe_action_unarchive">Unarchive</string>
+    <string name="snackbar_action_undo">Undo</string>
 
     <string name="dialog_button_ok">OK</string>
     <string name="filter_type_all">All</string>
@@ -180,6 +190,11 @@
     <string name="graph_daily_trend_title">Daily Expense Trend (Last 30 Days)</string>
     <string name="graph_daily_trend_no_data">No daily expense data available for the period.</string>
     <string name="graph_line_chart_no_data">No data to display line chart.</string>
+    <string name="delete_transaction_dialog_title">Delete Transaction</string>
+    <string name="delete_transaction_dialog_message">Are you sure you want to permanently delete this transaction?</string>
+    <string name="button_delete">Delete</string>
+    <string name="transaction_deleted_snackbar">Transaction deleted.</string>
+
 
 
 </resources>

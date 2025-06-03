@@ -46,6 +46,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.example.upitracker.util.BiometricHelper // ✨ Import BiometricHelper
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.upitracker.util.CleanupArchivedSmsWorker
+import kotlinx.coroutines.flow.firstOrNull
+import java.util.concurrent.TimeUnit
+import androidx.compose.material3.SnackbarResult
 
 class MainActivity : FragmentActivity() {
 
@@ -64,6 +71,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        scheduleArchivedSmsCleanup()
 
         // ... (db, dao, smsReceiver setup remains the same)
         val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
@@ -91,12 +99,18 @@ class MainActivity : FragmentActivity() {
                 val coroutineScope = rememberCoroutineScope()
 
                 LaunchedEffect(Unit) {
-                    mainViewModel.snackbarEvents.collectLatest { message ->
+                    mainViewModel.snackbarEvents.collectLatest { snackbarMessageData ->
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                message = message,
-                                duration = SnackbarDuration.Short
+                            val result = snackbarHostState.showSnackbar(
+                                message = snackbarMessageData.message,
+                                actionLabel = snackbarMessageData.actionLabel,
+                                duration = SnackbarDuration.Short // Or .Long depending on importance
                             )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                snackbarMessageData.onAction?.invoke()
+                            } else if (result == SnackbarResult.Dismissed) {
+                                snackbarMessageData.onDismiss?.invoke()
+                            }
                         }
                     }
                 }
@@ -191,6 +205,7 @@ class MainActivity : FragmentActivity() {
                             MainNavHost(
                                 modifier = Modifier.padding(innerPadding),
                                 onImportOldSms = { requestSmsPermissionAndImport() },
+                                onRefreshSmsArchive = { requestSmsPermissionAndRefreshArchive() },
                                 mainViewModel = mainViewModel
                             )
                         }
@@ -198,6 +213,24 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun scheduleArchivedSmsCleanup() {
+        // Create a periodic work request to run once a day
+        val cleanupRequest =
+            PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS)
+                // Optional: Add constraints like network type, charging, etc.
+                // .setConstraints(Constraints.Builder().setRequiresCharging(true).build())
+                .build()
+
+        // Enqueue the work as unique periodic work
+        // This ensures only one instance of this worker with this name is scheduled.
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            CleanupArchivedSmsWorker.WORK_NAME, // Unique name for the work
+            ExistingPeriodicWorkPolicy.KEEP,    // Or REPLACE if you want to update it if it already exists
+            cleanupRequest
+        )
+        Log.d("MainActivity", "Periodic cleanup worker for archived SMS scheduled.")
     }
 
     // ... requestSmsPermissionAndImport(), importOldUpiSms(), getAllSms(), onDestroy() methods remain the same ...
@@ -308,6 +341,122 @@ class MainActivity : FragmentActivity() {
             // In case of error, smsList will be returned as is (potentially empty or partially filled)
         }
         smsList // This is the last expression in the withContext block, so it's implicitly returned.
+    }
+
+    private fun requestSmsPermissionAndRefreshArchive() { // ✨ New function ✨
+        when {
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_SMS
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                performSmsArchiveRefresh()
+            }
+            else -> {
+                // Re-use the same permission launcher, the callback is generic enough
+                requestPermissionLauncher.launch(Manifest.permission.READ_SMS)
+                // If permission is granted, importOldUpiSms is called, which uses isImportingSms.
+                // We need to ensure if permission was requested for *this* action, it uses the correct loading state.
+                // This might be tricky.
+                // Simpler: if permission is needed, it will run the full import.
+                // If permission already granted, then we can run our specific refresh.
+                // For now, let's make the refresh function assume permission is granted
+                // and SettingsScreen will handle the permission check before calling it.
+                // OR, the refresh button only shows if permission is already granted.
+            }
+        }
+    }
+    private fun performSmsArchiveRefresh() { // ✨ New function ✨
+        // This function is essentially importOldUpiSms, but uses a different loading flag
+        // and potentially different snackbar messages.
+        val db = AppDatabase.getDatabase(this)
+        val dao = db.transactionDao()
+        val liteDao = db.upiLiteSummaryDao()
+        val archivedSmsDao = db.archivedSmsMessageDao()
+
+        mainViewModel.setIsRefreshingSmsArchive(true) // ✨ Use new loading state ✨
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val smsList = getAllSms() // getAllSms remains the same
+            var transactionsProcessed = 0
+            var summariesProcessed = 0
+            var smsArchived = 0
+
+            var customRegexPatterns: List<Regex> = emptyList()
+            RegexPreference.getRegexPatterns(this@MainActivity).firstOrNull()?.let { patternsSet ->
+                customRegexPatterns = patternsSet.mapNotNull { patternString ->
+                    try {
+                        Regex(patternString, RegexOption.IGNORE_CASE)
+                    } catch (e: Exception) {
+                        Log.w(
+                            "MainActivityImport",
+                            "Skipping invalid regex pattern: '$patternString'",
+                            e
+                        ); null
+                    }
+                }
+
+                for ((sender, body, smsDate) in smsList) {
+                    var needsArchiving = false
+                    val liteSummary = parseUpiLiteSummarySms(body)
+                    if (liteSummary != null) {
+                        needsArchiving = true
+                        val existingSummary =
+                            liteDao.getSummaryByDateAndBank(liteSummary.date, liteSummary.bank)
+                        if (existingSummary == null) {
+                            liteDao.insert(liteSummary); summariesProcessed++
+                        } else {
+                            if (existingSummary.transactionCount != liteSummary.transactionCount || existingSummary.totalAmount != liteSummary.totalAmount) {
+                                liteDao.update(
+                                    existingSummary.copy(
+                                        transactionCount = liteSummary.transactionCount,
+                                        totalAmount = liteSummary.totalAmount
+                                    )
+                                )
+                                summariesProcessed++ // Count updates as processed
+                            }
+                        }
+                    }
+
+                    val transaction = parseUpiSms(body, sender, smsDate, customRegexPatterns)
+                    if (transaction != null) {
+                        needsArchiving = true
+                        val exists = dao.getTransactionByDetails(
+                            transaction.amount,
+                            transaction.date,
+                            transaction.description
+                        )
+                        if (exists == null) {
+                            dao.insert(transaction); transactionsProcessed++
+                        }
+                    }
+
+                    if (needsArchiving) {
+                        val archivedSms = ArchivedSmsMessage(
+                            originalSender = sender,
+                            originalBody = body,
+                            originalTimestamp = smsDate,
+                            backupTimestamp = System.currentTimeMillis()
+                        )
+                        // insertArchivedSms is suspend, ensure it's called within a coroutine or made non-suspend
+                        // For now, assuming it's suspend and this IO scope is fine.
+                        archivedSmsDao.insertArchivedSms(archivedSms)
+                        smsArchived++
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    mainViewModel.setIsRefreshingSmsArchive(false) // ✨ Use new loading state ✨
+                    // ✨ Different Snackbar message for archive refresh ✨
+                    mainViewModel.postSnackbarMessage(
+                        getString(
+                            R.string.sms_archive_refreshed_message,
+                            smsArchived,
+                            transactionsProcessed,
+                            summariesProcessed
+                        ) // ✨ New String Resource
+                    )
+                }
+            }
+        }
     }
 
     override fun onDestroy() {

@@ -3,33 +3,31 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding // Optional: for bottom bar
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding // ✨ Import for status bar padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
-// import androidx.navigation.NavHostController // Not strictly needed if using NavController type
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.R
-// import com.example.upitracker.ui.navigation.BottomNavItem
 import com.example.upitracker.viewmodel.MainViewModel
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.pager.HorizontalPager // Import Pager
+import androidx.compose.foundation.pager.rememberPagerState // Import PagerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+
 
 @Composable
 fun MainAppScreen(
     mainViewModel: MainViewModel,
     rootNavController: NavController,
     onImportOldSms: () -> Unit,
-    modifier: Modifier = Modifier // This modifier comes from MainActivity's Scaffold innerPadding
+    modifier: Modifier = Modifier, // This modifier comes from MainActivity's Scaffold innerPadding
+    onRefreshSmsArchive: () -> Unit
 ) {
     val bottomNavItems = listOf(
         BottomNavItem.Home,
@@ -37,18 +35,20 @@ fun MainAppScreen(
         BottomNavItem.History,
         BottomNavItem.AppSettings
     )
-    val contentNavController = rememberNavController()
+    val pagerState = rememberPagerState { bottomNavItems.size }
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         // The modifier from parent (MainActivity's Scaffold padding) is applied here.
         // This ensures MainAppScreen respects the area given by MainActivity (e.g. for snackbars).
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().fillMaxHeight().fillMaxWidth(),
         topBar = {
             TopAppBar(
                 title = {
-                    val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
-                    val currentRoute = navBackStackEntry?.destination?.route
-                    val currentScreen = bottomNavItems.find { it.route == currentRoute }
+                    // val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
+                    // val currentRoute = navBackStackEntry?.destination?.route
+                    // val currentScreen = bottomNavItems.find { it.route == currentRoute }
+                    val currentScreen = bottomNavItems.getOrNull(pagerState.currentPage)
                     Text(
                         text = currentScreen?.labelResId?.let { stringResource(it) }
                             ?: stringResource(R.string.app_name)
@@ -65,21 +65,15 @@ fun MainAppScreen(
                 // Optional: If you want the bottom navigation bar to also avoid system navigation gestures
                 // modifier = Modifier.navigationBarsPadding() // Typically only needed if nav bar is translucent/transparent
             ) {
-                val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-
-                bottomNavItems.forEach { screen ->
+                bottomNavItems.forEachIndexed { index, screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelResId)) },
                         label = { Text(stringResource(screen.labelResId), style = MaterialTheme.typography.labelSmall) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = pagerState.currentPage == index, // ✨ Selected based on Pager's current page ✨
                         onClick = {
-                            contentNavController.navigate(screen.route) {
-                                popUpTo(contentNavController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
+                            // ✨ Clicking a bottom nav item scrolls the Pager ✨
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(index)
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -94,34 +88,41 @@ fun MainAppScreen(
             }
         }
     ) { innerPadding -> // Padding from MainAppScreen's Scaffold (TopAppBar, BottomNavBar)
-        NavHost(
-            navController = contentNavController,
-            startDestination = BottomNavItem.Home.route,
-            // Apply the padding from this Scaffold to the NavHost content area
-            modifier = Modifier.padding(innerPadding)
-            // Optional: If your content within NavHost also needs to be aware of system nav bar
-            // .navigationBarsPadding() // Use if bottom content is obscured and bottom bar isn't opaque
-        ) {
-            composable(BottomNavItem.Home.route) {
-                CurrentMonthExpensesScreen(
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .padding(innerPadding) // Apply padding from this Scaffold
+                .fillMaxSize() // Pager fills the content area
+        ) { pageIndex ->
+            // Each page composable is called directly based on pageIndex
+            // Pass the rootNavController if these screens need to navigate to destinations
+            // not part of this bottom bar + pager flow (e.g., a detail screen or RegexEditor)
+            when (val screen = bottomNavItems[pageIndex]) {
+                is BottomNavItem.Home -> CurrentMonthExpensesScreen(
                     mainViewModel = mainViewModel,
                     onImportOldSms = onImportOldSms,
-                    navController = contentNavController // ✨ Pass the contentNavController ✨
-                )
-            }
-            composable(BottomNavItem.Graphs.route) {
-                GraphsScreen(mainViewModel, modifier = Modifier.fillMaxSize())
-            }
-            composable(BottomNavItem.History.route) {
-                TransactionHistoryScreen(mainViewModel, rootNavController, modifier = Modifier.fillMaxSize())
-            }
-            composable(BottomNavItem.AppSettings.route) {
-                SettingsScreen(
-                    mainViewModel = mainViewModel,
-                    onImportOldSms = onImportOldSms,
-                    onEditRegex = { rootNavController.navigate("regexEditor") },
-                    onBack = { contentNavController.popBackStack() },
+                    navController = rootNavController, // Pass root for potential further navigation
                     modifier = Modifier.fillMaxSize()
+                )
+                is BottomNavItem.Graphs -> GraphsScreen(
+                    mainViewModel = mainViewModel,
+                    modifier = Modifier.fillMaxSize()
+                )
+                is BottomNavItem.History -> TransactionHistoryScreen(
+                    mainViewModel = mainViewModel,
+                    navController = rootNavController, // Pass root for potential further navigation
+                    modifier = Modifier.fillMaxSize()
+                )
+                is BottomNavItem.AppSettings -> SettingsScreen(
+                    mainViewModel = mainViewModel,
+                    onImportOldSms = onImportOldSms,
+                    onEditRegex = { rootNavController.navigate("regexEditor") }, // Use rootNavController
+                    onBack = { /* Settings might not need an onBack if it's a top-level section */
+                        // If SettingsScreen had its own back navigation, it would use rootNavController
+                        // For now, assuming it's a root screen in the pager.
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    onRefreshSmsArchive = onRefreshSmsArchive
                 )
             }
         }

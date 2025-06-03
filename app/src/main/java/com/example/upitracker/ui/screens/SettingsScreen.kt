@@ -34,6 +34,9 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SyncLock
+import androidx.compose.material.icons.filled.SyncProblem
 
 private enum class PinChangeStep {
     NONE,
@@ -47,6 +50,7 @@ fun SettingsScreen(
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
     onEditRegex: () -> Unit,
+    onRefreshSmsArchive: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -57,6 +61,7 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val isImportingSms by mainViewModel.isImportingSms.collectAsState()
     val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
+    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState() // ✨ Collect new state
 
     // Re-compute isPinSet when no dialog is active
     LaunchedEffect(Unit, currentPinChangeStep) {
@@ -133,6 +138,28 @@ fun SettingsScreen(
                 summary = stringResource(R.string.settings_edit_sms_regex_summary),
                 onClick = onEditRegex
             )
+        }
+
+        item {
+            SettingItemRow(
+                icon = if (isRefreshingSmsArchive) Icons.Filled.SyncProblem else Icons.Filled.Sync, // Example icons
+                title = stringResource(R.string.settings_sync_sms_backup),
+                summary = if (isRefreshingSmsArchive) stringResource(R.string.settings_sync_sms_backup_in_progress) else stringResource(R.string.settings_sync_sms_backup_summary), // ✨ New String
+                onClick = {
+                    if (!isRefreshingSmsArchive && !isImportingSms) { // Ensure no other SMS operation is running
+                        // ✨ Call the new function/lambda ✨
+                        // This should handle its own permission check if needed or assume it's granted
+                        // For now, assuming MainActivity's requestSmsPermissionAndRefreshArchive handles permissions.
+                        onRefreshSmsArchive() // This lambda needs to be passed down
+                    }
+                },
+                titleColor = if (isRefreshingSmsArchive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                iconTint = if (isRefreshingSmsArchive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            ) {
+                if (isRefreshingSmsArchive) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            }
         }
 
         item {

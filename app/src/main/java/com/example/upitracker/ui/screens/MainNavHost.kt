@@ -13,6 +13,7 @@ fun MainNavHost(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel = viewModel(),
     onImportOldSms: () -> Unit,
+    onRefreshSmsArchive: () -> Unit
     // Add onOnboardingComplete if MainNavHost is responsible for showing OnboardingScreen first
     // onOnboardingComplete: () -> Unit,
     // initialStartDestination: String // e.g., from MainActivity based on onboarding status
@@ -36,7 +37,8 @@ fun MainNavHost(
             MainAppScreen(
                 mainViewModel = mainViewModel,
                 rootNavController = navController, // Pass this NavController
-                onImportOldSms = onImportOldSms
+                onImportOldSms = onImportOldSms,
+                onRefreshSmsArchive = onRefreshSmsArchive
             )
         }
         // RegexEditorScreen is typically navigated to from SettingsScreen,

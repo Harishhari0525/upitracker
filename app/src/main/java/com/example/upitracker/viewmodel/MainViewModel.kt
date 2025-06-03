@@ -81,6 +81,13 @@ enum class SortableUpiLiteSummaryField {
     BANK
 }
 
+data class SnackbarMessage(
+    val message: String,
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null, // Action to perform if Undo is clicked
+    val onDismiss: (() -> Unit)? = null  // Action to perform if Snackbar is dismissed (e.g., timeout)
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
@@ -94,12 +101,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    private var _lastArchivedTransaction: Transaction? = null
+    private var _lastArchivedTransactionOriginalCategory: String? = null
+
     // --- UI State Flows (Public) ---
-    private val _snackbarEvents = MutableSharedFlow<String>()
-    val snackbarEvents: SharedFlow<String> = _snackbarEvents.asSharedFlow()
+    private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
+    val snackbarEvents: SharedFlow<SnackbarMessage> = _snackbarEvents.asSharedFlow()
 
     private val _isImportingSms = MutableStateFlow(false)
     val isImportingSms: StateFlow<Boolean> = _isImportingSms.asStateFlow()
+
+    private val _isRefreshingSmsArchive = MutableStateFlow(false)
+    val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
 
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
@@ -107,6 +120,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val archivedUpiTransactions: StateFlow<List<Transaction>> =
+        transactionDao.getArchivedTransactions() // Uses the new DAO method
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isExportingCsv = MutableStateFlow(false)
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
@@ -201,7 +218,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else if (startDate != null) {
                 summaries.filter { it.date >= startDate }
             } else if (endDate != null) {
-                val endOfDay = java.util.Calendar.getInstance().apply { timeInMillis = endDate; set(java.util.Calendar.HOUR_OF_DAY, 23); set(java.util.Calendar.MINUTE, 59); set(java.util.Calendar.SECOND, 59); set(java.util.Calendar.MILLISECOND, 999) }.timeInMillis
+                val endOfDay = Calendar.getInstance().apply { timeInMillis = endDate; set(Calendar.HOUR_OF_DAY, 23); set(
+                    Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
                 summaries.filter { it.date <= endOfDay }
             } else {
                 summaries
@@ -264,9 +282,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, N: Int): List<MonthlyExpense> {
+    private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, n: Int): List<MonthlyExpense> {
         // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: START. Input transaction count: ${transactions.size}, N: $N")
-        if (transactions.isEmpty() || N <= 0) {
+        if (transactions.isEmpty() || n <= 0) {
             // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No input transactions or N is invalid. Returning empty list.")
             return emptyList()
         }
@@ -276,22 +294,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val debitTransactions = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
         // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Filtered DEBIT transactions count: ${debitTransactions.size}")
         if (debitTransactions.isEmpty()) {
-            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No DEBIT transactions found. Returning empty list.")
             return emptyList()
         }
 
         val expensesByYearMonth = debitTransactions
             .groupBy { transaction -> yearMonthKeyFormat.format(Date(transaction.date)) }
             .mapValues { entry -> entry.value.sumOf { it.amount } }
-        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Expenses grouped by year-month: $expensesByYearMonth")
-
-        // if (expensesByYearMonth.isEmpty() && debitTransactions.isNotEmpty()) {
-        //     Log.w("ViewModelDebug", "calculateLastNMonthsExpenses: Grouping resulted in empty map, but there were debit transactions. Check date ranges/formats.")
-        // }
 
         val calendar = Calendar.getInstance()
         val monthlyExpensesData = mutableListOf<MonthlyExpense>()
-        for (i in 0 until N) {
+        for (i in 0 until n) {
             val targetCalendar = Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
             val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
             val displayLabel = monthDisplayFormat.format(targetCalendar.time)
@@ -420,6 +432,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateTransactionCategory(transactionId: Int, category: String?) {
         viewModelScope.launch {
+            if (_lastArchivedTransaction?.id == transactionId) { // Invalidate pending undo if categorizing the same item
+                _lastArchivedTransaction = null
+                _lastArchivedTransactionOriginalCategory = null
+            }
             val transactionToUpdate = _transactions.value.find { it.id == transactionId }
             transactionToUpdate?.let {
                 val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
@@ -438,6 +454,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addUpiLiteSummary(summary: UpiLiteSummary) {
         viewModelScope.launch {
             upiLiteSummaryDao.insert(summary)
+        }
+    }
+
+    fun setIsRefreshingSmsArchive(isRefreshing: Boolean) {
+        _isRefreshingSmsArchive.value = isRefreshing
+        if (isRefreshing) { // If ad-hoc refresh starts, general import is not also in progress separately
+            _isImportingSms.value = false
         }
     }
 
@@ -473,7 +496,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun postSnackbarMessage(message: String) {
         viewModelScope.launch {
-            _snackbarEvents.emit(message)
+            _snackbarEvents.emit(SnackbarMessage(message = message))
         }
     }
 
@@ -514,6 +537,72 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isExportingCsv.value = false
             }
+        }
+    }
+
+    fun toggleTransactionArchiveStatus(transaction: Transaction, archive: Boolean = true) {
+        viewModelScope.launch {
+            if (archive) { // Archiving
+                _lastArchivedTransaction = transaction // Store for potential undo
+                _lastArchivedTransactionOriginalCategory = transaction.category // Store original category too
+
+                // Create a temporary updated transaction for the DAO, then update the original if undone
+                val archivedTransaction = transaction.copy(isArchived = true)
+                transactionDao.update(archivedTransaction) // This updates isArchived and any other changes like category
+
+                _snackbarEvents.emit(
+                    SnackbarMessage(
+                        message = getApplication<Application>().getString(R.string.transaction_archived_snackbar, transaction.description.take(20)),
+                        actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo), // New String
+                        onAction = { // Action for Undo
+                            viewModelScope.launch {
+                                _lastArchivedTransaction?.let { undoneTransaction ->
+                                    // Revert to original isArchived state (false) and original category
+                                    val restoredTransaction = undoneTransaction.copy(
+                                        isArchived = false,
+                                        category = _lastArchivedTransactionOriginalCategory // Restore original category
+                                    )
+                                    transactionDao.update(restoredTransaction)
+                                    _lastArchivedTransaction = null // Clear temp storage
+                                    _lastArchivedTransactionOriginalCategory = null
+                                    // No need to post "restored" snackbar if undo happens quickly
+                                }
+                            }
+                        },
+                        onDismiss = { // Action if snackbar dismisses (timeout) - currently no specific action on dismiss
+                            _lastArchivedTransaction = null // Clear if dismissed without undo
+                            _lastArchivedTransactionOriginalCategory = null
+                        }
+                    )
+                )
+            } else { // Unarchiving (Restoring)
+                val unarchivedTransaction = transaction.copy(isArchived = false)
+                transactionDao.update(unarchivedTransaction)
+                // No "Undo" for unarchiving, it's a direct action
+                postPlainSnackbarMessage(getApplication<Application>().getString(R.string.transaction_restored_snackbar, transaction.description.take(20)))
+            }
+            // The flows observing transactionDao will automatically update the UI lists.
+        }
+    }
+
+    fun undoLastArchiveAction() {
+        viewModelScope.launch {
+            _lastArchivedTransaction?.let {
+                val restoredTransaction = it.copy(
+                    isArchived = false,
+                    category = _lastArchivedTransactionOriginalCategory
+                )
+                transactionDao.update(restoredTransaction)
+                postPlainSnackbarMessage("Archive undone for \"${it.description.take(20)}...\"") // TODO: String resource
+                _lastArchivedTransaction = null
+                _lastArchivedTransactionOriginalCategory = null
+            }
+        }
+    }
+
+    fun postPlainSnackbarMessage(message: String) {
+        viewModelScope.launch {
+            _snackbarEvents.emit(SnackbarMessage(message = message))
         }
     }
 
