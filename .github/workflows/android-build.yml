@@ -1,5 +1,56 @@
+name: Build Debug APK
+
 on:
-push:
-branches:
-- master
-workflow_dispatch: {}
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Check out the code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2) Set up the Android SDK (subosito/android-action installs
+      #    command‐line tools + specified platforms/build-tools)
+      - name: Set up Android SDK
+        uses: subosito/android-action@v2
+        with:
+          sdk: |
+            platform-tools
+            platforms;android-31
+            build-tools;31.0.0
+
+      # 3) Cache Gradle wrapper & dependencies to speed up future builds
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          # Cache key includes all Gradle build files so cache invalidates when dependencies change
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 5) Create or update a GitHub Release
+      - name: Create/Update GitHub Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          body: |                          # Release notes (optional)
+            🎉 UPITracker ${{ github.ref_name }} has been published!
+          draft: false
+          prerelease: false
+
+      # 6) Upload the APK to that Release
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
