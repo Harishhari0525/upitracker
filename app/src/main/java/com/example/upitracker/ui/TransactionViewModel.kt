@@ -1,3 +1,5 @@
+package com.example.upitracker.ui
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.data.Transaction
