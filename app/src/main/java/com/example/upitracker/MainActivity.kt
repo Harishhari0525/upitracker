@@ -68,6 +68,15 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+    private val refreshArchivePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                performSmsArchiveRefresh()
+            } else {
+                mainViewModel.postSnackbarMessage("SMS permission is required to import transactions.")
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -351,16 +360,7 @@ class MainActivity : FragmentActivity() {
                 performSmsArchiveRefresh()
             }
             else -> {
-                // Re-use the same permission launcher, the callback is generic enough
-                requestPermissionLauncher.launch(Manifest.permission.READ_SMS)
-                // If permission is granted, importOldUpiSms is called, which uses isImportingSms.
-                // We need to ensure if permission was requested for *this* action, it uses the correct loading state.
-                // This might be tricky.
-                // Simpler: if permission is needed, it will run the full import.
-                // If permission already granted, then we can run our specific refresh.
-                // For now, let's make the refresh function assume permission is granted
-                // and SettingsScreen will handle the permission check before calling it.
-                // OR, the refresh button only shows if permission is already granted.
+                refreshArchivePermissionLauncher.launch(Manifest.permission.READ_SMS)
             }
         }
     }
