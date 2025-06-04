@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.catch // Recommended for handling potential errors during DataStore read
 
 // Define the DataStore instance at the top level, associated with the Context
 val Context.pinDataStore by preferencesDataStore(name = "pin_store")
