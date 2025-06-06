@@ -43,7 +43,7 @@ fun MainAppScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                windowInsets = WindowInsets(0),
+                // windowInsets = WindowInsets(0),
                 title = {
                     val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
