@@ -6,7 +6,7 @@ import android.util.Log // ✨ Add Log import for debugging
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,9 +40,10 @@ fun MainAppScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                windowInsets = TopAppBarDefaults.windowInsets,
+                windowInsets = WindowInsets(0),
                 title = {
                     val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route

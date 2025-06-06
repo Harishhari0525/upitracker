@@ -19,7 +19,6 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,9 +80,9 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                windowInsets = TopAppBarDefaults.windowInsets,
                 title = { Text(stringResource(R.string.tabbed_home_top_bar_title)) }, // Or a more specific title if this is for history
                 actions = {
                     IconButton(onClick = { navController.navigate("settings") }) { // Ensure this "settings" route is valid for the passed NavController
