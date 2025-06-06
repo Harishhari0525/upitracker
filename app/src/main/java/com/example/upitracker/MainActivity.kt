@@ -13,6 +13,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -150,7 +151,8 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 Scaffold(
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                    contentWindowInsets = WindowInsets(0)
                 ) { innerPadding ->
                     if (!onboardingCompleted) {
                         OnboardingScreen(

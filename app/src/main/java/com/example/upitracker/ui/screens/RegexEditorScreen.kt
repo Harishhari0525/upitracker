@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ fun RegexEditorScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0),
                 title = { Text(stringResource(R.string.regex_editor_top_bar_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
