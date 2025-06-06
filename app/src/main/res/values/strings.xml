@@ -194,6 +194,16 @@
     <string name="delete_transaction_dialog_message">Are you sure you want to permanently delete this transaction?</string>
     <string name="button_delete">Delete</string>
     <string name="transaction_deleted_snackbar">Transaction deleted.</string>
+    <string name="regex_editor_test_area_title">Test Your Pattern</string>
+    <string name="regex_editor_test_sms_label">Sample SMS Body</string>
+    <string name="regex_editor_test_sms_placeholder">Paste a full SMS message here to test…</string>
+    <string name="regex_editor_test_button">Test Pattern</string>
+    <string name="regex_editor_test_results_title">Test Results</string>
+    <string name="regex_editor_test_result_no_match">No match found.</string>
+    <string name="regex_editor_test_result_match_found">Match found!</string>
+    <string name="regex_editor_test_result_invalid_regex">Invalid regex pattern.</string>
+    <string name="regex_editor_test_result_group_template">\t\tGroup %1$d: %2$s</string>
+
 
 
 
