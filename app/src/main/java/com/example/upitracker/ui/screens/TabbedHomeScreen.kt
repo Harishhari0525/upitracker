@@ -80,6 +80,7 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tabbed_home_top_bar_title)) }, // Or a more specific title if this is for history
