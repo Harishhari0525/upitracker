@@ -130,7 +130,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Filter & Sort States (Private backing, Public immutable exposure) ---
     private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
-    val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> = _selectedUpiTransactionType.asStateFlow()
+    val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> =
+        _selectedUpiTransactionType.asStateFlow()
 
     private val _selectedDateRangeStart = MutableStateFlow<Long?>(null)
     val selectedDateRangeStart: StateFlow<Long?> = _selectedDateRangeStart.asStateFlow()
@@ -142,13 +143,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
 
     private val _upiTransactionSortField = MutableStateFlow(SortableTransactionField.DATE)
-    val upiTransactionSortField: StateFlow<SortableTransactionField> = _upiTransactionSortField.asStateFlow()
+    val upiTransactionSortField: StateFlow<SortableTransactionField> =
+        _upiTransactionSortField.asStateFlow()
 
     private val _upiTransactionSortOrder = MutableStateFlow(SortOrder.DESCENDING)
     val upiTransactionSortOrder: StateFlow<SortOrder> = _upiTransactionSortOrder.asStateFlow()
 
     private val _upiLiteSummarySortField = MutableStateFlow(SortableUpiLiteSummaryField.DATE)
-    val upiLiteSummarySortField: StateFlow<SortableUpiLiteSummaryField> = _upiLiteSummarySortField.asStateFlow()
+    val upiLiteSummarySortField: StateFlow<SortableUpiLiteSummaryField> =
+        _upiLiteSummarySortField.asStateFlow()
 
     private val _upiLiteSummarySortOrder = MutableStateFlow(SortOrder.DESCENDING)
     val upiLiteSummarySortOrder: StateFlow<SortOrder> = _upiLiteSummarySortOrder.asStateFlow()
@@ -171,32 +174,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             // 1. Type filter
             val byType = when (filterType) {
-                UpiTransactionTypeFilter.ALL    -> transactions
-                UpiTransactionTypeFilter.DEBIT  -> transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
-                UpiTransactionTypeFilter.CREDIT -> transactions.filter { it.type.equals("CREDIT", ignoreCase = true) }
+                UpiTransactionTypeFilter.ALL -> transactions
+                UpiTransactionTypeFilter.DEBIT -> transactions.filter {
+                    it.type.equals(
+                        "DEBIT",
+                        ignoreCase = true
+                    )
+                }
+
+                UpiTransactionTypeFilter.CREDIT -> transactions.filter {
+                    it.type.equals(
+                        "CREDIT",
+                        ignoreCase = true
+                    )
+                }
             }
 
             // 2. Date filter
             val byDate = when {
                 startDate != null && endDate != null -> byType.filter { it.date in startDate..endDate }
-                startDate != null                   -> byType.filter { it.date >= startDate }
-                endDate != null                     -> byType.filter { it.date <= endDate }
-                else                                -> byType
+                startDate != null -> byType.filter { it.date >= startDate }
+                endDate != null -> byType.filter { it.date <= endDate }
+                else -> byType
             }
 
             // 3. Sort
             val sorted = when (sortField) {
-                SortableTransactionField.DATE     ->
+                SortableTransactionField.DATE ->
                     if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.date }
-                    else                                byDate.sortedByDescending { it.date }
+                    else byDate.sortedByDescending { it.date }
 
-                SortableTransactionField.AMOUNT   ->
+                SortableTransactionField.AMOUNT ->
                     if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.amount }
-                    else                                byDate.sortedByDescending { it.amount }
+                    else byDate.sortedByDescending { it.amount }
 
                 SortableTransactionField.CATEGORY ->
                     if (sortOrder == SortOrder.ASCENDING) byDate.sortedBy { it.category ?: "" }
-                    else                                byDate.sortedByDescending { it.category ?: "" }
+                    else byDate.sortedByDescending { it.category ?: "" }
             }
 
             sorted
@@ -218,8 +232,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else if (startDate != null) {
                 summaries.filter { it.date >= startDate }
             } else if (endDate != null) {
-                val endOfDay = Calendar.getInstance().apply { timeInMillis = endDate; set(Calendar.HOUR_OF_DAY, 23); set(
-                    Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
+                val endOfDay = Calendar.getInstance().apply {
+                    timeInMillis = endDate; set(Calendar.HOUR_OF_DAY, 23); set(
+                    Calendar.MINUTE, 59
+                ); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+                }.timeInMillis
                 summaries.filter { it.date <= endOfDay }
             } else {
                 summaries
@@ -230,14 +247,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.date }
                     else dateFilteredSummaries.sortedByDescending { it.date }
                 }
+
                 SortableUpiLiteSummaryField.TOTAL_AMOUNT -> {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.totalAmount }
                     else dateFilteredSummaries.sortedByDescending { it.totalAmount }
                 }
+
                 SortableUpiLiteSummaryField.TRANSACTION_COUNT -> {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.transactionCount }
                     else dateFilteredSummaries.sortedByDescending { it.transactionCount }
                 }
+
                 SortableUpiLiteSummaryField.BANK -> {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.bank }
                     else dateFilteredSummaries.sortedByDescending { it.bank }
@@ -247,29 +267,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 
-
     // --- Current Month Data (Public) ---
     private fun getCurrentMonthDateRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(
+            Calendar.SECOND,
+            0
+        ); calendar.set(Calendar.MILLISECOND, 0)
         val monthStartTimestamp = calendar.timeInMillis
         calendar.add(Calendar.MONTH, 1); calendar.add(Calendar.MILLISECOND, -1)
         val monthEndTimestamp = calendar.timeInMillis
         return Pair(monthStartTimestamp, monthEndTimestamp)
     }
 
-    val currentMonthDebitTransactions: StateFlow<List<Transaction>> = _transactions
-        .map { allTransactions ->
+    val currentMonthExpenseItems: StateFlow<List<HistoryListItem>> =
+        combine(_transactions, _upiLiteSummaries) { transactions, summaries ->
             val (monthStart, monthEnd) = getCurrentMonthDateRange()
-            allTransactions.filter {
-                it.type.equals("DEBIT", ignoreCase = true) && it.date in monthStart..monthEnd
-            }.sortedByDescending { it.date }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            val combinedItems = mutableListOf<HistoryListItem>()
 
-    val currentMonthTotalExpenses: StateFlow<Double> = currentMonthDebitTransactions
-        .map { debitTransactions -> debitTransactions.sumOf { it.amount } }
+            // Filter and map debit transactions for the current month
+            val debitTransactions = transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true) && it.date in monthStart..monthEnd
+            }
+            combinedItems.addAll(debitTransactions.map { TransactionHistoryItem(it) })
+
+            // Filter and map UPI Lite summaries for the current month
+            val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
+            combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
+
+            // Sort the combined list by date, most recent first
+            combinedItems.sortedByDescending { it.displayDate }
+        }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val currentMonthTotalExpenses: StateFlow<Double> = currentMonthExpenseItems
+        .map { expenseItems ->
+            expenseItems.sumOf { item ->
+                when (item) {
+                    is TransactionHistoryItem -> item.transaction.amount
+                    is SummaryHistoryItem -> item.summary.totalAmount
+                }
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
     // --- Graph Data (Public) ---
@@ -282,7 +322,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, n: Int): List<MonthlyExpense> {
+    private fun calculateLastNMonthsExpenses(
+        transactions: List<Transaction>,
+        n: Int
+    ): List<MonthlyExpense> {
         // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: START. Input transaction count: ${transactions.size}, N: $N")
         if (transactions.isEmpty() || n <= 0) {
             // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No input transactions or N is invalid. Returning empty list.")
@@ -304,13 +347,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val calendar = Calendar.getInstance()
         val monthlyExpensesData = mutableListOf<MonthlyExpense>()
         for (i in 0 until n) {
-            val targetCalendar = Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
+            val targetCalendar =
+                Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
             val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
             val displayLabel = monthDisplayFormat.format(targetCalendar.time)
-            targetCalendar.set(Calendar.DAY_OF_MONTH, 1); targetCalendar.set(Calendar.HOUR_OF_DAY, 0); targetCalendar.set(Calendar.MINUTE, 0); targetCalendar.set(Calendar.SECOND, 0); targetCalendar.set(Calendar.MILLISECOND, 0)
+            targetCalendar.set(Calendar.DAY_OF_MONTH, 1); targetCalendar.set(
+                Calendar.HOUR_OF_DAY,
+                0
+            ); targetCalendar.set(Calendar.MINUTE, 0); targetCalendar.set(
+                Calendar.SECOND,
+                0
+            ); targetCalendar.set(Calendar.MILLISECOND, 0)
             val monthStartTimestamp = targetCalendar.timeInMillis
             val amountForMonth = expensesByYearMonth[yearMonthKey] ?: 0.0
-            monthlyExpensesData.add(MonthlyExpense(yearMonth = displayLabel, totalAmount = amountForMonth, timestamp = monthStartTimestamp))
+            monthlyExpensesData.add(
+                MonthlyExpense(
+                    yearMonth = displayLabel,
+                    totalAmount = amountForMonth,
+                    timestamp = monthStartTimestamp
+                )
+            )
             // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: For period $displayLabel ($yearMonthKey),  Timestamp: $monthStartTimestamp, Amount: $amountForMonth")
         }
         val result = monthlyExpensesData.reversed()
@@ -327,7 +383,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val expensesByDayTimestamp = relevantTransactions
                 .groupBy { transaction ->
                     val cal = Calendar.getInstance(); cal.timeInMillis = transaction.date
-                    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(
+                    Calendar.MINUTE,
+                    0
+                ); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
                     cal.timeInMillis
                 }.mapValues { entry -> entry.value.sumOf { it.amount } }
             val trendData = mutableListOf<DailyExpensePoint>()
@@ -335,17 +394,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val currentDayCal = Calendar.getInstance(); currentDayCal.timeInMillis = rangeStart
             while (currentDayCal.timeInMillis <= rangeEnd) {
                 val dayTimestamp = currentDayCal.timeInMillis
-                trendData.add(DailyExpensePoint(dayTimestamp = dayTimestamp, totalAmount = expensesByDayTimestamp[dayTimestamp] ?: 0.0, dayLabel = dayLabelFormat.format(Date(dayTimestamp))))
+                trendData.add(
+                    DailyExpensePoint(
+                        dayTimestamp = dayTimestamp,
+                        totalAmount = expensesByDayTimestamp[dayTimestamp] ?: 0.0,
+                        dayLabel = dayLabelFormat.format(Date(dayTimestamp))
+                    )
+                )
                 currentDayCal.add(Calendar.DAY_OF_YEAR, 1)
             }
             trendData
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private fun getDailyTrendDateRange(daysToShow: Int): Pair<Long, Long> {
-        val calendar = Calendar.getInstance(); calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(Calendar.MINUTE, 59); calendar.set(Calendar.SECOND, 59); calendar.set(Calendar.MILLISECOND, 999)
+        val calendar = Calendar.getInstance(); calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(
+            Calendar.MINUTE,
+            59
+        ); calendar.set(Calendar.SECOND, 59); calendar.set(Calendar.MILLISECOND, 999)
         val endDate = calendar.timeInMillis
-        calendar.timeInMillis = System.currentTimeMillis(); calendar.add(Calendar.DAY_OF_YEAR, -(daysToShow - 1))
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        calendar.timeInMillis = System.currentTimeMillis(); calendar.add(
+            Calendar.DAY_OF_YEAR,
+            -(daysToShow - 1)
+        )
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(
+            Calendar.SECOND,
+            0
+        ); calendar.set(Calendar.MILLISECOND, 0)
         val startDate = calendar.timeInMillis
         return Pair(startDate, endDate)
     }
@@ -365,13 +439,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else if (endDate != null) {
                 val endOfDay = Calendar.getInstance().apply {
                     timeInMillis = endDate
-                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(
+                    Calendar.SECOND,
+                    59
+                ); set(Calendar.MILLISECOND, 999)
                 }.timeInMillis
                 filteredForDate = transactions.filter { it.date <= endOfDay }
             }
 
             val result = filteredForDate
-                .filter { it.type.equals("DEBIT", ignoreCase = true) && !it.category.isNullOrBlank() }
+                .filter {
+                    it.type.equals(
+                        "DEBIT",
+                        ignoreCase = true
+                    ) && !it.category.isNullOrBlank()
+                }
                 .groupBy { it.category!! }
                 .map { (categoryName, transactionsInCategory) ->
                     CategoryExpense(
@@ -406,7 +488,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUpiLiteSummarySort(field: SortableUpiLiteSummaryField) {
         if (_upiLiteSummarySortField.value == field) {
-            _upiLiteSummarySortOrder.value = if (_upiLiteSummarySortOrder.value == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+            _upiLiteSummarySortOrder.value =
+                if (_upiLiteSummarySortOrder.value == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
         } else {
             _upiLiteSummarySortField.value = field
             _upiLiteSummarySortOrder.value = SortOrder.DESCENDING // Default new field sort
@@ -417,7 +500,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_upiTransactionSortField.value == field) {
             // same field → just flip the order
             _upiTransactionSortOrder.value = when (_upiTransactionSortOrder.value) {
-                SortOrder.ASCENDING  -> SortOrder.DESCENDING
+                SortOrder.ASCENDING -> SortOrder.DESCENDING
                 SortOrder.DESCENDING -> SortOrder.ASCENDING
             }
         } else {
@@ -425,7 +508,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _upiTransactionSortField.value = field
             _upiTransactionSortOrder.value =
                 if (field == SortableTransactionField.CATEGORY) SortOrder.ASCENDING
-                else                                       SortOrder.DESCENDING
+                else SortOrder.DESCENDING
         }
     }
 
@@ -444,7 +527,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val message = if (newCategoryValue.isNullOrBlank()) {
                     getApplication<Application>().getString(R.string.category_removed_success)
                 } else {
-                    getApplication<Application>().getString(R.string.category_updated_success, newCategoryValue)
+                    getApplication<Application>().getString(
+                        R.string.category_updated_success,
+                        newCategoryValue
+                    )
                 }
                 postSnackbarMessage(message)
             }
@@ -530,7 +616,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_success))
             } catch (e: IOException) {
                 Log.e("MainViewModelCSV", "Error exporting CSV: ${e.message}", e)
-                postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_error, e.message ?: "Unknown IO Error"))
+                postSnackbarMessage(
+                    getApplication<Application>().getString(
+                        R.string.csv_export_error,
+                        e.message ?: "Unknown IO Error"
+                    )
+                )
             } catch (e: Exception) {
                 Log.e("MainViewModelCSV", "Unexpected error exporting CSV: ${e.message}", e)
                 postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_error_unexpected))
@@ -544,7 +635,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (archive) { // Archiving
                 _lastArchivedTransaction = transaction // Store for potential undo
-                _lastArchivedTransactionOriginalCategory = transaction.category // Store original category too
+                _lastArchivedTransactionOriginalCategory =
+                    transaction.category // Store original category too
 
                 // Create a temporary updated transaction for the DAO, then update the original if undone
                 val archivedTransaction = transaction.copy(isArchived = true)
@@ -552,7 +644,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 _snackbarEvents.emit(
                     SnackbarMessage(
-                        message = getApplication<Application>().getString(R.string.transaction_archived_snackbar, transaction.description.take(20)),
+                        message = getApplication<Application>().getString(
+                            R.string.transaction_archived_snackbar,
+                            transaction.description.take(20)
+                        ),
                         actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo), // New String
                         onAction = { // Action for Undo
                             viewModelScope.launch {
@@ -579,7 +674,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val unarchivedTransaction = transaction.copy(isArchived = false)
                 transactionDao.update(unarchivedTransaction)
                 // No "Undo" for unarchiving, it's a direct action
-                postPlainSnackbarMessage(getApplication<Application>().getString(R.string.transaction_restored_snackbar, transaction.description.take(20)))
+                postPlainSnackbarMessage(
+                    getApplication<Application>().getString(
+                        R.string.transaction_restored_snackbar,
+                        transaction.description.take(20)
+                    )
+                )
             }
             // The flows observing transactionDao will automatically update the UI lists.
         }

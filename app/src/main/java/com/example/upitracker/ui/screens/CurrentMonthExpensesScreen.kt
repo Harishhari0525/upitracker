@@ -3,6 +3,9 @@ package com.example.upitracker.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import com.example.upitracker.ui.components.UpiLiteSummaryCard
+import com.example.upitracker.viewmodel.SummaryHistoryItem // ✨ Import SummaryHistoryItem
+import com.example.upitracker.viewmodel.TransactionHistoryItem
 import androidx.compose.material.ExperimentalMaterialApi
 import com.example.upitracker.ui.components.EditCategoryDialog
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -45,7 +48,9 @@ fun CurrentMonthExpensesScreen(
     )
 
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
-    val currentMonthTransactions by mainViewModel.currentMonthDebitTransactions.collectAsState()
+    // val currentMonthTransactions by mainViewModel.currentMonthDebitTransactions.collectAsState()
+
+    val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
 
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
@@ -107,7 +112,7 @@ fun CurrentMonthExpensesScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            if (currentMonthTransactions.isEmpty() && !isImporting) {
+            if (currentMonthExpenseItems.isEmpty() && !isImporting) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -124,25 +129,37 @@ fun CurrentMonthExpensesScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(currentMonthTransactions.take(10), key = { "current-month-txn-${it.id}" }) { transaction ->
-                        TransactionCard(
-                            transaction = transaction,
-                            onClick = { openCategoryEditDialog(transaction) },
-                            onLongClick = { openDeleteConfirmDialog(transaction) },
-                            onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
-                                mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
-                                // Snackbar for archive/restore is posted by ViewModel
-                            },
-                            onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
-                                // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
-                                openDeleteConfirmDialog(txnToDeleteFromSwipe)
+                    items(currentMonthExpenseItems.take(25), key = { item ->
+                        when(item) {
+                            is TransactionHistoryItem -> "txn-${item.transaction.id}"
+                            is SummaryHistoryItem -> "summary-${item.summary.id}"
+                        }
+                    }) { historyItem ->
+                        when (historyItem) {
+                            is TransactionHistoryItem -> {
+                                TransactionCard(
+                                    transaction = historyItem.transaction,
+                                    onClick = { openCategoryEditDialog(historyItem.transaction) },
+                                    onLongClick = { openDeleteConfirmDialog(historyItem.transaction) },
+                                    onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                        mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
+                                    },
+                                    onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
+                                        // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
+                                        openDeleteConfirmDialog(txnToDeleteFromSwipe)
+                                    }
+                                )
                             }
-                        )
+
+                            is SummaryHistoryItem -> {
+                                UpiLiteSummaryCard(summary = historyItem.summary)
+                            }
+                        }
                     }
-                    if (currentMonthTransactions.size > 10) {
+                    if (currentMonthExpenseItems.size > 25) {
                         item {
                             TextButton(
-                                onClick = {
+                                    onClick = {
                                     // ✨ Set date filter to current month and navigate to History screen ✨
                                     val calendar = Calendar.getInstance()
                                     // Start of current month
@@ -172,7 +189,7 @@ fun CurrentMonthExpensesScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(stringResource(R.string.home_view_all_this_month_button, currentMonthTransactions.size))
+                                Text(stringResource(R.string.home_view_all_this_month_button, currentMonthExpenseItems.size))
                             }
                         }
                     }

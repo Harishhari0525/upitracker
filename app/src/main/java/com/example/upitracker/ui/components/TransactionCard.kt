@@ -42,8 +42,8 @@ fun TransactionCard(
         try {
             SimpleDateFormat("dd MMM yy, hh:mm a", Locale.getDefault())
                 .format(Date(transaction.date))
-        } catch (e: ParseException) { "Invalid Date" }
-        catch (e: IllegalArgumentException) { "Invalid Date" }
+        } catch (_: ParseException) { "Invalid Date" }
+        catch (_: IllegalArgumentException) { "Invalid Date" }
     }
 
     val amountColor = when {
@@ -72,7 +72,7 @@ fun TransactionCard(
                 SwipeToDismissBoxValue.Settled -> false // Do not dismiss if settled back
             }
         },
-                positionalThreshold = { totalDistance -> totalDistance * 0.25f }
+                positionalThreshold = { totalDistance -> totalDistance * 0.50f }
     )
 
     SwipeToDismissBox( // ✨ Material 3 SwipeToDismissBox ✨
@@ -163,7 +163,7 @@ fun TransactionCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = transaction.type.uppercase(Locale.getDefault()), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(text = "₹${try { "%.2f".format(transaction.amount) } catch (e: Exception) { "0.00" }}", style = MaterialTheme.typography.titleMedium, color = amountColor)
+                    Text(text = "₹${try { "%.2f".format(transaction.amount) } catch (_: Exception) { "0.00" }}", style = MaterialTheme.typography.titleMedium, color = amountColor)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(text = transaction.description.trim(), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
