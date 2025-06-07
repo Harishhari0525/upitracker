@@ -453,6 +453,13 @@ fun SimpleDailyExpenseLineChart(
         Paint().apply { color = themedAxisColor; textAlign = Paint.Align.CENTER; textSize = 8.sp.toPx(density); isAntiAlias = true }
     }
 
+    val drawProgress = remember { Animatable(0f) }
+
+    LaunchedEffect(dailyExpenses) {
+        drawProgress.snapTo(0f)
+        drawProgress.animateTo(1f, tween(durationMillis = 600))
+    }
+
     Canvas(
         modifier = modifier
             .padding(top = 12.dp, end = 8.dp, bottom = 12.dp)
