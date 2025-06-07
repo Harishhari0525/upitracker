@@ -5,7 +5,15 @@ package com.example.upitracker.ui.screens
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Log
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.with
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -20,6 +28,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
+import androidx.compose.foundation.pager.pagerTabIndicatorOffset
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -109,22 +118,22 @@ fun GraphsScreen(
 //                .align(Alignment.CenterHorizontally)
 //        )
         TabRow(
-            selectedTabIndex = pagerState.currentPage,
+            selectedTabIndex = pagerState.targetPage,
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
             indicator = { tabPositions ->
-                if (pagerState.currentPage < tabPositions.size) {
+                if (pagerState.targetPage < tabPositions.size) {
                     TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage])
+                        Modifier.pagerTabIndicatorOffset(pagerState, tabPositions[pagerState.targetPage])
                     )
                 }
             }
         ) {
             graphTabTitles.forEachIndexed { index, title ->
                 Tab(
-                    selected = pagerState.currentPage == index,
+                    selected = pagerState.targetPage == index,
                     onClick = {
                         coroutineScope.launch {
-                            pagerState.animateScrollToPage(index)
+                            pagerState.animateScrollToPage(index, animationSpec = tween())
                         }
                     },
                     text = { Text(title, style = MaterialTheme.typography.labelLarge) },
@@ -137,15 +146,26 @@ fun GraphsScreen(
             state = pagerState,
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) { pageIndex ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                PageContent(
-                    pageIndex = pageIndex,
-                    mainViewModel = mainViewModel,
-                    currencyFormatter = currencyFormatter,
-                    lastNMonthsExpenses = lastNMonthsExpenses,
-                    dailyTrendExpenses = dailyTrendExpenses,
-                    selectedGraphPeriod = selectedGraphPeriod
-                )
+            AnimatedContent(
+                targetState = pagerState.currentPage,
+                transitionSpec = {
+                    val direction = if (targetState > initialState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
+                    (slideInHorizontally(animationSpec = tween(), initialOffsetX = { if (direction == AnimatedContentScope.SlideDirection.Left) it else -it }) + fadeIn()) with
+                            (slideOutHorizontally(animationSpec = tween(), targetOffsetX = { if (direction == AnimatedContentScope.SlideDirection.Left) -it else it }) + fadeOut())
+                }, label = "pager"
+            ) { currentPage ->
+                if (currentPage == pageIndex) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        PageContent(
+                            pageIndex = pageIndex,
+                            mainViewModel = mainViewModel,
+                            currencyFormatter = currencyFormatter,
+                            lastNMonthsExpenses = lastNMonthsExpenses,
+                            dailyTrendExpenses = dailyTrendExpenses,
+                            selectedGraphPeriod = selectedGraphPeriod
+                        )
+                    }
+                }
             }
         }
     }
