@@ -513,13 +513,18 @@ fun SimpleDailyExpenseLineChart(
         val segmentPath = Path()
         if (pointCoordinates.isNotEmpty()) {
             segmentPath.moveTo(pointCoordinates.first().x, pointCoordinates.first().y)
-            val totalLength = pointCoordinates.zipWithNext { a, b -> kotlin.math.hypot((b.x - a.x), (b.y - a.y)) }.sum()
+            val totalLength = pointCoordinates.zipWithNext { a, b ->
+                kotlin.math.hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+            }.sum()
             var traversed = 0f
             val target = totalLength * drawProgress.value
             for (i in 1 until pointCoordinates.size) {
                 val start = pointCoordinates[i - 1]
                 val end = pointCoordinates[i]
-                val segLength = kotlin.math.hypot((end.x - start.x), (end.y - start.y))
+                val segLength = kotlin.math.hypot(
+                    (end.x - start.x).toDouble(),
+                    (end.y - start.y).toDouble()
+                ).toFloat()
                 if (traversed + segLength <= target) {
                     segmentPath.lineTo(end.x, end.y)
                     traversed += segLength
