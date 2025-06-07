@@ -5,7 +5,10 @@ package com.example.upitracker.ui.screens
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -190,12 +193,14 @@ private fun PageContent(
                         Text(stringResource(R.string.graph_daily_trend_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    SimpleDailyExpenseLineChart(
-                        dailyExpenses = dailyTrendExpenses,
-                        currencyFormatter = currencyFormatter,
-                        modifier = Modifier.fillMaxWidth().height(300.dp),
-                        onPointClick = { dailyPoint -> selectedDailyPointData = dailyPoint }
-                    )
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize()) {
+                        SimpleDailyExpenseLineChart(
+                            dailyExpenses = dailyTrendExpenses,
+                            currencyFormatter = currencyFormatter,
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                            onPointClick = { dailyPoint -> selectedDailyPointData = dailyPoint }
+                        )
+                    }
                 }
             }
             1 -> { // Monthly Expenses Bar Chart Page
@@ -233,12 +238,14 @@ private fun PageContent(
                         Text(stringResource(R.string.graph_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    SimpleMonthlyExpenseBarChart(
-                        monthlyExpenses = lastNMonthsExpenses,
-                        currencyFormatter = currencyFormatter,
-                        modifier = Modifier.fillMaxWidth().height(300.dp),
-                        onBarClick = { expense -> selectedBarData = expense }
-                    )
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize()) {
+                        SimpleMonthlyExpenseBarChart(
+                            monthlyExpenses = lastNMonthsExpenses,
+                            currencyFormatter = currencyFormatter,
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                            onBarClick = { expense -> selectedBarData = expense }
+                        )
+                    }
                 }
             }
             2 -> { // Category Pie Chart Page
@@ -261,24 +268,28 @@ private fun PageContent(
                         Text(stringResource(R.string.graph_category_pie_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    CategorySpendingPieChart(
-                        categoryExpenses = categoryData,
-                        modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally),
-                        initiallySelectedCategoryName = currentlySelectedCategoryNameForPie,
-                        onSliceClick = { categoryExpense ->
-                            currentlySelectedCategoryNameForPie = categoryExpense?.categoryName
-                            selectedPieSliceData = categoryExpense
-                        }
-                    )
-                    CategoryLegend(
-                        categoryExpenses = categoryData,
-                        modifier = Modifier.padding(top = 16.dp).align(Alignment.Start),
-                        selectedCategoryName = currentlySelectedCategoryNameForPie,
-                        onLegendItemClick = { categoryName ->
-                            currentlySelectedCategoryNameForPie = if (currentlySelectedCategoryNameForPie == categoryName) null else categoryName
-                            selectedPieSliceData = categoryData.find { it.categoryName == currentlySelectedCategoryNameForPie }
-                        }
-                    )
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize()) {
+                        CategorySpendingPieChart(
+                            categoryExpenses = categoryData,
+                            modifier = Modifier.fillMaxSize(),
+                            initiallySelectedCategoryName = currentlySelectedCategoryNameForPie,
+                            onSliceClick = { categoryExpense ->
+                                currentlySelectedCategoryNameForPie = categoryExpense?.categoryName
+                                selectedPieSliceData = categoryExpense
+                            }
+                        )
+                    }
+                    AnimatedVisibility(visible = categoryData.isNotEmpty()) {
+                        CategoryLegend(
+                            categoryExpenses = categoryData,
+                            modifier = Modifier.padding(top = 16.dp).align(Alignment.Start),
+                            selectedCategoryName = currentlySelectedCategoryNameForPie,
+                            onLegendItemClick = { categoryName ->
+                                currentlySelectedCategoryNameForPie = if (currentlySelectedCategoryNameForPie == categoryName) null else categoryName
+                                selectedPieSliceData = categoryData.find { it.categoryName == currentlySelectedCategoryNameForPie }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -317,6 +328,20 @@ fun SimpleMonthlyExpenseBarChart(
 
     val actualMaxAmount = remember(monthlyExpenses) { monthlyExpenses.maxOfOrNull { it.totalAmount } ?: 0.0 }
     val niceMaxAmount = remember(actualMaxAmount) { calculateNiceMax(actualMaxAmount) }
+
+    val barHeightRatios = remember(monthlyExpenses) {
+        List(monthlyExpenses.size) { Animatable(0f) }
+    }
+
+    LaunchedEffect(monthlyExpenses, niceMaxAmount) {
+        barHeightRatios.forEachIndexed { index, anim ->
+            val ratio = if (index < monthlyExpenses.size && niceMaxAmount > 0) {
+                (monthlyExpenses[index].totalAmount / niceMaxAmount).toFloat()
+            } else 0f
+            anim.snapTo(0f)
+            anim.animateTo(ratio, animationSpec = tween(durationMillis = 600))
+        }
+    }
 
     Canvas(
         modifier = modifier
@@ -363,8 +388,8 @@ fun SimpleMonthlyExpenseBarChart(
         val barWidth = (totalBarWidthAndSpacing - barSpacing).coerceAtLeast(4.dp.toPx())
 
         monthlyExpenses.forEachIndexed { index, expense ->
-            val barHeightRatio = if (niceMaxAmount > 0) expense.totalAmount / niceMaxAmount else 0.0
-            val barHeight = (barHeightRatio * chartHeight).toFloat().coerceAtLeast(0f)
+            val animRatio = barHeightRatios.getOrNull(index)?.value ?: 0f
+            val barHeight = (animRatio * chartHeight).coerceAtLeast(0f)
             val xOffsetInChart = (index * totalBarWidthAndSpacing) + (barSpacing / 2)
             val barLeft = leftPaddingForYAxis + xOffsetInChart
             val barTop = topPaddingForBarValues + chartHeight - barHeight
@@ -485,7 +510,30 @@ fun SimpleDailyExpenseLineChart(
             drawCircle(color = currentPointColorToDraw, radius = currentPointRadius, center = Offset(xPos, yPosOnCanvas))
             if (pointCount <= 7 || index % ((pointCount / 7).coerceAtLeast(1)) == 0 || index == pointCount -1 ) { val dayTextBounds = Rect(); dayLabelPaint.getTextBounds(point.dayLabel, 0, point.dayLabel.length, dayTextBounds); drawContext.canvas.nativeCanvas.drawText(point.dayLabel, xPos, topPadding + chartHeight + bottomPaddingForXLabels / 2 + dayTextBounds.height()/2f, dayLabelPaint) }
         }
-        drawPath(path = linePath, color = lineColor, style = Stroke(width = 2.dp.toPx()))
+        val segmentPath = Path()
+        if (pointCoordinates.isNotEmpty()) {
+            segmentPath.moveTo(pointCoordinates.first().x, pointCoordinates.first().y)
+            val totalLength = pointCoordinates.zipWithNext { a, b -> kotlin.math.hypot((b.x - a.x), (b.y - a.y)) }.sum()
+            var traversed = 0f
+            val target = totalLength * drawProgress.value
+            for (i in 1 until pointCoordinates.size) {
+                val start = pointCoordinates[i - 1]
+                val end = pointCoordinates[i]
+                val segLength = kotlin.math.hypot((end.x - start.x), (end.y - start.y))
+                if (traversed + segLength <= target) {
+                    segmentPath.lineTo(end.x, end.y)
+                    traversed += segLength
+                } else {
+                    val remain = (target - traversed).coerceAtLeast(0f)
+                    val ratio = if (segLength == 0f) 0f else remain / segLength
+                    val x = start.x + (end.x - start.x) * ratio
+                    val y = start.y + (end.y - start.y) * ratio
+                    segmentPath.lineTo(x, y)
+                    break
+                }
+            }
+        }
+        drawPath(path = segmentPath, color = lineColor, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
