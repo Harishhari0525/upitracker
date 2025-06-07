@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable // For legend interaction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -104,6 +106,14 @@ fun CategorySpendingPieChart(
         }
     }
 
+    val sweepAnimations = remember(sliceInfos) { sliceInfos.map { Animatable(0f) } }
+    LaunchedEffect(sliceInfos) {
+        sweepAnimations.forEachIndexed { index, anim ->
+            anim.snapTo(0f)
+            anim.animateTo(sliceInfos[index].second, animationSpec = tween(durationMillis = 600))
+        }
+    }
+
     Canvas(
         modifier = modifier
             .pointerInput(sliceInfos) {
@@ -186,7 +196,7 @@ fun CategorySpendingPieChart(
             } else { center }
 
             drawArc(
-                color = sliceColor, startAngle = startAngle, sweepAngle = sweepAngle - 0.5f,
+                color = sliceColor, startAngle = startAngle, sweepAngle = sweepAnimations[index].value - 0.5f,
                 useCenter = true, topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
                 size = Size(outerDiameter, outerDiameter), style = Fill
             )
@@ -194,15 +204,15 @@ fun CategorySpendingPieChart(
             if (index == selectedSliceIndex) {
                 drawArc(
                     color = themedOutlineColor, // ✨ Use pre-resolved themed color ✨
-                    startAngle = startAngle, sweepAngle = sweepAngle - 0.5f, useCenter = true,
+                    startAngle = startAngle, sweepAngle = sweepAnimations[index].value - 0.5f, useCenter = true,
                     topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
                     size = Size(outerDiameter, outerDiameter),
                     style = Stroke(width = 2.dp.toPx()) // density is available via DrawScope, or pass it
                 )
             }
 
-            if (sweepAngle > 10) { // Draw labels on slices
-                val angleMiddleRad = Math.toRadians(startAngle + sweepAngle / 2.0)
+            if (sweepAnimations[index].value > 10) { // Draw labels on slices
+                val angleMiddleRad = Math.toRadians(startAngle + sweepAnimations[index].value / 2.0)
                 val labelRadius = outerRadius * 0.65f
                 val xPos = currentCenter.x + (labelRadius * cos(angleMiddleRad)).toFloat()
                 val yPos = currentCenter.y + (labelRadius * sin(angleMiddleRad)).toFloat()
