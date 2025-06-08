@@ -16,6 +16,7 @@ val Context.settingsDataStore by preferencesDataStore(name = "app_settings") // 
 
 object ThemePreference {
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
+    private val SWIPE_ACTIONS_KEY = booleanPreferencesKey("swipe_actions_enabled")
 
     /**
      * Retrieves the Flow for the dark mode preference.
@@ -32,12 +33,23 @@ object ThemePreference {
                 emit(false)
             }
 
+    fun isSwipeActionsEnabledFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs: Preferences ->
+            prefs[SWIPE_ACTIONS_KEY] ?: true
+        }.catch { emit(true) }
+
     /**
      * Sets the dark mode preference.
      */
     suspend fun setDarkMode(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[DARK_MODE_KEY] = enabled
+        }
+    }
+
+    suspend fun setSwipeActionsEnabled(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[SWIPE_ACTIONS_KEY] = enabled
         }
     }
 }

@@ -8,6 +8,9 @@
     <string name="settings_dark_mode">Dark Mode</string>
     <string name="settings_dark_mode_enabled">Enabled</string>
     <string name="settings_dark_mode_disabled">Disabled</string>
+    <string name="settings_enable_swipe_actions">Swipe Actions</string>
+    <string name="settings_swipe_actions_enabled">Enabled</string>
+    <string name="settings_swipe_actions_disabled">Disabled</string>
     <string name="table_header_date">Date</string>
     <string name="graph_screen_title">Graphs</string>
     <string name="graph_monthly_expenses_subtitle">Monthly Debit Totals (Last %1$d Months)</string>

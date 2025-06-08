@@ -39,7 +39,8 @@ fun TransactionCard(
     onClick: (Transaction) -> Unit,
     onLongClick: (Transaction) -> Unit,
     onArchiveSwipeAction: (Transaction) -> Unit,
-    onDeleteSwipeAction: (Transaction) -> Unit
+    onDeleteSwipeAction: (Transaction) -> Unit,
+    swipeActionsEnabled: Boolean = true
 ) {
     val displayDate = remember(transaction.date) {
         try {
@@ -98,8 +99,8 @@ fun TransactionCard(
                     }
                 )
             }, // Apply fillMaxWidth here
-        enableDismissFromStartToEnd = true, // Swipe Right (Archive)
-        enableDismissFromEndToStart = true, // Swipe Left (Delete)
+        enableDismissFromStartToEnd = swipeActionsEnabled, // Swipe Right (Archive)
+        enableDismissFromEndToStart = swipeActionsEnabled, // Swipe Left (Delete)
         backgroundContent = {
             val direction = dismissState.dismissDirection
             val targetValue = dismissState.targetValue // Use targetValue for more stable color during swipe
