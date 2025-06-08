@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Swipe
 import androidx.activity.compose.rememberLauncherForActivityResult // ✨
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
@@ -102,6 +103,21 @@ fun SettingsScreen(
                 Switch(
                     checked = isDarkMode,
                     onCheckedChange = { mainViewModel.toggleDarkMode(it) }
+                )
+            }
+        }
+        item {
+            val swipeEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
+            SettingItemRow(
+                icon = Icons.Filled.Swipe,
+                title = stringResource(R.string.settings_enable_swipe_actions),
+                summary = if (swipeEnabled) stringResource(R.string.settings_swipe_actions_enabled)
+                else stringResource(R.string.settings_swipe_actions_disabled),
+                onClick = { mainViewModel.toggleSwipeActions(!swipeEnabled) }
+            ) {
+                Switch(
+                    checked = swipeEnabled,
+                    onCheckedChange = { mainViewModel.toggleSwipeActions(it) }
                 )
             }
         }

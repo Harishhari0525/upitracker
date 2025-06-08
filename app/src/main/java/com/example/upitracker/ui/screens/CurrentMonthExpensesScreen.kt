@@ -52,6 +52,8 @@ fun CurrentMonthExpensesScreen(
 
     val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
 
+    val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
+
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
     // --- State for Category Edit Dialog ---
@@ -147,7 +149,8 @@ fun CurrentMonthExpensesScreen(
                                     onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
                                         // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
                                         openDeleteConfirmDialog(txnToDeleteFromSwipe)
-                                    }
+                                    },
+                                    swipeActionsEnabled = swipeActionsEnabled
                                 )
                             }
 

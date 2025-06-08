@@ -51,6 +51,7 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
     val upiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
     val liteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState() // Assuming you want filtered summaries too
     val isImporting by mainViewModel.isImportingSms.collectAsState()
+    val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
 
     val pagerState = rememberPagerState { tabTitles.size }
     val coroutineScope = rememberCoroutineScope()
@@ -136,7 +137,8 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
                             },
                             onTransactionLongClick = { transaction -> openDeleteConfirmDialog(transaction)},
                             onTransactionArchive = { transaction -> mainViewModel.toggleTransactionArchiveStatus(transaction) },
-                            onTransactionDeleteSwipe = { transaction -> openDeleteConfirmDialog(transaction) }
+                            onTransactionDeleteSwipe = { transaction -> openDeleteConfirmDialog(transaction) },
+                            swipeEnabled = swipeActionsEnabled
                         )
                         1 -> UpiLiteSummaryListContent(
                             summaries = liteSummaries.take(100) // Or full list
@@ -210,7 +212,8 @@ fun UpiTransactionListContent(
     onTransactionClick: (Transaction) -> Unit,
     onTransactionLongClick: (Transaction) -> Unit, // ✨ Added parameter ✨
     onTransactionArchive: (Transaction) -> Unit, // ✨ Added parameter ✨
-    onTransactionDeleteSwipe: (Transaction) -> Unit
+    onTransactionDeleteSwipe: (Transaction) -> Unit,
+    swipeEnabled: Boolean
 ) {
     if (transactions.isEmpty()) {
         EmptyStateView(message = stringResource(R.string.empty_state_no_upi_transactions))
@@ -227,7 +230,8 @@ fun UpiTransactionListContent(
                 onClick = { onTransactionClick(txn) },
                 onLongClick = { onTransactionLongClick(txn) },
                 onArchiveSwipeAction = { onTransactionArchive(txn) },      // ✨ Pass to Card ✨
-                onDeleteSwipeAction = { onTransactionDeleteSwipe(txn) }
+                onDeleteSwipeAction = { onTransactionDeleteSwipe(txn) },
+                swipeActionsEnabled = swipeEnabled
             )
         }
     }

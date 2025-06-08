@@ -117,6 +117,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
+    val swipeActionsEnabled: StateFlow<Boolean> =
+        ThemePreference.isSwipeActionsEnabledFlow(application)
+            .stateIn(viewModelScope, SharingStarted.Lazily, true)
+
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -553,6 +557,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             ThemePreference.setDarkMode(getApplication(), enabled)
+        }
+    }
+
+    fun toggleSwipeActions(enabled: Boolean) {
+        viewModelScope.launch {
+            ThemePreference.setSwipeActionsEnabled(getApplication(), enabled)
         }
     }
 

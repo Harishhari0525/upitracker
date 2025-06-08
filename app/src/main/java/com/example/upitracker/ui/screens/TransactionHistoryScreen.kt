@@ -66,6 +66,7 @@ fun TransactionHistoryScreen(
     val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState()
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
+    val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
 
     // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -187,7 +188,8 @@ fun TransactionHistoryScreen(
                                         onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
                                             // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
                                             openDeleteConfirmDialog(txnToDeleteFromSwipe)
-                                        }
+                                        },
+                                        swipeActionsEnabled = swipeActionsEnabled
                                     )
                                 }
                             }
