@@ -1,22 +1,22 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class,ExperimentalAnimationApi::class)
 
 package com.example.upitracker.ui.screens
 
 import android.graphics.Paint
+import androidx.compose.animation.ExperimentalAnimationApi
 import android.graphics.Rect
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.with
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -31,8 +31,6 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
-import androidx.compose.foundation.pager.pagerTabIndicatorOffset
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,7 +84,7 @@ private fun Double.toCurrencyString(): String {
     return format.format(this)
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
 fun GraphsScreen(
     mainViewModel: MainViewModel,
@@ -121,14 +119,13 @@ fun GraphsScreen(
 //                .align(Alignment.CenterHorizontally)
 //        )
         TabRow(
-            selectedTabIndex = pagerState.targetPage,
+            selectedTabIndex = pagerState.currentPage, // Best practice to use currentPage
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
             indicator = { tabPositions ->
-                if (pagerState.targetPage < tabPositions.size) {
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.pagerTabIndicatorOffset(pagerState, tabPositions[pagerState.targetPage])
-                    )
-                }
+                // The pagerTabIndicatorOffset modifier now only needs the pagerState.
+                TabRowDefaults.SecondaryIndicator(
+                    Modifier.pagerTabIndicatorOffset(pagerState)
+                )
             }
         ) {
             graphTabTitles.forEachIndexed { index, title ->
@@ -150,11 +147,18 @@ fun GraphsScreen(
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) { pageIndex ->
             AnimatedContent(
-                targetState = pagerState.currentPage,
+                targetState = pagerState.currentPage, // Use currentPage as the target state
                 transitionSpec = {
-                    val direction = if (targetState > initialState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
-                    (slideInHorizontally(animationSpec = tween(), initialOffsetX = { if (direction == AnimatedContentScope.SlideDirection.Left) it else -it }) + fadeIn()) with
-                            (slideOutHorizontally(animationSpec = tween(), targetOffsetX = { if (direction == AnimatedContentScope.SlideDirection.Left) -it else it }) + fadeOut())
+                    // Check if the target page index is greater than the initial page index.
+                    if (targetState > initialState) {
+                        // Sliding left: New screen slides in from the right, old screen slides out to the left.
+                        (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeOut())
+                    } else {
+                        // Sliding right: New screen slides in from the left, old screen slides out to the right.
+                        (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeOut())
+                    }
                 }, label = "pager"
             ) { currentPage ->
                 if (currentPage == pageIndex) {

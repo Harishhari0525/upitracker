@@ -19,6 +19,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -69,4 +73,6 @@ dependencies {
     implementation(libs.androidx.compose.material.material)
     implementation(libs.androidx.ui.text)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.foundation)
+    implementation(libs.androidx.animation)
 }
