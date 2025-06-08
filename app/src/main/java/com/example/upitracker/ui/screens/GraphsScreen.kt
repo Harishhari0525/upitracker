@@ -8,6 +8,7 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import android.graphics.Rect
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -124,7 +125,7 @@ fun GraphsScreen(
             indicator = { tabPositions ->
                 // The pagerTabIndicatorOffset modifier now only needs the pagerState.
                 TabRowDefaults.SecondaryIndicator(
-                    Modifier.pagerTabIndicatorOffset(pagerState)
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage])
                 )
             }
         ) {
