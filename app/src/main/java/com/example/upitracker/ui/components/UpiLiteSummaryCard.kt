@@ -31,7 +31,7 @@ fun UpiLiteSummaryCard(
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
         )
     ) {
         Column(
@@ -54,12 +54,12 @@ fun UpiLiteSummaryCard(
                 Text(
                     "Transactions:",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "${summary.transactionCount}",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(Modifier.height(4.dp))
@@ -71,12 +71,12 @@ fun UpiLiteSummaryCard(
                 Text(
                     "Total Amount:",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "₹${try { "%.2f".format(summary.totalAmount) } catch (e: Exception) { "0.00" }}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(Modifier.height(10.dp))

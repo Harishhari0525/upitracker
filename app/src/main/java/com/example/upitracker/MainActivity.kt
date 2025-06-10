@@ -315,7 +315,7 @@ class MainActivity : FragmentActivity() {
                 mainViewModel.setSmsImportingState(false)
                 val snackbarDateFormat = SimpleDateFormat("dd MMM yy", Locale.getDefault())
                 val liteMsgPart = lastLiteSummaryForSnackbar?.let {
-                    val formattedDate = try { snackbarDateFormat.format(Date(it.date)) } catch (e:Exception) {"N/A"}
+                    val formattedDate = try { snackbarDateFormat.format(Date(it.date)) } catch (_:Exception) {"N/A"}
                     "\nLast UPI Lite: ${it.transactionCount} txns, ₹${"%.2f".format(it.totalAmount)} on $formattedDate"
                 } ?: ""
                 val mainMessage = if (txnCount > 0 || liteSummaryCount > 0) "Imported $txnCount new UPI SMS. Processed $liteSummaryCount UPI Lite summaries.$liteMsgPart"

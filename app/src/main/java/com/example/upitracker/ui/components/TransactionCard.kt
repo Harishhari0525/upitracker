@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
@@ -19,8 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.input.pointer.consume
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,29 +73,12 @@ fun TransactionCard(
                 SwipeToDismissBoxValue.Settled -> false // Do not dismiss if settled back
             }
         },
-        positionalThreshold = { totalDistance -> totalDistance * 0.75f }
+                positionalThreshold = { totalDistance -> totalDistance * 0.50f }
     )
 
     SwipeToDismissBox( // ✨ Material 3 SwipeToDismissBox ✨
         state = dismissState,
-        modifier = modifier
-            .pointerInput(Unit) {
-                var dragX = 0f
-                var dragY = 0f
-                detectDragGestures(
-                    onDragStart = {
-                        dragX = 0f
-                        dragY = 0f
-                    },
-                    onDrag = { change, amount ->
-                        dragX += amount.x
-                        dragY += amount.y
-                        if (kotlin.math.abs(dragX) > kotlin.math.abs(dragY)) {
-                            change.consume()
-                        }
-                    }
-                )
-            }, // Apply fillMaxWidth here
+        modifier = modifier, // Apply fillMaxWidth here
         enableDismissFromStartToEnd = swipeActionsEnabled, // Swipe Right (Archive)
         enableDismissFromEndToStart = swipeActionsEnabled, // Swipe Left (Delete)
         backgroundContent = {

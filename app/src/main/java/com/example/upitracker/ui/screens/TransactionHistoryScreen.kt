@@ -9,12 +9,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.* // For Edit, Clear, DateRange, Check, etc.
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -22,9 +23,14 @@ import androidx.navigation.NavController
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
+import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
+import com.example.upitracker.ui.components.EditCategoryDialog
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.viewmodel.SortOrder
+import com.example.upitracker.viewmodel.SortableTransactionField
+import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -32,13 +38,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue // For 'by' delegation
-import androidx.compose.ui.platform.LocalContext
-import com.example.upitracker.ui.components.EditCategoryDialog
-import com.example.upitracker.viewmodel.SortOrder // ✨ Import SortOrder
-import com.example.upitracker.viewmodel.SortableTransactionField
-import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,14 +58,13 @@ fun TransactionHistoryScreen(
     // Collect Filter States from ViewModel
     val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
     val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
-    // val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
-    // Around line 59 (or where you define it)
     val filteredUpiLiteSummaries: List<UpiLiteSummary> by mainViewModel.filteredUpiLiteSummaries.collectAsState()
-    val selectedStartDate by mainViewModel.selectedDateRangeStart.collectAsState()
-    val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState()
+    val selectedStartDate by mainViewModel.selectedDateRangeStart.collectAsState(initial = null)
+    val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState(initial = null)
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
     val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
+    val searchQuery by mainViewModel.searchQuery.collectAsState()
 
     // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -100,6 +98,17 @@ fun TransactionHistoryScreen(
     // ✨ --- End of Category Edit Dialog State and Lambda --- ✨
 
     Column(modifier = modifier.fillMaxSize()) {
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { mainViewModel.setSearchQuery(it) },
+            label = { Text(stringResource(R.string.search_hint)) },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        )
+
         DateFilterControls(
             selectedStartDate = selectedStartDate,
             selectedEndDate = selectedEndDate,
