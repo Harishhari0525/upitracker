@@ -54,7 +54,7 @@ fun TransactionCard(
         transaction.type.contains("CREDIT", ignoreCase = true) ||
                 transaction.type.contains("RECVD", ignoreCase = true) ||
                 transaction.type.contains("RECEIVED", ignoreCase = true) ->
-            MaterialTheme.colorScheme.tertiary
+            MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface
     }
 

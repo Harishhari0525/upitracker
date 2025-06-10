@@ -69,7 +69,7 @@ fun TransactionTable(
 
                 val amountColor = when {
                     txn.type.contains("DEBIT", ignoreCase = true) || txn.type.contains("SENT", ignoreCase = true) -> MaterialTheme.colorScheme.error
-                    txn.type.contains("CREDIT", ignoreCase = true) || txn.type.contains("RECVD", ignoreCase = true) -> MaterialTheme.colorScheme.tertiary
+                    txn.type.contains("CREDIT", ignoreCase = true) || txn.type.contains("RECVD", ignoreCase = true) -> MaterialTheme.colorScheme.primary
                     else -> LocalContentColor.current
                 }
 
