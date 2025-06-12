@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.upitracker.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -48,7 +52,12 @@ fun CurrentMonthExpensesScreen(
     )
 
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
-    // val currentMonthTransactions by mainViewModel.currentMonthDebitTransactions.collectAsState()
+
+    val animatedTotal by animateFloatAsState(
+        targetValue = currentMonthExpensesTotal.toFloat(),
+        animationSpec = tween(durationMillis = 1000), // Animate over 1 second
+        label = "animatedTotalExpense"
+    )
 
     val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
 
@@ -99,7 +108,7 @@ fun CurrentMonthExpensesScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        currencyFormatter.format(currentMonthExpensesTotal),
+                        currencyFormatter.format(animatedTotal),
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -140,6 +149,7 @@ fun CurrentMonthExpensesScreen(
                         when (historyItem) {
                             is TransactionHistoryItem -> {
                                 TransactionCard(
+                                    modifier = Modifier.animateItem(),
                                     transaction = historyItem.transaction,
                                     onClick = { openCategoryEditDialog(historyItem.transaction) },
                                     onLongClick = { openDeleteConfirmDialog(historyItem.transaction) },

@@ -207,6 +207,12 @@
     <string name="regex_editor_test_result_invalid_regex">Invalid regex pattern.</string>
     <string name="regex_editor_test_result_group_template">\t\tGroup %1$d: %2$s</string>
     <string name="search_hint">Use values e.g., Recharge, Food, Bills…</string>
+    <string name="settings_view_archived_transactions">Archived Transactions</string>
+    <string name="settings_view_archived_summary">View your archived Transactions</string>
+    <string name="archived_transactions_title">Archived Transactions</string>
+    <string name="navigate_back_description">Back</string>
+    <string name="archived_empty_state">No Archived Transactions as of now…</string>
+    <string name="swipe_action_restore">Restore</string>
 
 
 </resources>

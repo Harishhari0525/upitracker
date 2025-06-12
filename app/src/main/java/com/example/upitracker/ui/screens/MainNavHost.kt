@@ -49,6 +49,12 @@ fun MainNavHost(
                 mainViewModel = mainViewModel
             )
         }
+        composable("archived_transactions") {
+            ArchivedTransactionsScreen(
+                mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
         // You might remove the separate "settings" route here if it's solely handled by MainAppScreen's bottom nav.
     }
 }

@@ -3,6 +3,7 @@ package com.example.upitracker.util
 import android.app.Activity // For window operations
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -11,9 +12,19 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
+import com.example.upitracker.util.AppTypography
 
 // Assuming your AppLightColorScheme and AppDarkColorScheme are defined here as before
 // For brevity, I'll skip re-pasting them, but ensure they are present in your file.
+
+
+val AppShapes = Shapes(
+    small = RoundedCornerShape(8.dp),      // Used by components like Chips, TextFields
+    medium = RoundedCornerShape(16.dp),    // Used by components like Cards
+    large = RoundedCornerShape(24.dp)      // Used by components like Modal sheets
+)
 
 private val AppLightColorScheme = lightColorScheme(
     primary = Color(0xFF006A6A),
@@ -116,7 +127,8 @@ fun Theme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography(), // Using default Material 3 Typography
+        typography = AppTypography, // Using default Material 3 Typography
+        shapes = AppShapes,
         content = content
     )
 }

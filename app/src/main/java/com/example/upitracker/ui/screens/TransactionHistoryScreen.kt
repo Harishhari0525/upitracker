@@ -11,6 +11,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +33,7 @@ import com.example.upitracker.viewmodel.SortOrder
 import com.example.upitracker.viewmodel.SortableTransactionField
 import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -118,15 +120,13 @@ fun TransactionHistoryScreen(
         )
         HorizontalDivider()
 
-        TabRow(
+        SecondaryTabRow(
             selectedTabIndex = pagerState.currentPage,
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
-            indicator = { tabPositions ->
-                if (pagerState.currentPage < tabPositions.size) {
-                    TabRowDefaults.SecondaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage])
-                    )
-                }
+            // The new indicator pattern is much cleaner
+            indicator = {
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
+                )
             }
         ) {
             tabTitles.forEachIndexed { index, title ->
@@ -187,6 +187,10 @@ fun TransactionHistoryScreen(
                             ) {
                                 items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
                                     TransactionCard(
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec = tween(durationMillis = 300),
+                                            fadeOutSpec = tween(durationMillis = 300)
+                                        ),
                                         transaction = transaction,
                                         onClick = { openCategoryEditDialog(transaction) },
                                         onLongClick = { openDeleteConfirmDialog(transaction) },// ✨ USING the lambda here ✨

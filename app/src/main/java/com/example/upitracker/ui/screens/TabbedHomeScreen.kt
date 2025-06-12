@@ -102,8 +102,13 @@ fun TabbedHomeScreen( // This screen might be your "History" tab's content now, 
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                TabRow(
-                    selectedTabIndex = pagerState.currentPage
+                SecondaryTabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    indicator = {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
+                        )
+                    }
                 ) {
                     tabTitles.forEachIndexed { index, titleString ->
                         Tab(
@@ -226,6 +231,7 @@ fun UpiTransactionListContent(
     ) {
         items(transactions, key = { it.id }) { txn ->
             TransactionCard(
+                modifier = Modifier.animateItem(),
                 transaction = txn,
                 onClick = { onTransactionClick(txn) },
                 onLongClick = { onTransactionLongClick(txn) },

@@ -71,4 +71,5 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.foundation)
     implementation(libs.androidx.animation)
+    implementation("androidx.compose.material3:material3-android:1.4.0-alpha15")
 }

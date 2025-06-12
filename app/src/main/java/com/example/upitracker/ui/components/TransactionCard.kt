@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import java.text.ParseException
+import androidx.compose.material.icons.filled.RestoreFromTrash
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -95,8 +96,30 @@ fun TransactionCard(
             )
 
             val (icon, iconTint, text) = when (direction) {
-                SwipeToDismissBoxValue.StartToEnd -> Triple(Icons.Filled.Archive, MaterialTheme.colorScheme.onSecondaryContainer, stringResource(R.string.swipe_action_archive))
-                SwipeToDismissBoxValue.EndToStart -> Triple(Icons.Filled.Delete, MaterialTheme.colorScheme.onErrorContainer, stringResource(R.string.swipe_action_delete))
+                SwipeToDismissBoxValue.StartToEnd -> { // Swiped Right
+                    if (transaction.isArchived) {
+                        // This is an archived item, so the action is RESTORE
+                        Triple(
+                            Icons.Filled.RestoreFromTrash,
+                            MaterialTheme.colorScheme.onSecondaryContainer,
+                            stringResource(R.string.swipe_action_restore) // We will add this string
+                        )
+                    } else {
+                        // This is a normal item, so the action is ARCHIVE
+                        Triple(
+                            Icons.Filled.Archive,
+                            MaterialTheme.colorScheme.onSecondaryContainer,
+                            stringResource(R.string.swipe_action_archive)
+                        )
+                    }
+                }
+                SwipeToDismissBoxValue.EndToStart -> { // Swiped Left (Delete)
+                    Triple(
+                        Icons.Filled.Delete,
+                        MaterialTheme.colorScheme.onErrorContainer,
+                        stringResource(R.string.swipe_action_delete)
+                    )
+                }
                 else -> Triple(null, Color.Transparent, "") // Should not happen when swiping
             }
 

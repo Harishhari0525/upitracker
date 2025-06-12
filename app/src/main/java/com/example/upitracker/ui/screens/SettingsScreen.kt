@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Swipe
 import androidx.activity.compose.rememberLauncherForActivityResult // ✨
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,7 +52,8 @@ fun SettingsScreen(
     onImportOldSms: () -> Unit,
     onEditRegex: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToArchive: () -> Unit
 ) {
     val context = LocalContext.current
     var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
@@ -152,6 +154,15 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_edit_sms_regex),
                 summary = stringResource(R.string.settings_edit_sms_regex_summary),
                 onClick = onEditRegex
+            )
+        }
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Archive,
+                title = stringResource(R.string.settings_view_archived_transactions), // Create this string resource
+                summary = stringResource(R.string.settings_view_archived_summary),    // Create this string resource
+                onClick = onNavigateToArchive
             )
         }
 

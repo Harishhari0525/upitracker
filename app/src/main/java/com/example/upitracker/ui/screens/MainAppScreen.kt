@@ -136,7 +136,8 @@ fun MainAppScreen(
                     onImportOldSms = onImportOldSms,
                     onRefreshSmsArchive = onRefreshSmsArchive,
                     onEditRegex = { rootNavController.navigate("regexEditor") },
-                    onBack = {
+                    onNavigateToArchive = { rootNavController.navigate("archived_transactions")},
+                        onBack = {
                         // If Settings is a root destination, popping back on contentNavController might take you to Home.
                         // Or, if MainAppScreen's TopAppBar should have a back button for settings,
                         // that back button should call contentNavController.popBackStack()
