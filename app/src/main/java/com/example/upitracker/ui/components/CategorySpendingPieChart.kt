@@ -12,6 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -26,6 +30,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -38,10 +43,11 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import androidx.compose.foundation.lazy.items
 
 // Helper extension functions (if not already globally available)
-fun TextUnit.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
-fun Dp.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
+fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
+fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 
 
 // Predefined list of colors for pie chart slices
@@ -226,6 +232,7 @@ fun CategorySpendingPieChart(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CategoryLegend(
     modifier: Modifier = Modifier,
@@ -236,6 +243,7 @@ fun CategoryLegend(
 ) {
     if (categoryExpenses.isEmpty()) return
     val totalAmount = remember(categoryExpenses) { categoryExpenses.sumOf { it.totalAmount } }
+    var showFullLegendDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
         Text(stringResource(R.string.graph_legend_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
@@ -261,9 +269,63 @@ fun CategoryLegend(
             }
         }
         if (categoryExpenses.size > itemsToShow.size) {
-            Text(stringResource(R.string.graph_legend_and_more, categoryExpenses.size - itemsToShow.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 22.dp))
+            TextButton(
+                onClick = { showFullLegendDialog = true },
+                modifier = Modifier.padding(start = 16.dp)
+            ) {
+                Text(
+                    stringResource(
+                        R.string.graph_legend_and_more,
+                        categoryExpenses.size - itemsToShow.size
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 22.dp)
+                )
+            }
         }
     }
+    if (showFullLegendDialog) {
+        FullCategoryLegendDialog(
+            allCategoryExpenses = categoryExpenses,
+            onDismiss = { showFullLegendDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun FullCategoryLegendDialog(
+    allCategoryExpenses: List<CategoryExpense>,
+    onDismiss: () -> Unit
+) {
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("All Category Spending") },
+        text = {
+            LazyColumn {
+                items(allCategoryExpenses) { expense ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Text(
+                            text = expense.categoryName,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = currencyFormat.format(expense.totalAmount),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 // Helper to format currency for legend (can be moved to a common util)

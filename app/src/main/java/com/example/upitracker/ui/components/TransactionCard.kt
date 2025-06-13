@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -26,8 +27,11 @@ import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import java.text.ParseException
 import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.runtime.LaunchedEffect
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -47,6 +51,7 @@ fun TransactionCard(
         } catch (_: ParseException) { "Invalid Date" }
         catch (_: IllegalArgumentException) { "Invalid Date" }
     }
+    val creditColor = if (isSystemInDarkTheme()) Color(0xFF63DC94) else Color(0xFF006D3D)
 
     val amountColor = when {
         transaction.type.contains("DEBIT", ignoreCase = true) ||
@@ -55,27 +60,41 @@ fun TransactionCard(
         transaction.type.contains("CREDIT", ignoreCase = true) ||
                 transaction.type.contains("RECVD", ignoreCase = true) ||
                 transaction.type.contains("RECEIVED", ignoreCase = true) ->
-            MaterialTheme.colorScheme.primary
+            creditColor // <-- USE OUR NEW GREEN COLOR HERE
         else -> MaterialTheme.colorScheme.onSurface
     }
 
     // ✨ Use Material 3's rememberSwipeToDismissBoxState ✨
+    val scope = rememberCoroutineScope()
+
+// 1. Replace your dismissState with this simplified version
     val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { newDismissValue ->
-            when (newDismissValue) {
-                SwipeToDismissBoxValue.EndToStart -> { // Swiped Left (Delete)
-                    onDeleteSwipeAction(transaction)
-                    false // Confirm the dismiss if action is taken
-                }
-                SwipeToDismissBoxValue.StartToEnd -> { // Swiped Right (Archive)
-                    onArchiveSwipeAction(transaction)
-                    true // Confirm the dismiss if action is taken
-                }
-                SwipeToDismissBoxValue.Settled -> false // Do not dismiss if settled back
-            }
+        confirmValueChange = {
+            // We will simply approve any state change that passes the threshold.
+            // The actual action will be handled by the LaunchedEffect below.
+            it != SwipeToDismissBoxValue.Settled
         },
-                positionalThreshold = { totalDistance -> totalDistance * 0.50f }
+        // Your high threshold is the main controller now
+        positionalThreshold = { totalDistance -> totalDistance * 0.85f }
     )
+
+// 2. Replace your old LaunchedEffect with this new one
+    LaunchedEffect(dismissState.currentValue) {
+        // We wait for the swipe to settle in a dismissed state
+        if (dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+            // Then we perform our action
+            onArchiveSwipeAction(transaction)
+            // AND immediately tell the card to animate back to the center
+            scope.launch {
+                dismissState.reset()
+            }
+        } else if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+            onDeleteSwipeAction(transaction)
+            scope.launch {
+                dismissState.reset()
+            }
+        }
+    }
 
     SwipeToDismissBox( // ✨ Material 3 SwipeToDismissBox ✨
         state = dismissState,

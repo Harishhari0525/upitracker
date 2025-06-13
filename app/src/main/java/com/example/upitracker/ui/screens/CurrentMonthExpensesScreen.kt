@@ -35,6 +35,8 @@ import java.text.NumberFormat
 import java.util.Calendar // ✨ Import Calendar
 import java.util.Locale
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
@@ -45,6 +47,7 @@ fun CurrentMonthExpensesScreen(
     navController: NavController, // ✨ Add NavController parameter from MainAppScreen ✨
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val isImporting by mainViewModel.isImportingSms.collectAsState()
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isImporting,
@@ -154,10 +157,12 @@ fun CurrentMonthExpensesScreen(
                                     onClick = { openCategoryEditDialog(historyItem.transaction) },
                                     onLongClick = { openDeleteConfirmDialog(historyItem.transaction) },
                                     onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
                                     },
                                     onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
                                         // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         openDeleteConfirmDialog(txnToDeleteFromSwipe)
                                     },
                                     swipeActionsEnabled = swipeActionsEnabled
@@ -212,6 +217,7 @@ fun CurrentMonthExpensesScreen(
                         transactionDescription = transactionToDelete!!.description,
                         onConfirm = {
                             mainViewModel.deleteTransaction(transactionToDelete!!)
+                            mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
                             mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar))
                             showDeleteConfirmDialog = false
                             transactionToDelete = null

@@ -14,9 +14,6 @@ fun MainNavHost(
     mainViewModel: MainViewModel = viewModel(),
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit
-    // Add onOnboardingComplete if MainNavHost is responsible for showing OnboardingScreen first
-    // onOnboardingComplete: () -> Unit,
-    // initialStartDestination: String // e.g., from MainActivity based on onboarding status
 ) {
     val navController = rememberNavController() // This is the rootNavController
 

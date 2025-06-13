@@ -126,7 +126,7 @@ fun MainAppScreen(
             composable(BottomNavItem.History.route) {
                 TransactionHistoryScreen(
                     mainViewModel = mainViewModel,
-                    navController = rootNavController, // rootNavController for potential deeper navigation
+                 //   navController = rootNavController, // rootNavController for potential deeper navigation
                     modifier = Modifier.fillMaxSize()
                 )
             }

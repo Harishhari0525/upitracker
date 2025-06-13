@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,7 +19,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
@@ -34,6 +32,8 @@ import com.example.upitracker.viewmodel.SortableTransactionField
 import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -41,11 +41,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TransactionHistoryScreen(
     mainViewModel: MainViewModel,
-    navController: NavController,
     modifier: Modifier = Modifier
 ) {
     val tabTitles = listOf(
@@ -53,7 +52,7 @@ fun TransactionHistoryScreen(
         stringResource(R.string.tab_upi_lite)
     )
     val tabIcons = listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize)
-
+    val haptic = LocalHapticFeedback.current
     val pagerState = rememberPagerState { tabTitles.size }
     val coroutineScope = rememberCoroutineScope()
 
@@ -97,6 +96,7 @@ fun TransactionHistoryScreen(
         transactionToEditCategory = transaction
         showCategoryEditDialog = true
     }
+
     // ✨ --- End of Category Edit Dialog State and Lambda --- ✨
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -195,11 +195,13 @@ fun TransactionHistoryScreen(
                                         onClick = { openCategoryEditDialog(transaction) },
                                         onLongClick = { openDeleteConfirmDialog(transaction) },// ✨ USING the lambda here ✨
                                         onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
                                             // Snackbar for archive/restore is posted by ViewModel
                                         },
                                         onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
                                             // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             openDeleteConfirmDialog(txnToDeleteFromSwipe)
                                         },
                                         swipeActionsEnabled = swipeActionsEnabled
@@ -259,6 +261,7 @@ fun TransactionHistoryScreen(
             transactionDescription = transactionToDelete!!.description, // Pass some identifying info
             onConfirm = {
                 mainViewModel.deleteTransaction(transactionToDelete!!)
+                mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
                 mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar)) // ✨ Use new string
                 showDeleteConfirmDialog = false
                 transactionToDelete = null
@@ -318,7 +321,7 @@ fun TransactionHistoryScreen(
     }
 }
 
-// --- Helper Composables for TransactionHistoryScreen ---
+// --- Helper Composable for TransactionHistoryScreen ---
 
 @Composable
 fun DateFilterControls(
@@ -455,36 +458,6 @@ fun SortControls(
     }
 }
 
-@Composable
-fun UpiTransactionSortControls(
-    currentSortField: SortableTransactionField,
-    currentSortOrder: SortOrder,
-    onSortFieldSelected: (SortableTransactionField) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
-        SortableTransactionField.entries.forEach { field ->
-            SortButton(
-                text = stringResource( // Use specific string resources for each field
-                    when(field) {
-                        SortableTransactionField.DATE -> R.string.history_sort_by_date
-                        SortableTransactionField.AMOUNT -> R.string.history_sort_by_amount
-                        SortableTransactionField.CATEGORY -> R.string.history_sort_by_category
-                    }
-                ),
-                isSelected = currentSortField == field,
-                sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING, // Default for non-active
-                onClick = { onSortFieldSelected(field) }
-            )
-        }
-    }
-}
-
 // ✨ New: SortControls for UPI Lite Summaries ✨
 @Composable
 fun UpiLiteSummarySortControls(
@@ -510,30 +483,3 @@ fun UpiLiteSummarySortControls(
         }
     }
 }
-@Composable
-fun DeleteTransactionConfirmationDialog(
-    transactionDescription: String, // To show some context in the dialog
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.settings_delete_all_data), tint = MaterialTheme.colorScheme.error) },
-        title = { Text(stringResource(R.string.delete_transaction_dialog_title)) },
-        text = { Text(stringResource(R.string.delete_transaction_dialog_message) + "\n\n\"${transactionDescription.take(50)}${if (transactionDescription.length > 50) "..." else ""}\"") },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text(stringResource(R.string.button_delete))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_button_cancel))
-            }
-        }
-    )
-}
-

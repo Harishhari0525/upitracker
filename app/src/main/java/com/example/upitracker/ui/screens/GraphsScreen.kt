@@ -8,7 +8,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import android.graphics.Rect
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -71,19 +70,6 @@ import kotlin.math.roundToInt
 fun TextUnit.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
 fun Dp.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
 
-// Predefined list of colors for pie chart slices
-val pieChartColorsDefaults = listOf(
-    Color(0xFFF44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
-    Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
-    Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
-    Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFF795548)
-)
-
-// Helper to format currency for legend
-private fun Double.toCurrencyString(): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-    return format.format(this)
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
@@ -119,13 +105,11 @@ fun GraphsScreen(
 //                .padding(16.dp)
 //                .align(Alignment.CenterHorizontally)
 //        )
-        TabRow(
-            selectedTabIndex = pagerState.currentPage, // Best practice to use currentPage
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
-            indicator = { tabPositions ->
-                // The pagerTabIndicatorOffset modifier now only needs the pagerState.
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage])
+        PrimaryTabRow(
+            selectedTabIndex = pagerState.currentPage,
+            indicator = {
+                    TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
                 )
             }
         ) {
@@ -342,9 +326,12 @@ fun SimpleMonthlyExpenseBarChart(
     val themedAxisColorArgb = axisColor.toArgb()
     val themedOnSurfaceColorArgb = MaterialTheme.colorScheme.onSurface.toArgb()
 
-    val valueLabelPaint = remember(density, themedOnSurfaceColorArgb) { Paint().apply { color = themedOnSurfaceColorArgb; textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true } }
-    val axisLabelPaint = remember(density, themedAxisColorArgb) { Paint().apply { color = themedAxisColorArgb; textAlign = Paint.Align.RIGHT; textSize = 12.sp.toPx(density); isAntiAlias = true } }
-    val monthLabelPaint = remember(density, themedAxisColorArgb) { Paint().apply { color = themedAxisColorArgb; textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true } }
+    val valueLabelPaint = remember(density, themedOnSurfaceColorArgb) {
+        Paint().apply { color = themedOnSurfaceColorArgb; textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true } }
+    val axisLabelPaint = remember(density, themedAxisColorArgb) {
+        Paint().apply { color = themedAxisColorArgb; textAlign = Paint.Align.RIGHT; textSize = 12.sp.toPx(density); isAntiAlias = true } }
+    val monthLabelPaint = remember(density, themedAxisColorArgb) {
+        Paint().apply { color = themedAxisColorArgb; textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true } }
 
     if (monthlyExpenses.isEmpty()) {
         Text(stringResource(R.string.graph_bar_chart_no_data_period), modifier = modifier.padding(16.dp).fillMaxSize(), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -390,21 +377,30 @@ fun SimpleMonthlyExpenseBarChart(
         val barCount = monthlyExpenses.size
         if (barCount == 0) return@Canvas
 
-        val yAxisLabelHorizontalPadding = 8.dp.toPx(); val yAxisTextWidthApproximation = axisLabelPaint.measureText(currencyFormatter.format(niceMaxAmount).replace("₹", "").trim()) + yAxisLabelHorizontalPadding
+        val yAxisLabelHorizontalPadding = 8.dp.toPx()
+        val yAxisTextWidthApproximation = axisLabelPaint.measureText(currencyFormatter.format(niceMaxAmount).replace("₹", "").trim()) + yAxisLabelHorizontalPadding
         val leftPaddingForYAxis = yAxisTextWidthApproximation + 12.dp.toPx(); val bottomPaddingForXLabels = 34.dp.toPx()
         val topPaddingForBarValues = 24.dp.toPx(); val rightPadding = 16.dp.toPx()
         val chartWidth = (size.width - leftPaddingForYAxis - rightPadding).coerceAtLeast(0f)
         val chartHeight = (size.height - bottomPaddingForXLabels - topPaddingForBarValues).coerceAtLeast(0f)
         if (chartHeight <= 0f || chartWidth <= 0f) { Log.w("BarChartDraw", "Not enough space: $chartWidth x $chartHeight"); return@Canvas }
 
-        drawLine(color = axisColor.copy(alpha = 0.5f), start = Offset(leftPaddingForYAxis, topPaddingForBarValues), end = Offset(leftPaddingForYAxis, topPaddingForBarValues + chartHeight))
-        drawLine(color = axisColor.copy(alpha = 0.5f), start = Offset(leftPaddingForYAxis, topPaddingForBarValues + chartHeight), end = Offset(leftPaddingForYAxis + chartWidth, topPaddingForBarValues + chartHeight))
+        drawLine(color = axisColor.copy(alpha = 0.5f),
+            start = Offset(leftPaddingForYAxis, topPaddingForBarValues),
+            end = Offset(leftPaddingForYAxis, topPaddingForBarValues + chartHeight))
+        drawLine(color = axisColor.copy(alpha = 0.5f),
+            start = Offset(leftPaddingForYAxis, topPaddingForBarValues + chartHeight),
+            end = Offset(leftPaddingForYAxis + chartWidth, topPaddingForBarValues + chartHeight))
         val yAxisSegments = 5
         for (i in 0..yAxisSegments) {
-            val value = niceMaxAmount / yAxisSegments * i; val yPos = topPaddingForBarValues + chartHeight - (value / niceMaxAmount * chartHeight).toFloat()
-            drawLine(color = axisColor.copy(alpha = 0.2f), start = Offset(leftPaddingForYAxis - 4.dp.toPx(), yPos), end = Offset(leftPaddingForYAxis + chartWidth, yPos))
+            val value = niceMaxAmount / yAxisSegments * i
+            val yPos = topPaddingForBarValues + chartHeight - (value / niceMaxAmount * chartHeight).toFloat()
+            drawLine(color = axisColor.copy(alpha = 0.2f),
+                start = Offset(leftPaddingForYAxis - 4.dp.toPx(), yPos),
+                end = Offset(leftPaddingForYAxis + chartWidth, yPos))
             val textBounds = Rect(); val labelText = currencyFormatter.format(value).replace("₹", "").trim()
-            axisLabelPaint.getTextBounds(labelText, 0, labelText.length, textBounds); drawContext.canvas.nativeCanvas.drawText(labelText, leftPaddingForYAxis - yAxisLabelHorizontalPadding, yPos + textBounds.height() / 2f, axisLabelPaint)
+            axisLabelPaint.getTextBounds(labelText, 0, labelText.length, textBounds)
+            drawContext.canvas.nativeCanvas.drawText(labelText, leftPaddingForYAxis - yAxisLabelHorizontalPadding, yPos + textBounds.height() / 2f, axisLabelPaint)
         }
 
         if (barCount == 0) return@Canvas

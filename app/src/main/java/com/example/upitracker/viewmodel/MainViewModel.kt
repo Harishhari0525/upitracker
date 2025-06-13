@@ -101,7 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val REFUND_CATEGORY = "Refund"
+    private val REFUNDCATEGORY = "Refund"
 
     private val _selectedDateRangeStart = MutableStateFlow<Long?>(null)
     private val _selectedDateRangeEnd   = MutableStateFlow<Long?>(null)
@@ -302,7 +302,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Filter and map debit transactions for the current month
             val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true)
-                        && !it.category.equals(REFUND_CATEGORY, ignoreCase = true)
+                        && !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
                         && it.date in monthStart..monthEnd
             }
             combinedItems.addAll(debitTransactions.map { TransactionHistoryItem(it) })
@@ -331,7 +331,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
         combine(_transactions, _selectedGraphPeriod) { allTransactions, period ->
             // Log.d("ViewModelDebug", "Recalculating lastNMonthsExpenses. Input transactions: ${allTransactions.size}, Period: ${period.displayName} (${period.months} months)")
-            val result = calculateLastNMonthsExpenses(allTransactions, period.months, REFUND_CATEGORY)
+            val result = calculateLastNMonthsExpenses(allTransactions, period.months, REFUNDCATEGORY)
             // Log.d("ViewModelDebug", "Resulting monthly expenses for graph: ${result.size} items")
             result
         }
@@ -397,7 +397,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
             val relevantTransactions = allTransactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(REFUND_CATEGORY, ignoreCase = true) &&
+                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true) &&
                         it.date in rangeStart..rangeEnd
             }
             val expensesByDayTimestamp = relevantTransactions
@@ -472,7 +472,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.type.equals(
                         "DEBIT",
                         ignoreCase = true
-                    ) && !it.category.isNullOrBlank() && !it.category.equals(REFUND_CATEGORY, ignoreCase = true)
+                    ) && !it.category.isNullOrBlank() && !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
                 }
                 .groupBy { it.category!! }
                 .map { (categoryName, transactionsInCategory) ->

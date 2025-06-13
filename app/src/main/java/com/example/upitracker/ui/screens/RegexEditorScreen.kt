@@ -56,7 +56,7 @@ fun RegexEditorScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                windowInsets = WindowInsets(0),
+               // windowInsets = WindowInsets(0),
                 title = { Text(stringResource(R.string.regex_editor_top_bar_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

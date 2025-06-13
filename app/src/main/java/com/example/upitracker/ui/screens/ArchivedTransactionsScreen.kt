@@ -21,12 +21,15 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.viewmodel.MainViewModel
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 @Composable
 fun ArchivedTransactionsScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     val archivedTransactions by mainViewModel.archivedUpiTransactions.collectAsState()
 
     // State for the permanent delete confirmation dialog
@@ -70,6 +73,7 @@ fun ArchivedTransactionsScreen(
                         onClick = { /* No action on simple click */ },
                         onLongClick = { transactionToDelete = it }, // Long click to show delete dialog
                         onArchiveSwipeAction = { txn -> // Swipe right to RESTORE
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             mainViewModel.toggleTransactionArchiveStatus(txn, archive = false)
                         },
                         onDeleteSwipeAction = { txn -> // Swipe left to DELETE
@@ -86,6 +90,7 @@ fun ArchivedTransactionsScreen(
             DeleteTransactionConfirmationDialog(
                 transactionDescription = transactionToDelete!!.description,
                 onConfirm = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     mainViewModel.deleteTransaction(transactionToDelete!!)
                     transactionToDelete = null // Dismiss dialog
                 },

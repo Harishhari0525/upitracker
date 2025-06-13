@@ -190,7 +190,7 @@
     <string name="filter_type_all">All</string>
     <string name="filter_type_debit">Debit</string>
     <string name="filter_type_credit">Credit</string>
-    <string name="graph_daily_trend_title">Daily Expense Trend (Last 30 Days)</string>
+    <string name="graph_daily_trend_title">Daily Expense Trend (Last 7 Days)</string>
     <string name="graph_daily_trend_no_data">No daily expense data available for the period.</string>
     <string name="graph_line_chart_no_data">No data to display line chart.</string>
     <string name="delete_transaction_dialog_title">Delete Transaction</string>
@@ -206,11 +206,11 @@
     <string name="regex_editor_test_result_match_found">Match found!</string>
     <string name="regex_editor_test_result_invalid_regex">Invalid regex pattern.</string>
     <string name="regex_editor_test_result_group_template">\t\tGroup %1$d: %2$s</string>
-    <string name="search_hint">Use values e.g., Recharge, Food, Bills…</string>
+    <string name="search_hint">Use values e.g., Recharge, Food</string>
     <string name="settings_view_archived_transactions">Archived Transactions</string>
     <string name="settings_view_archived_summary">View your archived Transactions</string>
-    <string name="archived_transactions_title">Archived Transactions</string>
-    <string name="archived_empty_state">No Archived Transactions as of now…</string>
+    <string name="archived_transactions_title">Recycle Bin</string>
+    <string name="archived_empty_state">No Archived Transactions found</string>
     <string name="swipe_action_restore">Restore</string>
 
 
