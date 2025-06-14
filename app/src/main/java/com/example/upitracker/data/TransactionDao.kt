@@ -42,4 +42,8 @@ interface TransactionDao {
     @Query("DELETE FROM transactions")
     suspend fun deleteAll() // This will delete ALL transactions, including archived ones.
     // You might want a separate method to delete only non-archived or only archived.
+
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    fun getTransactionById(id: Int): Flow<Transaction?>
+
 }

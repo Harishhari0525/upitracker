@@ -16,9 +16,6 @@ fun MainNavHost(
     onRefreshSmsArchive: () -> Unit
 ) {
     val navController = rememberNavController() // This is the rootNavController
-
-    // Example: Determine start destination based on onboarding (if not handled in MainActivity)
-    // val startDestination = if (initialStartDestination == "onboarding") "onboarding_route" else "main_app_shell"
     val startDestination = "main_app_shell" // Assuming onboarding is handled before this NavHost is shown
 
     NavHost(

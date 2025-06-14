@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
+import com.example.upitracker.data.Budget
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
@@ -22,6 +23,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
 data class MonthlyExpense(
@@ -74,6 +78,14 @@ enum class SortOrder {
     ASCENDING, DESCENDING
 }
 
+data class BudgetStatus(
+    val categoryName: String,
+    val budgetAmount: Double,
+    val spentAmount: Double,
+    val progress: Float,      // A value from 0.0f to 1.0f for progress bars
+    val remainingAmount: Double
+)
+
 enum class SortableUpiLiteSummaryField {
     DATE,
     TOTAL_AMOUNT,
@@ -92,10 +104,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
     private val upiLiteSummaryDao = db.upiLiteSummaryDao()
+    private val budgetDao = db.budgetDao()
 
     // --- Base Data Flows (Private) ---
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _budgets = budgetDao.getAllBudgets()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
         upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
@@ -111,6 +129,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedDateRangeEnd
     ) { start, end -> start to end }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null to null)
+
+    private val _selectedTransactionId = MutableStateFlow<Int?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
+        if (id == null) {
+            flowOf(null) // Emit null if no ID is selected
+        } else {
+            transactionDao.getTransactionById(id)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -149,6 +178,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val archivedUpiTransactions: StateFlow<List<Transaction>> =
         transactionDao.getArchivedTransactions() // Uses the new DAO method
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val budgetStatuses: StateFlow<List<BudgetStatus>> =
+        combine(_transactions, _budgets) { transactions, budgets ->
+            if (budgets.isEmpty()) {
+                return@combine emptyList()
+            }
+
+            // 1. Get transactions for the current month only
+            val (monthStart, monthEnd) = getCurrentMonthDateRange()
+            val currentMonthDebits = transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true) &&
+                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true) &&
+                        it.date in monthStart..monthEnd
+            }
+
+            // 2. Calculate total spending for each category this month
+            val spendingByCategory = currentMonthDebits
+                .filter { !it.category.isNullOrBlank() }
+                .groupBy { it.category!! }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+
+            // 3. Create the list of BudgetStatus objects for the UI
+            budgets.map { budget ->
+                val spent = spendingByCategory[budget.categoryName] ?: 0.0
+                val progress = if (budget.budgetAmount > 0) {
+                    (spent / budget.budgetAmount).toFloat().coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+                BudgetStatus(
+                    categoryName = budget.categoryName,
+                    budgetAmount = budget.budgetAmount,
+                    spentAmount = spent,
+                    progress = progress,
+                    remainingAmount = budget.budgetAmount - spent
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
 
     private val _isExportingCsv = MutableStateFlow(false)
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
@@ -504,6 +572,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSelectedGraphPeriod(period: GraphPeriod) {
         _selectedGraphPeriod.value = period
+    }
+
+    fun addOrUpdateBudget(categoryName: String, amount: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val trimmedCategory = categoryName.trim()
+            if (trimmedCategory.isNotBlank() && amount > 0) {
+                val budget = Budget(categoryName = trimmedCategory, budgetAmount = amount)
+                budgetDao.insertOrUpdate(budget)
+            }
+        }
+    }
+
+    fun deleteBudget(categoryName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            budgetDao.deleteByCategoryName(categoryName)
+        }
+    }
+
+    fun selectTransaction(id: Int?) {
+        _selectedTransactionId.value = id
     }
 
     fun setUpiLiteSummarySort(field: SortableUpiLiteSummaryField) {

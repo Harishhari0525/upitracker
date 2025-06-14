@@ -45,6 +45,7 @@ import java.util.TimeZone
 @Composable
 fun TransactionHistoryScreen(
     mainViewModel: MainViewModel,
+  //  onTransactionClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tabTitles = listOf(
@@ -55,6 +56,10 @@ fun TransactionHistoryScreen(
     val haptic = LocalHapticFeedback.current
     val pagerState = rememberPagerState { tabTitles.size }
     val coroutineScope = rememberCoroutineScope()
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var showDetailSheet by remember { mutableStateOf(false) }
 
     // Collect Filter States from ViewModel
     val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
@@ -192,7 +197,10 @@ fun TransactionHistoryScreen(
                                             fadeOutSpec = tween(durationMillis = 300)
                                         ),
                                         transaction = transaction,
-                                        onClick = { openCategoryEditDialog(transaction) },
+                                        onClick = {
+                                            mainViewModel.selectTransaction(transaction.id)
+                                            showDetailSheet = true
+                                        },
                                         onLongClick = { openDeleteConfirmDialog(transaction) },// ✨ USING the lambda here ✨
                                         onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -236,6 +244,27 @@ fun TransactionHistoryScreen(
                     }
                 }
             }
+        }
+    }
+    if (showDetailSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showDetailSheet = false
+                mainViewModel.selectTransaction(null)
+            },
+            sheetState = sheetState
+        ) {
+            TransactionDetailSheetContent(
+                mainViewModel = mainViewModel,
+                onDismiss = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        if (!sheetState.isVisible) {
+                            showDetailSheet = false
+                            mainViewModel.selectTransaction(null)
+                        }
+                    }
+                }
+            )
         }
     }
 

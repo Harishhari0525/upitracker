@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Home // For Home/Current Month
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.upitracker.R // Assuming string resources are in R
+import androidx.compose.material.icons.filled.PieChart
 
 // Sealed class to define each bottom navigation item
 sealed class BottomNavItem(
@@ -33,5 +34,10 @@ sealed class BottomNavItem(
         route = "app_settings_main", // Route for settings within bottom nav
         labelResId = R.string.bottom_nav_settings, // Create this string ("Settings")
         icon = Icons.Filled.Settings
+    )
+    object Budget : BottomNavItem(
+        route = "budget",
+        labelResId = R.string.bottom_nav_budget, // We will add this string
+        icon = Icons.Filled.PieChart
     )
 }

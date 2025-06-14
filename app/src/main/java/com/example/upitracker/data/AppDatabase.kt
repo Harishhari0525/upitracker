@@ -11,15 +11,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Transaction::class,
         UpiLiteSummary::class,
-        ArchivedSmsMessage::class // ✨ Add new entity ✨
+        ArchivedSmsMessage::class, // ✨ Add new entity ✨
+        Budget::class
     ],
-    version = 5, // ✨ Version Incremented to 4 ✨
+    version = 6, // ✨ Version Incremented to 4 ✨
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun upiLiteSummaryDao(): UpiLiteSummaryDao
     abstract fun archivedSmsMessageDao(): ArchivedSmsMessageDao // ✨ Add new DAO abstract function ✨
+    abstract fun budgetDao(): BudgetDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -61,6 +63,17 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
             }
         }
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `budgets` (
+                        `categoryName` TEXT NOT NULL, 
+                        `budgetAmount` REAL NOT NULL, 
+                        PRIMARY KEY(`categoryName`)
+                    )
+                """.trimIndent())
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -69,7 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "upi_tracker_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5) // ✨ Add new migration ✨
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

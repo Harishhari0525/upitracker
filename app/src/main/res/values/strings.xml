@@ -210,9 +210,27 @@
     <string name="settings_view_archived_transactions">Archived Transactions</string>
     <string name="settings_view_archived_summary">View your archived Transactions</string>
     <string name="archived_transactions_title">Recycle Bin</string>
-    <string name="navigate_back_description">Back</string>
     <string name="archived_empty_state">No Archived Transactions found</string>
     <string name="swipe_action_restore">Restore</string>
+    <string name="bottom_nav_budget">Budgets</string>
+    <string name="budget_empty_state">No budgets set yet. Tap the + button to add your first budget and track your spending!</string>
+    <string name="budget_add_new">Add new budget</string>
+    <string name="budget_add_title">Add Budget</string>
+    <string name="budget_edit_title">Edit Budget</string>
+    <string name="budget_category_label">Category</string>
+    <string name="budget_amount_label">Budget Amount</string>
+    <string name="budget_remaining">%s remaining</string>
+    <string name="budget_overspent">%s overspent</string>
+    <string name="transaction_detail_title">Transaction Details</string>
+    <string name="navigate_back_description">Navigate back</string>
+    <string name="detail_label_description">Description</string>
+    <string name="detail_label_category">Category</string>
+    <string name="detail_label_party">From/To</string>
+    <string name="detail_label_date_time">Date &amp; Time</string>
+    <string name="detail_label_note">Note</string>
+    <string name="button_edit_category">Edit Category</string>
+    <string name="button_archive">Archive</string>
+    <string name="button_restore">Restore</string>
 
 
 </resources>

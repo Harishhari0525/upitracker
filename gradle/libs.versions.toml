@@ -1,13 +1,19 @@
 [versions]
+# UPDATED: All core Compose libraries are now aligned to a new, compatible version
 animation = "1.9.0-alpha04"
-datastorePreferences = "1.1.7"
-foundation = "1.8.2"
+foundation = "1.9.0-alpha04"
+compose = "1.9.0-alpha04"
+runtime = "1.9.0-alpha04"
+materialVersion = "1.9.0-alpha04"
+
+# Your new Material 3 version is compatible with these
+material3 = "1.4.0-alpha15"
+
+# The rest of your versions remain the same
 kotlin = "2.0.21"
 agp = "8.3.2"
-compose = "1.8.2"
+datastorePreferences = "1.1.7"
 iconscompose = "1.7.8"
-material3 = "1.4.0-alpha15"
-materialVersion = "1.8.2"
 room = "2.7.1"
 lifecycle = "2.9.1"
 navigation = "2.9.0"
@@ -19,7 +25,6 @@ material = "1.12.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-runtime = "1.8.2"
 securityCrypto = "1.1.0-beta01"
 vico = "1.14.0"
 workRuntimeKtx = "2.10.1"
@@ -36,6 +41,7 @@ androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtim
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+androidx-material3-android = { module = "androidx.compose.material3:material3-android", version.ref = "material3" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

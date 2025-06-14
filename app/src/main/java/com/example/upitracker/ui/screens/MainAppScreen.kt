@@ -33,6 +33,7 @@ fun MainAppScreen(
     val bottomNavItems = listOf(
         BottomNavItem.Home,
         BottomNavItem.Graphs,
+        BottomNavItem.Budget,
         BottomNavItem.History,
         BottomNavItem.AppSettings
     )
@@ -113,8 +114,21 @@ fun MainAppScreen(
                 CurrentMonthExpensesScreen(
                     mainViewModel = mainViewModel,
                     onImportOldSms = onImportOldSms,
-                    navController = contentNavController, // Pass contentNavController
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    onViewAllClick = {
+                        // This action uses the contentNavController
+                        contentNavController.navigate(BottomNavItem.History.route) {
+                            popUpTo(contentNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onTransactionClick = { transactionId ->
+                        // This action uses the rootNavController
+                        rootNavController.navigate("transaction_detail/$transactionId")
+                    }
                 )
             }
             composable(BottomNavItem.Graphs.route) {
@@ -126,10 +140,16 @@ fun MainAppScreen(
             composable(BottomNavItem.History.route) {
                 TransactionHistoryScreen(
                     mainViewModel = mainViewModel,
-                 //   navController = rootNavController, // rootNavController for potential deeper navigation
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            composable(BottomNavItem.Budget.route) {
+                BudgetScreen(
+                    mainViewModel = mainViewModel
+                )
+            }
+
             composable(BottomNavItem.AppSettings.route) {
                 SettingsScreen(
                     mainViewModel = mainViewModel,
