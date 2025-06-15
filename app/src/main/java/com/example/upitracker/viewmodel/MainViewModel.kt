@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
-import com.example.upitracker.data.Budget
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
@@ -86,11 +85,16 @@ enum class AmountFilterType {
 }
 
 data class BudgetStatus(
+    val budgetId: Int,
+    val periodType: com.example.upitracker.data.BudgetPeriod,
     val categoryName: String,
     val budgetAmount: Double,
     val spentAmount: Double,
     val progress: Float,      // A value from 0.0f to 1.0f for progress bars
-    val remainingAmount: Double
+    val remainingAmount: Double,
+    val allowRollover: Boolean, // ✨ NEW
+    val rolloverAmount: Double,  // ✨ NEW
+    val effectiveBudget: Double // ✨ NEW
 )
 
 data class IncomeExpensePoint(
@@ -135,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _budgets = budgetDao.getAllBudgets()
+    private val _budgets = budgetDao.getAllActiveBudgets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
    // private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
@@ -181,27 +185,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, Triple(null, null, ""))
 
     private val _filters = combine(
-        // Combine the first 5 flows
         _selectedUpiTransactionType,
-        _dateAndSearch, // This is already a Triple (start, end, query)
+        _dateAndSearch,
         _showUncategorized,
         _amountFilterType,
         _amountFilterValue1
     ) { type, dateAndSearchTriple, uncategorized, amountType, amount1 ->
-        // Create a temporary tuple or object with the first 5 results
         quintuple(type, dateAndSearchTriple, uncategorized, amountType, amount1)
-    }.combine(_amountFilterValue2) { (type, dateAndSearchTriple, uncategorized, amountType, amount1), amount2 ->
-        // Combine with the 6th flow and create the final data class
+    }.combine(_amountFilterValue2) { quint, amount2 ->
+        val (type, dateAndSearchTriple, uncategorized, amountType, amount1) = quint
         val (startDate, endDate, query) = dateAndSearchTriple
         TransactionFilters(type, startDate, endDate, query, uncategorized, amountType, amount1, amount2)
     }.stateIn(viewModelScope, SharingStarted.Lazily, TransactionFilters(UpiTransactionTypeFilter.ALL, null, null, "", false, AmountFilterType.ALL, null, null))
 
-    // Helper function to create a quintuple (5-element tuple) since Kotlin doesn't have one built-in
+    // Helper function and data class
     private fun <A, B, C, D, E> quintuple(a: A, b: B, c: C, d: D, e: E): Quint<A, B, C, D, E> = Quint(a, b, c, d, e)
     private data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
+
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
+
+    // In MainViewModel.kt, add these new helper functions
+
+    private fun getPreviousWeekRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.WEEK_OF_YEAR, -1) // Go to previous week
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        val weekStart = calendar.timeInMillis
+        calendar.add(Calendar.WEEK_OF_YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
+        val weekEnd = calendar.timeInMillis
+        return weekStart to weekEnd
+    }
+
+    private fun getPreviousMonthRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.MONTH, -1) // Go to previous month
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        val monthStart = calendar.timeInMillis
+        calendar.add(Calendar.MONTH, 1); calendar.add(Calendar.MILLISECOND, -1)
+        val monthEnd = calendar.timeInMillis
+        return monthStart to monthEnd
+    }
+
+    private fun getPreviousYearRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.YEAR, -1) // Go to previous year
+        calendar.set(Calendar.DAY_OF_YEAR, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        val yearStart = calendar.timeInMillis
+        calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
+        val yearEnd = calendar.timeInMillis
+        return yearStart to yearEnd
+    }
 
     private var _lastArchivedTransaction: Transaction? = null
     private var _lastArchivedTransactionOriginalCategory: String? = null
@@ -284,42 +326,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val budgetStatuses: StateFlow<List<BudgetStatus>> =
         combine(_transactions, _budgets) { transactions, budgets ->
-            if (budgets.isEmpty()) {
-                return@combine emptyList()
-            }
+            if (budgets.isEmpty()) return@combine emptyList()
 
-            // 1. Get transactions for the current month only
-            val (monthStart, monthEnd) = getCurrentMonthDateRange()
-            val currentMonthDebits = transactions.filter {
+            val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true) &&
-                        it.date in monthStart..monthEnd
+                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
             }
 
-            // 2. Calculate total spending for each category this month
-            val spendingByCategory = currentMonthDebits
-                .filter { !it.category.isNullOrBlank() }
-                .groupBy { it.category!! }
-                .mapValues { entry -> entry.value.sumOf { it.amount } }
-
-            // 3. Create the list of BudgetStatus objects for the UI
             budgets.map { budget ->
-                val spent = spendingByCategory[budget.categoryName] ?: 0.0
-                val progress = if (budget.budgetAmount > 0) {
-                    (spent / budget.budgetAmount).toFloat().coerceIn(0f, 1f)
+                // --- Rollover Calculation ---
+                val rolloverAmount = if (budget.allowRollover) {
+                    val (prevPeriodStart, prevPeriodEnd) = when (budget.periodType) {
+                        com.example.upitracker.data.BudgetPeriod.WEEKLY -> getPreviousWeekRange()
+                        com.example.upitracker.data.BudgetPeriod.MONTHLY -> getPreviousMonthRange()
+                        com.example.upitracker.data.BudgetPeriod.YEARLY -> getPreviousYearRange()
+                    }
+                    val spentInPrevPeriod = debitTransactions
+                        .filter { it.category.equals(budget.categoryName, true) && it.date in prevPeriodStart..prevPeriodEnd }
+                        .sumOf { it.amount }
+                    budget.budgetAmount - spentInPrevPeriod // Leftover or debt from last period
                 } else {
-                    0f
+                    0.0 // Rollover is disabled
                 }
+
+                // --- Current Period Calculation ---
+                val (currentPeriodStart, currentPeriodEnd) = when (budget.periodType) {
+                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> getCurrentWeekRange()
+                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
+                    com.example.upitracker.data.BudgetPeriod.YEARLY -> getCurrentYearRange()
+                }
+
+                val spentInCurrentPeriod = debitTransactions
+                    .filter { it.category.equals(budget.categoryName, true) && it.date in currentPeriodStart..currentPeriodEnd }
+                    .sumOf { it.amount }
+
+                val effectiveBudget = budget.budgetAmount + rolloverAmount
+                val progress = if (effectiveBudget > 0) (spentInCurrentPeriod / effectiveBudget).toFloat().coerceIn(0f, 1f) else 0f
+
                 BudgetStatus(
+                    budgetId = budget.id,
+                    periodType = budget.periodType,
                     categoryName = budget.categoryName,
                     budgetAmount = budget.budgetAmount,
-                    spentAmount = spent,
+                    spentAmount = spentInCurrentPeriod,
                     progress = progress,
-                    remainingAmount = budget.budgetAmount - spent
+                    remainingAmount = effectiveBudget - spentInCurrentPeriod,
+                    allowRollover = budget.allowRollover,
+                    rolloverAmount = rolloverAmount,
+                    effectiveBudget = effectiveBudget
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
 
     private val _isExportingCsv = MutableStateFlow(false)
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
@@ -681,19 +738,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGraphPeriod.value = period
     }
 
-    fun addOrUpdateBudget(categoryName: String, amount: Double) {
+    // In MainViewModel.kt, replace the addOrUpdateBudget function
+
+    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: com.example.upitracker.data.BudgetPeriod, allowRollover: Boolean) { // ✨ ADD allowRollover
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
-                val budget = Budget(categoryName = trimmedCategory, budgetAmount = amount)
+                val (startDate, _) = when (periodType) {
+                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> getCurrentWeekRange()
+                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
+                    com.example.upitracker.data.BudgetPeriod.YEARLY -> getCurrentYearRange()
+                }
+
+                val budget = com.example.upitracker.data.Budget(
+                    categoryName = trimmedCategory,
+                    budgetAmount = amount,
+                    periodType = periodType,
+                    startDate = startDate,
+                    allowRollover = allowRollover // ✨ PASS the new value
+                )
                 budgetDao.insertOrUpdate(budget)
             }
         }
     }
 
-    fun deleteBudget(categoryName: String) {
+    fun deleteBudget(budgetId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            budgetDao.deleteByCategoryName(categoryName)
+            budgetDao.deleteById(budgetId)
         }
     }
 
@@ -976,6 +1047,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _snackbarEvents.emit(SnackbarMessage(message = message))
         }
+    }
+
+    // In MainViewModel.kt, add these new helper functions
+
+    private fun getCurrentWeekRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        val weekStart = calendar.timeInMillis
+        calendar.add(Calendar.WEEK_OF_YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
+        val weekEnd = calendar.timeInMillis
+        return weekStart to weekEnd
+    }
+
+    private fun getCurrentYearRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.DAY_OF_YEAR, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
+        val yearStart = calendar.timeInMillis
+        calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
+        val yearEnd = calendar.timeInMillis
+        return yearStart to yearEnd
     }
 
     // Initialize base flows collection

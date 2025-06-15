@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedSmsMessage::class, // ✨ Add new entity ✨
         Budget::class
     ],
-    version = 6, // ✨ Version Incremented to 4 ✨
+    version = 8, // ✨ Version Incremented to 4 ✨
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -75,6 +75,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Drop the old budgets table
+                db.execSQL("DROP TABLE IF EXISTS `budgets`")
+                // Create the new budgets table based on the updated Budget entity
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `budgets` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `categoryName` TEXT NOT NULL, 
+                        `budgetAmount` REAL NOT NULL,
+                        `periodType` TEXT NOT NULL,
+                        `startDate` INTEGER NOT NULL,
+                        `isActive` INTEGER NOT NULL DEFAULT 1
+                    )
+                """.trimIndent())
+            }
+        }
+        val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add the new 'allowRollover' column to the 'budgets' table.
+                // INTEGER is used for Boolean (0=false, 1=true). Default to 0 (false).
+                db.execSQL("ALTER TABLE budgets ADD COLUMN allowRollover INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -82,7 +107,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "upi_tracker_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6) // ✨ Add new migration ✨
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

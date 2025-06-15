@@ -244,8 +244,6 @@ class MainActivity : FragmentActivity() {
         Log.d("MainActivity", "Periodic cleanup worker for archived SMS scheduled.")
     }
 
-    // ... requestSmsPermissionAndImport(), importOldUpiSms(), getAllSms(), onDestroy() methods remain the same ...
-    // (Ensure they are present as provided in the last complete MainActivity.kt version)
     private fun requestSmsPermissionAndImport() {
         when {
             ContextCompat.checkSelfPermission(
