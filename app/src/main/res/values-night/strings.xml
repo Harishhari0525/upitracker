@@ -231,6 +231,7 @@
     <string name="button_edit_category">Edit Category</string>
     <string name="button_archive">Archive</string>
     <string name="button_restore">Restore</string>
-
+    <string name="refund_category_snackbar_message">"Refund" category set. This transaction will be excluded from expense totals.</string>
+    <string name="income_expense">Income/Expense</string>
 
 </resources>

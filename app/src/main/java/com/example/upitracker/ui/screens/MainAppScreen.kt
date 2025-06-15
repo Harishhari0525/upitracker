@@ -7,9 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -20,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.R
+import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.viewmodel.MainViewModel
 
 @Composable
@@ -38,6 +44,9 @@ fun MainAppScreen(
         BottomNavItem.AppSettings
     )
     val contentNavController = rememberNavController()
+    var showAddTransactionDialog by remember { mutableStateOf(false) }
+    val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -100,6 +109,16 @@ fun MainAppScreen(
                         )
                     )
                 }
+            }
+        },
+        floatingActionButton = {
+            // Only show the FAB if we are on the Home screen
+            if (currentRoute == BottomNavItem.Home.route) {
+                ExtendedFloatingActionButton(
+                    onClick = { showAddTransactionDialog = true },
+                    icon = { Icon(Icons.Filled.Add, "Add new transaction") },
+                    text = { Text(text = "Txn") }
+                )
             }
         }
     ) { innerPadding ->
@@ -172,5 +191,16 @@ fun MainAppScreen(
                 )
             }
         }
+    }
+    if (showAddTransactionDialog) {
+        AddTransactionDialog(
+            onDismiss = { showAddTransactionDialog = false },
+            onConfirm = { amount, type, description, category ->
+                // We will add the ViewModel logic here in the next step
+                // For now, it just closes
+                mainViewModel.addManualTransaction(amount, type, description, category)
+                showAddTransactionDialog = false
+            }
+        )
     }
 }

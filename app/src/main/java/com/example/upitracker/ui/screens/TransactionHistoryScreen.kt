@@ -32,8 +32,11 @@ import com.example.upitracker.viewmodel.SortableTransactionField
 import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
 import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.upitracker.viewmodel.AmountFilterType
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -71,6 +74,7 @@ fun TransactionHistoryScreen(
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
     val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
     val searchQuery by mainViewModel.searchQuery.collectAsState()
+    val filters by mainViewModel.filters.collectAsState()
 
     // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -123,6 +127,13 @@ fun TransactionHistoryScreen(
             onEndDateClick = { showEndDatePicker = true },
             onClearDates = { mainViewModel.clearDateRangeFilter() }
         )
+
+        AdvancedFilterControls(
+            filters = filters,
+            onToggleUncategorized = { mainViewModel.toggleUncategorizedFilter(it) },
+            onSetAmountFilter = { type, val1, val2 -> mainViewModel.setAmountFilter(type, val1, val2) }
+        )
+
         HorizontalDivider()
 
         SecondaryTabRow(
@@ -509,6 +520,116 @@ fun UpiLiteSummarySortControls(
                 sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING,
                 onClick = { onSortFieldSelected(field) }
             )
+        }
+    }
+}
+// In TransactionHistoryScreen.kt
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+// In TransactionHistoryScreen.kt, replace the old AdvancedFilterControls with this:
+
+@Composable
+fun AdvancedFilterControls(
+    filters: com.example.upitracker.viewmodel.TransactionFilters, // Pass the data object directly
+    onToggleUncategorized: (Boolean) -> Unit, // Pass the specific lambda
+    onSetAmountFilter: (AmountFilterType, Double?, Double?) -> Unit // Pass the specific lambda
+) {
+    // Local states for the TextFields remain the same
+    var amountValue1 by remember { mutableStateOf("") }
+    var amountValue2 by remember { mutableStateOf("") }
+    var showAmountDropdown by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // --- Uncategorized Filter Chip ---
+        FilterChip(
+            selected = filters.showUncategorized,
+            onClick = { onToggleUncategorized(!filters.showUncategorized) }, // Use the lambda
+            label = { Text("Uncategorized") },
+            leadingIcon = if (filters.showUncategorized) {
+                { Icon(Icons.Filled.Check, contentDescription = "Uncategorized filter selected") }
+            } else null
+        )
+
+        // --- Amount Filter Dropdown ---
+        Box {
+            OutlinedButton(onClick = { showAmountDropdown = true }) {
+                Text(filters.amountType.name.replace('_', ' '))
+                Icon(Icons.Default.ArrowDropDown, contentDescription = "Open amount filter options")
+            }
+
+            DropdownMenu(
+                expanded = showAmountDropdown,
+                onDismissRequest = { showAmountDropdown = false }
+            ) {
+                AmountFilterType.entries.forEach { type ->
+                    DropdownMenuItem(
+                        text = { Text(type.name.replace('_', ' ')) },
+                        onClick = {
+                            onSetAmountFilter(type, null, null) // Use the lambda
+                            amountValue1 = ""
+                            amountValue2 = ""
+                            showAmountDropdown = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Conditionally display TextFields for Amount Filter ---
+    if (filters.amountType != AmountFilterType.ALL) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = amountValue1,
+                onValueChange = {
+                    amountValue1 = it
+                    onSetAmountFilter( // Use the lambda
+                        filters.amountType,
+                        it.toDoubleOrNull(),
+                        amountValue2.toDoubleOrNull()
+                    )
+                },
+                label = {
+                    val label = when (filters.amountType) {
+                        AmountFilterType.GREATER_THAN -> "Greater Than"
+                        AmountFilterType.LESS_THAN -> "Less Than"
+                        AmountFilterType.RANGE -> "Min Amount"
+                        else -> ""
+                    }
+                    Text(label)
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f)
+            )
+
+            if (filters.amountType == AmountFilterType.RANGE) {
+                OutlinedTextField(
+                    value = amountValue2,
+                    onValueChange = {
+                        amountValue2 = it
+                        onSetAmountFilter( // Use the lambda
+                            filters.amountType,
+                            amountValue1.toDoubleOrNull(),
+                            it.toDoubleOrNull()
+                        )
+                    },
+                    label = { Text("Max Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }

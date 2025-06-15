@@ -37,6 +37,8 @@ import com.example.upitracker.viewmodel.TransactionHistoryItem
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+
 
 
 @OptIn(ExperimentalMaterialApi::class)
@@ -82,7 +84,11 @@ fun CurrentMonthExpensesScreen(
     Box(modifier = modifier.fillMaxSize()) {
 
         // This inner Box handles the pull-to-refresh gesture
-        Box(modifier = modifier.fillMaxSize().pullRefresh(pullRefreshState)) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .pullRefresh(pullRefreshState)
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -144,7 +150,9 @@ fun CurrentMonthExpensesScreen(
 
                 if (currentMonthExpenseItems.isEmpty() && !isImporting) {
                     Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -196,6 +204,7 @@ fun CurrentMonthExpensesScreen(
                             }
                         }
 
+
                         if (currentMonthExpenseItems.size > 25) {
                             item {
                                 TextButton(
@@ -209,6 +218,15 @@ fun CurrentMonthExpensesScreen(
                     }
                 }
             }
+
+            // The PullRefreshIndicator is now INSIDE the Box with the .pullRefresh modifier.
+            // This is the correct placement.
+            PullRefreshIndicator(
+                refreshing = isImporting,
+                state = pullRefreshState,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+            )
         }
 
         // NEW: The ModalBottomSheet for showing details

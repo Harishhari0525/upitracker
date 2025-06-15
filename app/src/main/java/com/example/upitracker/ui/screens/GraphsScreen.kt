@@ -19,6 +19,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,12 +87,14 @@ fun GraphsScreen(
     val graphTabTitles = listOf(
         stringResource(R.string.graph_tab_daily_trend),
         stringResource(R.string.graph_tab_monthly_summary),
-        stringResource(R.string.graph_tab_category_pie)
+        stringResource(R.string.graph_tab_category_pie),
+        stringResource(R.string.income_expense)
     )
     val graphTabIcons = listOf(
         Icons.AutoMirrored.Filled.ShowChart,
         Icons.Filled.BarChart,
-        Icons.Filled.PieChart
+        Icons.Filled.PieChart,
+        Icons.Default.SwapHoriz
     )
     val pagerState = rememberPagerState { graphTabTitles.size }
     val coroutineScope = rememberCoroutineScope()
@@ -98,13 +102,6 @@ fun GraphsScreen(
     Column(
         modifier = modifier.fillMaxSize().animateContentSize()
     ) {
-//        Text(
-//            stringResource(R.string.bottom_nav_graphs),
-//            style = MaterialTheme.typography.headlineSmall,
-//            modifier = Modifier
-//                .padding(16.dp)
-//                .align(Alignment.CenterHorizontally)
-//        )
         PrimaryTabRow(
             selectedTabIndex = pagerState.currentPage,
             indicator = {
@@ -297,6 +294,28 @@ private fun PageContent(
                                 currentlySelectedCategoryNameForPie = if (currentlySelectedCategoryNameForPie == categoryName) null else categoryName
                                 selectedPieSliceData = categoryData.find { it.categoryName == currentlySelectedCategoryNameForPie }
                             }
+                        )
+                    }
+                }
+            }
+            3 -> { // ✨ ADD THIS ENTIRE NEW CASE
+                val incomeExpenseData by mainViewModel.incomeVsExpenseData.collectAsState()
+
+                Text(
+                    "Income vs. Expense", // TODO: Add to strings.xml
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp).align(Alignment.CenterHorizontally)
+                )
+
+                if (incomeExpenseData.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                        Text("No income or expense data for this period.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize()) {
+                        IncomeExpenseGroupedBarChart(
+                            data = incomeExpenseData,
+                            modifier = Modifier.fillMaxSize().padding(8.dp)
                         )
                     }
                 }
@@ -581,4 +600,128 @@ fun calculateNiceMax(actualMax: Double): Double {
         fraction <= 7.5 -> 7.5; else -> 10.0
     }
     return niceFraction * 10.0.pow(exponent)
+}
+// Add this new composable at the end of GraphsScreen.kt
+
+@Composable
+fun IncomeExpenseGroupedBarChart(
+    data: List<com.example.upitracker.viewmodel.IncomeExpensePoint>,
+    modifier: Modifier = Modifier
+) {
+    val incomeColor = MaterialTheme.colorScheme.primary
+    val expenseColor = MaterialTheme.colorScheme.error
+    val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    val density = LocalDensity.current
+    val axisLabelPaint = remember(density) {
+        Paint().apply {
+            color = axisColor.toArgb()
+            textAlign = Paint.Align.RIGHT
+            textSize = 12.sp.toPx(density)
+            isAntiAlias = true
+        }
+    }
+    val monthLabelPaint = remember(density) {
+        Paint().apply {
+            color = axisColor.toArgb()
+            textAlign = Paint.Align.CENTER
+            textSize = 10.sp.toPx(density)
+            isAntiAlias = true
+        }
+    }
+
+    if (data.isEmpty()) return
+
+    val maxIncome = data.maxOfOrNull { it.totalIncome } ?: 0.0
+    val maxExpense = data.maxOfOrNull { it.totalExpense } ?: 0.0
+    val absoluteMax = calculateNiceMax(maxOf(maxIncome, maxExpense))
+
+    Column(modifier = modifier) {
+        // Legend
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 56.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(10.dp).background(incomeColor))
+                Spacer(Modifier.width(4.dp))
+                Text("Income", style = MaterialTheme.typography.labelSmall)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(10.dp).background(expenseColor))
+                Spacer(Modifier.width(4.dp))
+                Text("Expense", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val leftPadding = 56.dp.toPx()
+            val bottomPadding = 30.dp.toPx()
+            val topPadding = 16.dp.toPx()
+            val rightPadding = 16.dp.toPx()
+
+            val chartWidth = size.width - leftPadding - rightPadding
+            val chartHeight = size.height - bottomPadding - topPadding
+
+            if (chartHeight <= 0f || chartWidth <= 0f) return@Canvas
+
+            // Draw Y-Axis lines and labels
+            val yAxisSegments = 5
+            for (i in 0..yAxisSegments) {
+                val value = absoluteMax / yAxisSegments * i
+                val yPos = topPadding + chartHeight - (value / absoluteMax * chartHeight).toFloat()
+                drawLine(
+                    color = axisColor.copy(alpha = 0.2f),
+                    start = Offset(leftPadding - 4.dp.toPx(), yPos),
+                    end = Offset(leftPadding + chartWidth, yPos)
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    "%.0f".format(value),
+                    leftPadding - 8.dp.toPx(),
+                    yPos + axisLabelPaint.textSize / 3,
+                    axisLabelPaint
+                )
+            }
+
+            // Draw X and Y axis lines
+            drawLine(color = axisColor, start = Offset(leftPadding, topPadding), end = Offset(leftPadding, topPadding + chartHeight))
+            drawLine(color = axisColor, start = Offset(leftPadding, topPadding + chartHeight), end = Offset(leftPadding + chartWidth, topPadding + chartHeight))
+
+
+            // Draw Bars
+            val groupWidth = chartWidth / data.size
+            val barPadding = groupWidth * 0.2f
+            val barWidth = ((groupWidth - barPadding) / 2).coerceAtLeast(1.dp.toPx())
+
+            data.forEachIndexed { index, point ->
+                val groupLeft = leftPadding + (index * groupWidth) + (barPadding / 2)
+
+                // Income Bar
+                val incomeRatio = if (absoluteMax > 0) (point.totalIncome / absoluteMax).toFloat() else 0f
+                val incomeBarHeight = incomeRatio * chartHeight
+                drawRect(
+                    color = incomeColor,
+                    topLeft = Offset(groupLeft, topPadding + chartHeight - incomeBarHeight),
+                    size = Size(barWidth, incomeBarHeight)
+                )
+
+                // Expense Bar
+                val expenseRatio = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() else 0f
+                val expenseBarHeight = expenseRatio * chartHeight
+                drawRect(
+                    color = expenseColor,
+                    topLeft = Offset(groupLeft + barWidth, topPadding + chartHeight - expenseBarHeight),
+                    size = Size(barWidth, expenseBarHeight)
+                )
+
+                // Month Label
+                drawContext.canvas.nativeCanvas.drawText(
+                    point.yearMonth,
+                    groupLeft + barWidth,
+                    topPadding + chartHeight + bottomPadding - 8.dp.toPx(),
+                    monthLabelPaint
+                )
+            }
+        }
+    }
 }

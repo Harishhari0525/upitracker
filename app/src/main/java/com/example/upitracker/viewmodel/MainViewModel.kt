@@ -78,12 +78,26 @@ enum class SortOrder {
     ASCENDING, DESCENDING
 }
 
+enum class AmountFilterType {
+    ALL,
+    GREATER_THAN,
+    LESS_THAN,
+    RANGE
+}
+
 data class BudgetStatus(
     val categoryName: String,
     val budgetAmount: Double,
     val spentAmount: Double,
     val progress: Float,      // A value from 0.0f to 1.0f for progress bars
     val remainingAmount: Double
+)
+
+data class IncomeExpensePoint(
+    val yearMonth: String, // e.g., "Jun 25"
+    val totalIncome: Double,
+    val totalExpense: Double,
+    val timestamp: Long
 )
 
 enum class SortableUpiLiteSummaryField {
@@ -100,6 +114,17 @@ data class SnackbarMessage(
     val onDismiss: (() -> Unit)? = null  // Action to perform if Snackbar is dismissed (e.g., timeout)
 )
 
+data class TransactionFilters(
+    val type: UpiTransactionTypeFilter,
+    val startDate: Long?,
+    val endDate: Long?,
+    val searchQuery: String,
+    val showUncategorized: Boolean = false,
+    val amountType: AmountFilterType,
+    val amountValue1: Double?,
+    val amountValue2: Double?
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
@@ -113,6 +138,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _budgets = budgetDao.getAllBudgets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+   // private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
+   private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
+    val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> =
+        _selectedUpiTransactionType.asStateFlow()
 
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
@@ -124,13 +153,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedDateRangeStart = MutableStateFlow<Long?>(null)
     private val _selectedDateRangeEnd   = MutableStateFlow<Long?>(null)
 
-    private val _selectedDateRange = combine(
-        _selectedDateRangeStart,
-        _selectedDateRangeEnd
-    ) { start, end -> start to end }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null to null)
-
     private val _selectedTransactionId = MutableStateFlow<Int?>(null)
+
+    private val _amountFilterType = MutableStateFlow(AmountFilterType.ALL)
+    private val _amountFilterValue1 = MutableStateFlow<Double?>(null)
+    private val _amountFilterValue2 = MutableStateFlow<Double?>(null)
+
+    private val _showUncategorized = MutableStateFlow(false)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
@@ -151,6 +180,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) { start, end, query -> Triple(start, end, query) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Triple(null, null, ""))
 
+    private val _filters = combine(
+        // Combine the first 5 flows
+        _selectedUpiTransactionType,
+        _dateAndSearch, // This is already a Triple (start, end, query)
+        _showUncategorized,
+        _amountFilterType,
+        _amountFilterValue1
+    ) { type, dateAndSearchTriple, uncategorized, amountType, amount1 ->
+        // Create a temporary tuple or object with the first 5 results
+        quintuple(type, dateAndSearchTriple, uncategorized, amountType, amount1)
+    }.combine(_amountFilterValue2) { (type, dateAndSearchTriple, uncategorized, amountType, amount1), amount2 ->
+        // Combine with the 6th flow and create the final data class
+        val (startDate, endDate, query) = dateAndSearchTriple
+        TransactionFilters(type, startDate, endDate, query, uncategorized, amountType, amount1, amount2)
+    }.stateIn(viewModelScope, SharingStarted.Lazily, TransactionFilters(UpiTransactionTypeFilter.ALL, null, null, "", false, AmountFilterType.ALL, null, null))
+
+    // Helper function to create a quintuple (5-element tuple) since Kotlin doesn't have one built-in
+    private fun <A, B, C, D, E> quintuple(a: A, b: B, c: C, d: D, e: E): Quint<A, B, C, D, E> = Quint(a, b, c, d, e)
+    private data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+
+    private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
+    val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
+
     private var _lastArchivedTransaction: Transaction? = null
     private var _lastArchivedTransactionOriginalCategory: String? = null
 
@@ -162,6 +214,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isImportingSms: StateFlow<Boolean> = _isImportingSms.asStateFlow()
 
     private val _isRefreshingSmsArchive = MutableStateFlow(false)
+
     val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
 
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
@@ -171,6 +224,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ThemePreference.isSwipeActionsEnabledFlow(application)
             .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
+    val filters: StateFlow<TransactionFilters> = _filters
+
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -178,6 +233,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val archivedUpiTransactions: StateFlow<List<Transaction>> =
         transactionDao.getArchivedTransactions() // Uses the new DAO method
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val incomeVsExpenseData: StateFlow<List<IncomeExpensePoint>> =
+        combine(_transactions, _selectedGraphPeriod) { transactions, period ->
+            if (transactions.isEmpty()) {
+                return@combine emptyList()
+            }
+            val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
+            val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+
+            // Group all transactions by month key ("yyyy-MM")
+            val transactionsByMonth = transactions.groupBy { transaction ->
+                yearMonthKeyFormat.format(Date(transaction.date))
+            }
+
+            val reportData = mutableListOf<IncomeExpensePoint>()
+            val calendar = Calendar.getInstance()
+
+            // Iterate through the last N months based on the selected period
+            for (i in 0 until period.months) {
+                val targetCalendar =
+                    Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
+                val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
+                val displayLabel = monthDisplayFormat.format(targetCalendar.time)
+
+                targetCalendar.set(Calendar.DAY_OF_MONTH, 1)
+                targetCalendar.set(Calendar.HOUR_OF_DAY, 0); targetCalendar.set(Calendar.MINUTE, 0)
+                targetCalendar.set(Calendar.SECOND, 0); targetCalendar.set(Calendar.MILLISECOND, 0)
+                val monthStartTimestamp = targetCalendar.timeInMillis
+
+                // Get transactions for the current month key, or an empty list if none
+                val monthTransactions = transactionsByMonth[yearMonthKey] ?: emptyList()
+
+                // Calculate totals for this month
+                val income = monthTransactions.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amount }
+                val expense = monthTransactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
+
+                reportData.add(
+                    IncomeExpensePoint(
+                        yearMonth = displayLabel,
+                        totalIncome = income,
+                        totalExpense = expense,
+                        timestamp = monthStartTimestamp
+                    )
+                )
+            }
+            // Return the list reversed to have the oldest month first for the chart
+            reportData.reversed()
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val budgetStatuses: StateFlow<List<BudgetStatus>> =
         combine(_transactions, _budgets) { transactions, budgets ->
@@ -222,14 +325,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
 
     // --- Filter & Sort States (Private backing, Public immutable exposure) ---
-    private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
-    val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> =
-        _selectedUpiTransactionType.asStateFlow()
-
-
-
-    private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
-    val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
 
     private val _upiTransactionSortField = MutableStateFlow(SortableTransactionField.DATE)
     val upiTransactionSortField: StateFlow<SortableTransactionField> =
@@ -252,15 +347,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val filteredUpiTransactions: StateFlow<List<Transaction>> =
         combine(
             _transactions,
-            _selectedUpiTransactionType,
-            _dateAndSearch,
+            _filters, // ✨ USE the new combined filters flow
             _upiTransactionSortField,
             _upiTransactionSortOrder
-        ) { transactions, filterType, triple, sortField, sortOrder ->
-            val (startDate, endDate, query) = triple
-
+        ) { transactions, filters, sortField, sortOrder ->
             // 1) Type filter
-            val byType = when (filterType) {
+            val byType = when (filters.type) {
                 UpiTransactionTypeFilter.ALL -> transactions
                 UpiTransactionTypeFilter.DEBIT -> transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
                 UpiTransactionTypeFilter.CREDIT -> transactions.filter { it.type.equals("CREDIT", ignoreCase = true) }
@@ -268,32 +360,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             // 2) Date filter
             val byDate = when {
-                startDate != null && endDate != null -> byType.filter { it.date in startDate..endDate }
-                startDate != null -> byType.filter { it.date >= startDate }
-                endDate != null -> byType.filter { it.date <= endDate }
+                filters.startDate != null && filters.endDate != null -> byType.filter { it.date in filters.startDate..filters.endDate }
+                filters.startDate != null -> byType.filter { it.date >= filters.startDate }
+                filters.endDate != null -> byType.filter { it.date <= filters.endDate }
                 else -> byType
             }
 
             // 3) Search filter
-            val bySearch = if (query.isBlank()) byDate else byDate.filter { tx ->
-                tx.description.contains(query, ignoreCase = true) ||
-                        tx.senderOrReceiver.contains(query, ignoreCase = true) ||
-                        (tx.category?.contains(query, ignoreCase = true) == true)
+            val bySearch = if (filters.searchQuery.isBlank()) byDate else byDate.filter { tx ->
+                tx.description.contains(filters.searchQuery, ignoreCase = true) ||
+                        tx.senderOrReceiver.contains(filters.searchQuery, ignoreCase = true) ||
+                        (tx.category?.contains(filters.searchQuery, ignoreCase = true) == true)
             }
 
-            // 4) Sort
+            // 4) Uncategorized Filter
+            val byUncategorized = if (filters.showUncategorized) {
+                bySearch.filter { it.category.isNullOrBlank() }
+            } else {
+                bySearch
+            }
+
+            // 5) Amount Filter
+            val byAmount = when (filters.amountType) {
+                AmountFilterType.GREATER_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount > limit } } ?: byUncategorized
+                AmountFilterType.LESS_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount < limit } } ?: byUncategorized
+                AmountFilterType.RANGE -> if (filters.amountValue1 != null && filters.amountValue2 != null) {
+                    byUncategorized.filter { it.amount in filters.amountValue1..filters.amountValue2 }
+                } else byUncategorized
+                AmountFilterType.ALL -> byUncategorized
+            }
+
+            // 6) Sort
             when (sortField) {
                 SortableTransactionField.DATE ->
-                    if (sortOrder == SortOrder.ASCENDING) bySearch.sortedBy { it.date }
-                    else bySearch.sortedByDescending { it.date }
+                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.date }
+                    else byAmount.sortedByDescending { it.date }
 
                 SortableTransactionField.AMOUNT ->
-                    if (sortOrder == SortOrder.ASCENDING) bySearch.sortedBy { it.amount }
-                    else bySearch.sortedByDescending { it.amount }
+                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.amount }
+                    else byAmount.sortedByDescending { it.amount }
 
                 SortableTransactionField.CATEGORY ->
-                    if (sortOrder == SortOrder.ASCENDING) bySearch.sortedBy { it.category ?: "" }
-                    else bySearch.sortedByDescending { it.category ?: "" }
+                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.category ?: "" }
+                    else byAmount.sortedByDescending { it.category ?: "" }
             }
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -409,9 +518,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         transactions: List<Transaction>,
         n: Int, categoryToExclude: String?
     ): List<MonthlyExpense> {
-        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: START. Input transaction count: ${transactions.size}, N: $N")
         if (transactions.isEmpty() || n <= 0) {
-            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: No input transactions or N is invalid. Returning empty list.")
             return emptyList()
         }
         val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
@@ -604,6 +711,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setAmountFilter(type: AmountFilterType, value1: Double?, value2: Double? = null) {
+        _amountFilterType.value = type
+        _amountFilterValue1.value = value1
+        _amountFilterValue2.value = value2
+    }
+
+    fun toggleUncategorizedFilter(showUncategorized: Boolean) {
+        _showUncategorized.value = showUncategorized
+    }
+
     fun setUpiTransactionSort(field: SortableTransactionField) {
         if (_upiTransactionSortField.value == field) {
             // same field → just flip the order
@@ -632,6 +749,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
                 val updatedTransaction = it.copy(category = newCategoryValue)
                 transactionDao.update(updatedTransaction)
+                if (newCategoryValue.equals("Refund", ignoreCase = true)) {
+                    // Show the special informative snackbar
+                    postPlainSnackbarMessage(
+                        getApplication<Application>().getString(R.string.refund_category_snackbar_message)
+                    )
+                } else {
+                    // Show the standard success snackbar
+                    val message = if (newCategoryValue.isNullOrBlank()) {
+                        getApplication<Application>().getString(R.string.category_removed_success)
+                    } else {
+                        getApplication<Application>().getString(
+                            R.string.category_updated_success,
+                            newCategoryValue
+                        )
+                    }
+                    postPlainSnackbarMessage(message)
+                }
                 val message = if (newCategoryValue.isNullOrBlank()) {
                     getApplication<Application>().getString(R.string.category_removed_success)
                 } else {
@@ -707,6 +841,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun markOnboardingComplete() {
         viewModelScope.launch {
             OnboardingPreference.setOnboardingCompleted(getApplication(), true)
+        }
+    }
+
+    fun addManualTransaction(
+        amount: Double,
+        type: String,
+        description: String,
+        category: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newTransaction = Transaction(
+                // id is 0 so Room will auto-generate a new one
+                amount = amount,
+                type = type,
+                description = description.trim(),
+                category = category.trim(),
+                date = System.currentTimeMillis(), // Use the current date and time
+                senderOrReceiver = "Manual Entry", // A placeholder for the party
+                isArchived = false,
+                note = ""
+            )
+            transactionDao.insert(newTransaction)
+            // Post a confirmation message to the user
+            postPlainSnackbarMessage("Transaction saved successfully!")
         }
     }
 
