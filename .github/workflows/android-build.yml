@@ -17,6 +17,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Extract version name
+        id: extract_version
+        run: |
+          VERSION_NAME=$(grep 'versionName = "' app/build.gradle.kts | sed -n 's/.*versionName = "\(.*\)"/\1/p')
+          echo "Extracted version: $VERSION_NAME"
+          echo "APP_VERSION=$VERSION_NAME" >> $GITHUB_OUTPUT
+
       # 2) Set up JDK for the build
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -53,24 +60,22 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      # 6) Copy APK to releases folder
-      - name: Copy APK to releases folder
+      # 6) Prepare Release APK
+      - name: Prepare Release APK
         run: |
           mkdir -p releases
-          cp app/build/outputs/apk/release/app-release.apk releases/
+          cp app/build/outputs/apk/release/app-release.apk "releases/UPI Expense Tracker.apk"
 
-      # 7) Create or update a GitHub Release
-      - name: Create/Update GitHub Release
-        id: create_release
-        uses: ncipollo/release-action@v1
+      - name: Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          body: |                          # Release notes (optional)
-            🎉 UPITracker ${{ github.ref_name }} has been published!
+          tag_name: v${{ steps.extract_version.outputs.APP_VERSION }}
+          name: Release v${{ steps.extract_version.outputs.APP_VERSION }}
+          body: |
+            Release of version ${{ steps.extract_version.outputs.APP_VERSION }}.
+            APK attached as "UPI Expense Tracker.apk".
+          files: "releases/UPI Expense Tracker.apk"
           draft: false
           prerelease: false
-
-      # 8) Upload the APK to that Release
-      - name: Upload APK to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: releases/app-release.apk

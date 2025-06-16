@@ -21,9 +21,9 @@ import com.example.upitracker.util.AppTypography
 
 
 val AppShapes = Shapes(
-    small = RoundedCornerShape(8.dp),      // Used by components like Chips, TextFields
-    medium = RoundedCornerShape(16.dp),    // Used by components like Cards
-    large = RoundedCornerShape(24.dp)      // Used by components like Modal sheets
+    small = RoundedCornerShape(12.dp),      // Used by components like Chips, TextFields
+    medium = RoundedCornerShape(20.dp),    // Used by components like Cards
+    large = RoundedCornerShape(28.dp)      // Used by components like Modal sheets
 )
 
 private val AppLightColorScheme = lightColorScheme(
