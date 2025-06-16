@@ -64,8 +64,9 @@ jobs:
       - name: Prepare Release APK
         run: |
           mkdir -p releases
-          cp app/build/outputs/apk/release/app-release.apk "releases/UPI Expense Tracker.apk"
+          cp app/build/outputs/apk/release/app-release.apk "releases/UPIExpenseTracker.apk"
 
+   
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v1
         env:
