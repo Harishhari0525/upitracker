@@ -21,9 +21,9 @@ import com.example.upitracker.util.AppTypography
 
 
 val AppShapes = Shapes(
-    small = RoundedCornerShape(8.dp),      // Used by components like Chips, TextFields
-    medium = RoundedCornerShape(16.dp),    // Used by components like Cards
-    large = RoundedCornerShape(24.dp)      // Used by components like Modal sheets
+    small = RoundedCornerShape(12.dp),      // Used by components like Chips, TextFields
+    medium = RoundedCornerShape(20.dp),    // Used by components like Cards
+    large = RoundedCornerShape(28.dp)      // Used by components like Modal sheets
 )
 
 private val AppLightColorScheme = lightColorScheme(
@@ -35,10 +35,10 @@ private val AppLightColorScheme = lightColorScheme(
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFFFDBCF),
     onSecondaryContainer = Color(0xFF4A1A0B),
-    tertiary = Color(0xFF7C5A0A),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFFFDEA4),
-    onTertiaryContainer = Color(0xFF271A00),
+    tertiary = Color(0xFF7E52A0), // New Purple Tertiary
+    onTertiary = Color(0xFFFFFFFF), // Remains the same
+    tertiaryContainer = Color(0xFFFADDFF), // New Purple Tertiary Container
+    onTertiaryContainer = Color(0xFF31104A), // New Purple OnTertiaryContainer
     error = Color(0xFFB3261E),
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFF9DEDC),
