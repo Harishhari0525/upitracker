@@ -12,9 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer // M3 import
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState // M3 import
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +37,7 @@ import com.example.upitracker.viewmodel.TransactionHistoryItem
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-
+// Removed: import androidx.compose.material.pullrefresh.PullRefreshIndicator
 
 
 @OptIn(ExperimentalMaterialApi::class)
@@ -66,10 +65,21 @@ fun CurrentMonthExpensesScreen(
     var showDetailSheet by remember { mutableStateOf(false) }
 
     // --- NEW: State Management for M3 Pull-to-Refresh ---
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isImporting,
-        onRefresh = onImportOldSms
-    )
+    val pullToRefreshState = rememberPullToRefreshState() // M3 state
+
+    // Synchronize M3 state with ViewModel's isImporting state
+    LaunchedEffect(isImporting, pullToRefreshState) {
+        if (isImporting) {
+            // This block can be left empty if onImportOldSms correctly manages
+            // the refreshing state that pullToRefreshState observes.
+            // Alternatively, if manual start is needed:
+            // if (!pullToRefreshState.isRefreshing) pullToRefreshState.startRefresh()
+        } else {
+            if (pullToRefreshState.isRefreshing) {
+                pullToRefreshState.endRefresh()
+            }
+        }
+    }
 
     val animatedTotal by animateFloatAsState(
         targetValue = currentMonthExpensesTotal.toFloat(),
@@ -81,17 +91,18 @@ fun CurrentMonthExpensesScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     // The main layout Box
-    Box(modifier = modifier.fillMaxSize()) {
-
-        // This inner Box handles the pull-to-refresh gesture
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .pullRefresh(pullRefreshState)
+    Box(modifier = modifier.fillMaxSize()) { // Root Box
+        PullToRefreshContainer(
+            state = pullToRefreshState,
+            onRefresh = onImportOldSms, // Pass the function reference
+            modifier = Modifier.align(Alignment.TopCenter) // Aligns the indicator itself
+            // The content of PullToRefreshContainer is defined in its trailing lambda.
         ) {
+            // The content that will be scrollable and trigger the refresh.
+            // This Column was previously inside the M2 pullRefresh Box.
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxSize() // Ensure the Column takes up available space for scrolling
                     .padding(16.dp)
             ) {
                 // Expressive Summary Card for Total Expenses
@@ -218,16 +229,9 @@ fun CurrentMonthExpensesScreen(
                     }
                 }
             }
-
-            // The PullRefreshIndicator is now INSIDE the Box with the .pullRefresh modifier.
-            // This is the correct placement.
-            PullRefreshIndicator(
-                refreshing = isImporting,
-                state = pullRefreshState,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-            )
-        }
+            // M3 PullToRefreshContainer implicitly contains its own indicator.
+            // No need to add a separate PullRefreshIndicator composable.
+        } // End of PullToRefreshContainer
 
         // NEW: The ModalBottomSheet for showing details
         if (showDetailSheet) {

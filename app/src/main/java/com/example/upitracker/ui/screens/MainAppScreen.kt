@@ -1,8 +1,13 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalAnimationApi::class) // Added ExperimentalAnimationApi
 
 package com.example.upitracker.ui.screens
 
 import android.util.Log // ✨ Add Log import for debugging
+import androidx.compose.animation.core.tween // Animation imports
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
@@ -28,6 +33,7 @@ import com.example.upitracker.R
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.viewmodel.MainViewModel
 
+@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class) // Can also be at function level
 @Composable
 fun MainAppScreen(
     mainViewModel: MainViewModel,
@@ -129,7 +135,25 @@ fun MainAppScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            composable(BottomNavItem.Home.route) {
+            composable(
+                BottomNavItem.Home.route,
+                enterTransition = {
+                    slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                }
+            ) {
                 CurrentMonthExpensesScreen(
                     mainViewModel = mainViewModel,
                     onImportOldSms = onImportOldSms,
@@ -150,26 +174,98 @@ fun MainAppScreen(
                     }
                 )
             }
-            composable(BottomNavItem.Graphs.route) {
+            composable(
+                BottomNavItem.Graphs.route,
+                enterTransition = {
+                    slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                }
+            ) {
                 GraphsScreen(
                     mainViewModel = mainViewModel,
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            composable(BottomNavItem.History.route) {
+            composable(
+                BottomNavItem.History.route,
+                enterTransition = {
+                    slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                }
+            ) {
                 TransactionHistoryScreen(
                     mainViewModel = mainViewModel,
                     modifier = Modifier.fillMaxSize()
                 )
             }
 
-            composable(BottomNavItem.Budget.route) {
+            composable(
+                BottomNavItem.Budget.route,
+                enterTransition = {
+                    slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                }
+            ) {
                 BudgetScreen(
                     mainViewModel = mainViewModel
                 )
             }
 
-            composable(BottomNavItem.AppSettings.route) {
+            composable(
+                BottomNavItem.AppSettings.route,
+                enterTransition = {
+                    slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                    fadeIn(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                    fadeOut(animationSpec = tween(300))
+                }
+            ) {
                 SettingsScreen(
                     mainViewModel = mainViewModel,
                     onImportOldSms = onImportOldSms,

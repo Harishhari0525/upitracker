@@ -613,6 +613,17 @@ fun IncomeExpenseGroupedBarChart(
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val density = LocalDensity.current
+
+    val valueLabelPaint = remember(density) {
+        Paint().apply {
+            color = Color.White.toArgb()
+            textAlign = Paint.Align.CENTER
+            textSize = 10.sp.toPx(density)
+            isAntiAlias = true
+            // fakeBoldText = true // Optional: for better visibility
+        }
+    }
+
     val axisLabelPaint = remember(density) {
         Paint().apply {
             color = axisColor.toArgb()
@@ -704,6 +715,15 @@ fun IncomeExpenseGroupedBarChart(
                     topLeft = Offset(groupLeft, topPadding + chartHeight - incomeBarHeight),
                     size = Size(barWidth, incomeBarHeight)
                 )
+                if (point.totalIncome > 0 && incomeBarHeight > (valueLabelPaint.textSize + 2.dp.toPx(density))) {
+                    val incomeText = point.totalIncome.roundToInt().toString()
+                    drawContext.canvas.nativeCanvas.drawText(
+                        incomeText,
+                        groupLeft + barWidth / 2, // Center of the income bar
+                        topPadding + chartHeight - incomeBarHeight - 4.dp.toPx(density), // Above the income bar
+                        valueLabelPaint
+                    )
+                }
 
                 // Expense Bar
                 val expenseRatio = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() else 0f
@@ -713,6 +733,15 @@ fun IncomeExpenseGroupedBarChart(
                     topLeft = Offset(groupLeft + barWidth, topPadding + chartHeight - expenseBarHeight),
                     size = Size(barWidth, expenseBarHeight)
                 )
+                if (point.totalExpense > 0 && expenseBarHeight > (valueLabelPaint.textSize + 2.dp.toPx(density))) {
+                    val expenseText = point.totalExpense.roundToInt().toString()
+                    drawContext.canvas.nativeCanvas.drawText(
+                        expenseText,
+                        groupLeft + barWidth + barWidth / 2, // Center of the expense bar
+                        topPadding + chartHeight - expenseBarHeight - 4.dp.toPx(density), // Above the expense bar
+                        valueLabelPaint
+                    )
+                }
 
                 // Month Label
                 drawContext.canvas.nativeCanvas.drawText(

@@ -1,5 +1,11 @@
 package com.example.upitracker.ui.screens
 
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -8,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.viewmodel.MainViewModel
 
+@OptIn(ExperimentalAnimationApi::class) // Added for NavHost transitions
 @Composable
 fun MainNavHost(
     modifier: Modifier = Modifier,
@@ -27,7 +34,25 @@ fun MainNavHost(
         //     OnboardingScreen(onFinish = onOnboardingComplete)
         // }
 
-        composable("main_app_shell") { // Route that loads the screen with bottom navigation
+        composable(
+            "main_app_shell",
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            }
+        ) { // Route that loads the screen with bottom navigation
             MainAppScreen(
                 mainViewModel = mainViewModel,
                 rootNavController = navController, // Pass this NavController
@@ -37,13 +62,49 @@ fun MainNavHost(
         }
         // RegexEditorScreen is typically navigated to from SettingsScreen,
         // so SettingsScreen (inside MainAppScreen) will use the rootNavController to get here.
-        composable("regexEditor") {
+        composable(
+            "regexEditor",
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            }
+        ) {
             RegexEditorScreen(
                 onBack = { navController.popBackStack() },
                 mainViewModel = mainViewModel
             )
         }
-        composable("archived_transactions") {
+        composable(
+            "archived_transactions",
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300))
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                fadeOut(animationSpec = tween(300))
+            }
+        ) {
             ArchivedTransactionsScreen(
                 mainViewModel = mainViewModel,
                 onBack = { navController.popBackStack() }
