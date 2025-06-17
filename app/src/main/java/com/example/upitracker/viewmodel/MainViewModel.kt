@@ -134,6 +134,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val transactionDao = db.transactionDao()
     private val upiLiteSummaryDao = db.upiLiteSummaryDao()
     private val budgetDao = db.budgetDao()
+    private val categorySuggestionRuleDao = db.categorySuggestionRuleDao()
 
     // --- Base Data Flows (Private) ---
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
@@ -153,6 +154,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val REFUNDCATEGORY = "Refund"
+
+    private val _isBackingUp = MutableStateFlow(false)
+    val isBackingUp: StateFlow<Boolean> = _isBackingUp.asStateFlow()
+
+    private val _isRestoring = MutableStateFlow(false)
+    val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
 
     private val _selectedDateRangeStart = MutableStateFlow<Long?>(null)
     private val _selectedDateRangeEnd   = MutableStateFlow<Long?>(null)
@@ -244,6 +251,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val yearEnd = calendar.timeInMillis
         return yearStart to yearEnd
     }
+
+    // In MainViewModel.kt, add this new public function
+
+    fun backupDatabase(targetUri: Uri, contentResolver: ContentResolver) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isBackingUp.value = true
+            try {
+                // It's crucial to close the database to ensure all data is written to the file
+                // and the file is not locked by the current process.
+                db.close()
+
+                val sourceDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
+
+                contentResolver.openOutputStream(targetUri)?.use { outputStream ->
+                    sourceDbFile.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                } ?: throw IOException("Failed to open output stream for URI: $targetUri")
+
+                postPlainSnackbarMessage("Backup successful!")
+
+            } catch (e: Exception) {
+                Log.e("BackupRestore", "Error during database backup", e)
+                postPlainSnackbarMessage("Error: Backup failed. ${e.message}")
+            } finally {
+                _isBackingUp.value = false
+            }
+        }
+    }
+
+    // In MainViewModel.kt, add this new public function
+
+    fun restoreDatabase(sourceUri: Uri, contentResolver: ContentResolver) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isRestoring.value = true
+            try {
+                // Close the database before overwriting it.
+                db.close()
+
+                val targetDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
+
+                contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                    targetDbFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                } ?: throw IOException("Failed to open input stream for URI: $sourceUri")
+
+                // IMPORTANT: After a restore, the app must be restarted to load the new database.
+                postPlainSnackbarMessage("Restore successful! Please restart the app.")
+
+            } catch (e: Exception) {
+                Log.e("BackupRestore", "Error during database restore", e)
+                postPlainSnackbarMessage("Error: Restore failed. Invalid file? ${e.message}")
+            } finally {
+                _isRestoring.value = false
+            }
+        }
+    }
+
 
     private var _lastArchivedTransaction: Transaction? = null
     private var _lastArchivedTransactionOriginalCategory: String? = null
@@ -808,10 +874,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun updateTransactionCategory(transactionId: Int, category: String?) {
         viewModelScope.launch {
-            if (_lastArchivedTransaction?.id == transactionId) { // Invalidate pending undo if categorizing the same item
+            if (_lastArchivedTransaction?.id == transactionId) {
                 _lastArchivedTransaction = null
                 _lastArchivedTransactionOriginalCategory = null
             }
@@ -820,35 +885,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
                 val updatedTransaction = it.copy(category = newCategoryValue)
                 transactionDao.update(updatedTransaction)
+
+                // ✨ --- LEARNING LOGIC STARTS HERE --- ✨
+                if (!newCategoryValue.isNullOrBlank()) {
+                    // Heuristic: Use the sender/receiver as a keyword.
+                    // We clean it up by taking the first word and making it lowercase.
+                    val keyword = it.senderOrReceiver.split(" ")[0].lowercase(Locale.getDefault())
+
+                    if (keyword.isNotBlank()) {
+                        val newRule = com.example.upitracker.data.CategorySuggestionRule(
+                            keyword = keyword,
+                            categoryName = newCategoryValue
+                        )
+                        categorySuggestionRuleDao.insertOrUpdateRule(newRule)
+                    }
+                }
+                // ✨ --- LEARNING LOGIC ENDS HERE --- ✨
+
                 if (newCategoryValue.equals("Refund", ignoreCase = true)) {
-                    // Show the special informative snackbar
                     postPlainSnackbarMessage(
                         getApplication<Application>().getString(R.string.refund_category_snackbar_message)
                     )
                 } else {
-                    // Show the standard success snackbar
                     val message = if (newCategoryValue.isNullOrBlank()) {
                         getApplication<Application>().getString(R.string.category_removed_success)
                     } else {
-                        getApplication<Application>().getString(
-                            R.string.category_updated_success,
-                            newCategoryValue
-                        )
+                        getApplication<Application>().getString(R.string.category_updated_success, newCategoryValue)
                     }
-                    postPlainSnackbarMessage(message)
+                    postSnackbarMessage(message)
                 }
-                val message = if (newCategoryValue.isNullOrBlank()) {
-                    getApplication<Application>().getString(R.string.category_removed_success)
-                } else {
-                    getApplication<Application>().getString(
-                        R.string.category_updated_success,
-                        newCategoryValue
-                    )
-                }
-                postSnackbarMessage(message)
             }
         }
     }
+
+    // In MainViewModel.kt, add this new function
+
+    fun processAndInsertTransaction(transaction: com.example.upitracker.data.Transaction) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Only try to categorize if it doesn't already have a category
+            if (transaction.category.isNullOrBlank()) {
+                val keyword = transaction.senderOrReceiver.split(" ")[0].lowercase(Locale.getDefault())
+                val rule = categorySuggestionRuleDao.getRuleForKeyword(keyword)
+
+                if (rule != null) {
+                    // Rule found! Apply the category and insert.
+                    val categorizedTransaction = transaction.copy(category = rule.categoryName)
+                    transactionDao.insert(categorizedTransaction)
+                } else {
+                    // No rule found, insert the transaction as is.
+                    transactionDao.insert(transaction)
+                }
+            } else {
+                // Transaction already has a category, just insert it.
+                transactionDao.insert(transaction)
+            }
+        }
+    }
+
 
     fun addUpiLiteSummary(summary: UpiLiteSummary) {
         viewModelScope.launch {

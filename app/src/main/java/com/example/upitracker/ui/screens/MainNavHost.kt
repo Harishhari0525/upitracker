@@ -20,7 +20,9 @@ fun MainNavHost(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel = viewModel(),
     onImportOldSms: () -> Unit,
-    onRefreshSmsArchive: () -> Unit
+    onRefreshSmsArchive: () -> Unit,
+    onBackupDatabase: () -> Unit, // ✨ ADD THIS
+    onRestoreDatabase: () -> Unit
 ) {
     val navController = rememberNavController() // This is the rootNavController
     val startDestination = "main_app_shell" // Assuming onboarding is handled before this NavHost is shown
@@ -57,7 +59,9 @@ fun MainNavHost(
                 mainViewModel = mainViewModel,
                 rootNavController = navController, // Pass this NavController
                 onImportOldSms = onImportOldSms,
-                onRefreshSmsArchive = onRefreshSmsArchive
+                onRefreshSmsArchive = onRefreshSmsArchive,
+                onBackupDatabase = onBackupDatabase, // ✨ PASS IT DOWN
+                onRestoreDatabase = onRestoreDatabase
             )
         }
         // RegexEditorScreen is typically navigated to from SettingsScreen,

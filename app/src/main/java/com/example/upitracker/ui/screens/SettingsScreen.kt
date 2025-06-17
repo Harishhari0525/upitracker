@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.Swipe
 import androidx.activity.compose.rememberLauncherForActivityResult // ✨
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +40,7 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncProblem
+import androidx.compose.material.icons.filled.Warning
 
 private enum class PinChangeStep {
     NONE,
@@ -45,6 +48,7 @@ private enum class PinChangeStep {
     SET_NEW
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -53,6 +57,8 @@ fun SettingsScreen(
     onEditRegex: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
     modifier: Modifier = Modifier,
+    onBackupDatabase: () -> Unit, // ✨ ADD THIS
+    onRestoreDatabase: () -> Unit,
     onNavigateToArchive: () -> Unit
 ) {
     val context = LocalContext.current
@@ -64,6 +70,10 @@ fun SettingsScreen(
     val isImportingSms by mainViewModel.isImportingSms.collectAsState()
     val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
     val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState() // ✨ Collect new state
+    val isBackingUp by mainViewModel.isBackingUp.collectAsState() // ✨ ADD THIS
+    val isRestoring by mainViewModel.isRestoring.collectAsState() // ✨ ADD THIS
+
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
 
     // Re-compute isPinSet when no dialog is active
     LaunchedEffect(Unit, currentPinChangeStep) {
@@ -219,6 +229,36 @@ fun SettingsScreen(
 
         item {
             SettingItemRow(
+                icon = Icons.Filled.Save,
+                title = "Backup Database", // TODO: Add to strings.xml
+                summary = "Save all data (transactions, budgets) to a file",
+                onClick = { if (!isBackingUp) onBackupDatabase() },
+                titleColor = if (isBackingUp) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                iconTint = if (isBackingUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            ) {
+                if (isBackingUp) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            }
+        }
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Restore,
+                title = "Restore Database", // TODO: Add to strings.xml
+                summary = "Replace all current data from a backup file",
+                onClick = { if (!isRestoring) showRestoreConfirmDialog = true },
+                titleColor = if (isRestoring) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                iconTint = if (isRestoring) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            ) {
+                if (isRestoring) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            }
+        }
+
+        item {
+            SettingItemRow(
                 icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
                 title = stringResource(R.string.settings_import_old_sms),
                 summary = if (isImportingSms)
@@ -344,6 +384,30 @@ fun SettingsScreen(
             },
             confirmButton = {},
             dismissButton = {}
+        )
+    }
+    if (showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirmDialog = false },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Confirm Restore") },
+            text = { Text("This will permanently overwrite all current app data with the contents of the backup file. This action cannot be undone. Are you sure you want to proceed?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                        onRestoreDatabase()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

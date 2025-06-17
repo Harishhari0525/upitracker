@@ -12,9 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Transaction::class,
         UpiLiteSummary::class,
         ArchivedSmsMessage::class, // ✨ Add new entity ✨
-        Budget::class
+        Budget::class,
+        CategorySuggestionRule::class
     ],
-    version = 8, // ✨ Version Incremented to 4 ✨
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun upiLiteSummaryDao(): UpiLiteSummaryDao
     abstract fun archivedSmsMessageDao(): ArchivedSmsMessageDao // ✨ Add new DAO abstract function ✨
     abstract fun budgetDao(): BudgetDao
+    abstract fun categorySuggestionRuleDao(): CategorySuggestionRuleDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -99,6 +101,19 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE budgets ADD COLUMN allowRollover INTEGER NOT NULL DEFAULT 0")
             }
         }
+        val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `category_suggestion_rules` (
+                        `keyword` TEXT NOT NULL, 
+                        `categoryName` TEXT NOT NULL, 
+                        PRIMARY KEY(`keyword`)
+                    )
+                """.trimIndent())
+            }
+        }
+
+
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -107,7 +122,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "upi_tracker_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8) // ✨ Add new migration ✨
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

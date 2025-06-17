@@ -40,6 +40,8 @@ fun MainAppScreen(
     rootNavController: NavController,
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
+    onBackupDatabase: () -> Unit, // ✨ ADD THIS
+    onRestoreDatabase: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bottomNavItems = listOf(
@@ -283,6 +285,8 @@ fun MainAppScreen(
                             // This depends on desired UX
                         }
                     },
+                    onBackupDatabase = onBackupDatabase, // ✨ PASS IT DOWN
+                    onRestoreDatabase = onRestoreDatabase,
                     modifier = Modifier.fillMaxSize()
                 )
             }

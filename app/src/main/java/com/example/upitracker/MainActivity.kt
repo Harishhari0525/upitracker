@@ -60,6 +60,19 @@ class MainActivity : FragmentActivity() {
     private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
 
+    private val backupDatabaseLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            uri?.let {
+                mainViewModel.backupDatabase(it, contentResolver)
+            }
+        }
+    private val restoreDatabaseLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let {
+                mainViewModel.restoreDatabase(it, contentResolver)
+            }
+        }
+
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (!isGranted) {
@@ -86,7 +99,7 @@ class MainActivity : FragmentActivity() {
         // ... (db, dao, smsReceiver setup remains the same)
         val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
         smsReceiver = SmsReceiver(
-            onTransactionParsed = { transaction -> lifecycleScope.launch { dao.insert(transaction) } },
+            onTransactionParsed = { transaction -> mainViewModel.processAndInsertTransaction(transaction) },
             onUpiLiteSummaryReceived = { newSummary ->
                 lifecycleScope.launch {
                     val existingSummary = liteDao.getSummaryByDateAndBank(newSummary.date, newSummary.bank)
@@ -217,6 +230,8 @@ class MainActivity : FragmentActivity() {
                                 modifier = Modifier.padding(innerPadding),
                                 onImportOldSms = { requestSmsPermissionAndImport() },
                                 onRefreshSmsArchive = { requestSmsPermissionAndRefreshArchive() },
+                                onBackupDatabase = { backupDatabaseLauncher.launch("upi_tracker_backup.db") },
+                                onRestoreDatabase = { restoreDatabaseLauncher.launch(arrayOf("application/octet-stream")) },
                                 mainViewModel = mainViewModel
                             )
                         }
@@ -272,7 +287,8 @@ class MainActivity : FragmentActivity() {
             RegexPreference.getRegexPatterns(this@MainActivity).first().let { patternsSet ->
                 customRegexPatterns = patternsSet.mapNotNull { patternString ->
                     try { Regex(patternString, RegexOption.IGNORE_CASE) }
-                    catch (e: Exception) { Log.w("MainActivityImport", "Skipping invalid regex pattern: '$patternString'", e); null }
+                    catch (e: Exception) { Log.w("MainActivityImport",
+                        "Skipping invalid regex pattern: '$patternString'", e); null }
                 }
             }
             for ((sender, body, smsDate) in smsList) {
@@ -285,8 +301,10 @@ class MainActivity : FragmentActivity() {
                     if (existingSummary == null) {
                         liteDao.insert(liteSummary); liteSummaryCount++; lastLiteSummaryForSnackbar = liteSummary
                     } else {
-                        if (existingSummary.transactionCount != liteSummary.transactionCount || existingSummary.totalAmount != liteSummary.totalAmount) {
-                            val updatedSummary = existingSummary.copy(transactionCount = liteSummary.transactionCount, totalAmount = liteSummary.totalAmount)
+                        if (existingSummary.transactionCount != liteSummary.transactionCount ||
+                            existingSummary.totalAmount != liteSummary.totalAmount) {
+                            val updatedSummary = existingSummary.copy(transactionCount
+                            = liteSummary.transactionCount, totalAmount = liteSummary.totalAmount)
                             liteDao.update(updatedSummary); lastLiteSummaryForSnackbar = updatedSummary
                         }
                     }
@@ -296,7 +314,8 @@ class MainActivity : FragmentActivity() {
                 if (transaction != null) {
                     isUpiRelatedForBackup = true // Mark as UPI related for backup
                     val exists = dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description)
-                    if (exists == null) { dao.insert(transaction); txnCount++ }
+                    if (exists == null) { mainViewModel.processAndInsertTransaction(transaction);
+                        txnCount++ }
                 }
                 if (isUpiRelatedForBackup) {
                     val archivedSms = ArchivedSmsMessage(
