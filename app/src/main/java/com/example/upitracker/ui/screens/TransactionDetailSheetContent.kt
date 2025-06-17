@@ -32,6 +32,7 @@ fun TransactionDetailSheetContent(
     onDismiss: () -> Unit // Used to close the sheet from a button inside
 ) {
     val transaction by mainViewModel.selectedTransaction.collectAsState()
+    val userCategories by mainViewModel.userCategories.collectAsState()
 
     // Show a loading indicator while data is being fetched, or if transaction is null
     if (transaction == null) {
@@ -113,6 +114,7 @@ fun TransactionDetailSheetContent(
             EditCategoryDialog(
                 transaction = transaction!!,
                 onDismiss = { showEditCategoryDialog = false },
+                suggestionCategories = userCategories,
                 onSaveCategory = { transactionId, newCategory ->
                     mainViewModel.updateTransactionCategory(transactionId, newCategory)
                     showEditCategoryDialog = false

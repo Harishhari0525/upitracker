@@ -26,6 +26,7 @@ private val suggestionCategories = listOf(
 @Composable
 fun EditCategoryDialog(
     transaction: Transaction,
+    suggestionCategories: List<String>,
     onDismiss: () -> Unit,
     onSaveCategory: (transactionId: Int, newCategory: String?) -> Unit
 ) {

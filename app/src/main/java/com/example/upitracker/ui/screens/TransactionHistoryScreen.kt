@@ -75,6 +75,7 @@ fun TransactionHistoryScreen(
     val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
     val searchQuery by mainViewModel.searchQuery.collectAsState()
     val filters by mainViewModel.filters.collectAsState()
+    val userCategories by mainViewModel.userCategories.collectAsState()
 
     // --- DatePickerDialog States (managed within this screen) ---
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -283,6 +284,7 @@ fun TransactionHistoryScreen(
     if (showCategoryEditDialog && transactionToEditCategory != null) {
         EditCategoryDialog(
             transaction = transactionToEditCategory!!,
+            suggestionCategories = userCategories,
             onDismiss = {
                 showCategoryEditDialog = false
                 transactionToEditCategory = null

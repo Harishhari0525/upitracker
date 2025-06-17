@@ -209,6 +209,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun <A, B, C, D, E> quintuple(a: A, b: B, c: C, d: D, e: E): Quint<A, B, C, D, E> = Quint(a, b, c, d, e)
     private data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
+    val userCategories: StateFlow<List<String>> = _transactions
+        .map { allTransactions ->
+            allTransactions
+                .filter { !it.category.isNullOrBlank() } // Only consider transactions with a category
+                .groupingBy { it.category!! }            // Group by the category name
+                .eachCount()                             // Count occurrences of each category
+                .toList()                                // Convert map to a list of pairs
+                .sortedByDescending { it.second }        // Sort by count, most frequent first
+                .take(7)                                 // Take the top 7 most used categories
+                .map { it.first }                        // Get just the category name
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
@@ -1069,47 +1081,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleTransactionArchiveStatus(transaction: Transaction, archive: Boolean = true) {
         viewModelScope.launch {
-            if (archive) { // Archiving
-                _lastArchivedTransaction = transaction // Store for potential undo
-                _lastArchivedTransactionOriginalCategory =
-                    transaction.category // Store original category too
+            if (archive) {
+                // --- ARCHIVING A TRANSACTION ---
+                val transactionToArchive = transaction
+                val originalCategory = transaction.category
 
-                // Create a temporary updated transaction for the DAO, then update the original if undone
-                val archivedTransaction = transaction.copy(isArchived = true)
-                transactionDao.update(archivedTransaction) // This updates isArchived and any other changes like category
+                val archivedTransaction = transactionToArchive.copy(isArchived = true)
+                transactionDao.update(archivedTransaction)
 
                 _snackbarEvents.emit(
                     SnackbarMessage(
                         message = getApplication<Application>().getString(
                             R.string.transaction_archived_snackbar,
-                            transaction.description.take(20)
+                            transactionToArchive.description.take(20)
                         ),
-                        actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo), // New String
-                        onAction = { // Action for Undo
+                        actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo),
+                        onAction = {
+                            // This self-contained Undo action restores the correct transaction
                             viewModelScope.launch {
-                                _lastArchivedTransaction?.let { undoneTransaction ->
-                                    // Revert to original isArchived state (false) and original category
-                                    val restoredTransaction = undoneTransaction.copy(
-                                        isArchived = false,
-                                        category = _lastArchivedTransactionOriginalCategory // Restore original category
-                                    )
-                                    transactionDao.update(restoredTransaction)
-                                    _lastArchivedTransaction = null // Clear temp storage
-                                    _lastArchivedTransactionOriginalCategory = null
-                                    // No need to post "restored" snackbar if undo happens quickly
-                                }
+                                val restoredTransaction = transactionToArchive.copy(
+                                    isArchived = false,
+                                    category = originalCategory
+                                )
+                                transactionDao.update(restoredTransaction)
                             }
-                        },
-                        onDismiss = { // Action if snackbar dismisses (timeout) - currently no specific action on dismiss
-                            _lastArchivedTransaction = null // Clear if dismissed without undo
-                            _lastArchivedTransactionOriginalCategory = null
                         }
                     )
                 )
-            } else { // Un-archiving (Restoring)
+            } else {
+                // --- RESTORING A TRANSACTION (from Archived screen) ---
                 val unarchivedTransaction = transaction.copy(isArchived = false)
                 transactionDao.update(unarchivedTransaction)
-                // No "Undo" for un-archiving, it's a direct action
                 postPlainSnackbarMessage(
                     getApplication<Application>().getString(
                         R.string.transaction_restored_snackbar,
@@ -1117,7 +1119,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
-            // The flows observing transactionDao will automatically update the UI lists.
         }
     }
 
