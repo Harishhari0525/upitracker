@@ -9,12 +9,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,11 +37,8 @@ import com.example.upitracker.viewmodel.TransactionHistoryItem
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
 
 
-
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun CurrentMonthExpensesScreen(
     mainViewModel: MainViewModel,
@@ -66,10 +63,7 @@ fun CurrentMonthExpensesScreen(
     var showDetailSheet by remember { mutableStateOf(false) }
 
     // --- NEW: State Management for M3 Pull-to-Refresh ---
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isImporting,
-        onRefresh = onImportOldSms
-    )
+    val pullRefreshState = rememberPullToRefreshState()
 
     val animatedTotal by animateFloatAsState(
         targetValue = currentMonthExpensesTotal.toFloat(),
@@ -83,15 +77,23 @@ fun CurrentMonthExpensesScreen(
     // The main layout Box
     Box(modifier = modifier.fillMaxSize()) {
 
-        // This inner Box handles the pull-to-refresh gesture
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .pullRefresh(pullRefreshState)
+        PullToRefreshBox(
+            modifier = Modifier.fillMaxSize(),
+            isRefreshing = isImporting,
+            onRefresh = onImportOldSms,
+            state = pullRefreshState,
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    state = pullRefreshState,
+                    isRefreshing = isImporting
+                )
+            }
         ) {
+            // This Column was previously inside the M2 pullRefresh Box
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxSize() // Content fills the PullToRefreshBox
                     .padding(16.dp)
             ) {
                 // Expressive Summary Card for Total Expenses
@@ -218,15 +220,7 @@ fun CurrentMonthExpensesScreen(
                     }
                 }
             }
-
-            // The PullRefreshIndicator is now INSIDE the Box with the .pullRefresh modifier.
-            // This is the correct placement.
-            PullRefreshIndicator(
-                refreshing = isImporting,
-                state = pullRefreshState,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-            )
+            // M3 PullToRefreshBox manages its own indicator via the `indicator` slot
         }
 
         // NEW: The ModalBottomSheet for showing details

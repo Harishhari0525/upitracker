@@ -29,10 +29,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -184,14 +186,27 @@ private fun PageContent(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 8.dp).align(Alignment.CenterHorizontally)
                 )
-                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp), contentAlignment = Alignment.Center) {
-                    selectedDailyPointData?.let { pointData ->
-                        Text(
-                            text = stringResource(R.string.graph_selected_line_point_details, pointData.dayLabel, currencyFormatter.format(pointData.totalAmount)),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            textAlign = TextAlign.Center
-                        )
+                AnimatedContent(
+                    targetState = selectedDailyPointData,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(220, delayMillis = 90)))
+                            .togetherWith(fadeOut(animationSpec = tween(90)))
+                    },
+                    label = "selected_daily_point_transition",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp)
+                ) { targetData ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { // Ensure content is centered
+                        if (targetData != null) {
+                            Text(
+                                text = stringResource(R.string.graph_selected_line_point_details, targetData.dayLabel, currencyFormatter.format(targetData.totalAmount)),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            // Placeholder to maintain height consistency if the Text has a specific line height
+                            Spacer(Modifier.height(MaterialTheme.typography.labelLarge.lineHeight.value.dp.times(LocalDensity.current.fontScale)))
+                        }
                     }
                 }
                 if (dailyTrendExpenses.isEmpty()) {
@@ -216,27 +231,42 @@ private fun PageContent(
                     style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 16.dp).align(Alignment.CenterHorizontally)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    space = SegmentedButtonDefaults.BorderWidth
                 ) {
-                    GraphPeriod.entries.forEach { period ->
-                        FilterChip(
+                    GraphPeriod.entries.forEachIndexed { index, period ->
+                        SegmentedButton(
                             selected = selectedGraphPeriod == period,
-                            onClick = { mainViewModel.setSelectedGraphPeriod(period); selectedBarData = null },
-                            label = { Text(period.displayName) },
-                            leadingIcon = if (selectedGraphPeriod == period) { { Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.filter_chip_selected_desc)) } } else null
+                            onClick = {
+                                mainViewModel.setSelectedGraphPeriod(period)
+                                selectedBarData = null // Clear selection when period changes
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = GraphPeriod.entries.size),
+                            label = { Text(period.displayName) }
                         )
                     }
                 }
-                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp), contentAlignment = Alignment.Center) {
-                    selectedBarData?.let { barData ->
-                        Text(
-                            text = stringResource(R.string.graph_selected_bar_details, barData.yearMonth, currencyFormatter.format(barData.totalAmount)),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.secondary,
-                            textAlign = TextAlign.Center
-                        )
+                AnimatedContent(
+                    targetState = selectedBarData,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(220, delayMillis = 90)))
+                            .togetherWith(fadeOut(animationSpec = tween(90)))
+                    },
+                    label = "selected_bar_data_transition",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp)
+                ) { targetData ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { // Ensure content is centered
+                        if (targetData != null) {
+                            Text(
+                                text = stringResource(R.string.graph_selected_bar_details, targetData.yearMonth, currencyFormatter.format(targetData.totalAmount)),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.secondary,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Spacer(Modifier.height(MaterialTheme.typography.labelLarge.lineHeight.value.dp.times(LocalDensity.current.fontScale)))
+                        }
                     }
                 }
                 if (lastNMonthsExpenses.isEmpty()) {
@@ -257,16 +287,28 @@ private fun PageContent(
             2 -> { // Category Pie Chart Page
                 val categoryData by mainViewModel.categoryExpensesData.collectAsState()
                 Text(stringResource(R.string.graph_category_pie_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp).align(Alignment.CenterHorizontally))
-                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp), contentAlignment = Alignment.Center) {
-                    selectedPieSliceData?.let { sliceData ->
-                        val totalAllCategories = categoryData.sumOf { it.totalAmount }
-                        val percentage = if (totalAllCategories > 0) (sliceData.totalAmount / totalAllCategories * 100).toInt() else 0
-                        Text(
-                            text = stringResource(R.string.graph_selected_pie_slice_details, sliceData.categoryName, currencyFormatter.format(sliceData.totalAmount), percentage),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Center
-                        )
+                AnimatedContent(
+                    targetState = selectedPieSliceData,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(220, delayMillis = 90)))
+                            .togetherWith(fadeOut(animationSpec = tween(90)))
+                    },
+                    label = "selected_pie_slice_transition",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 20.dp)
+                ) { targetData ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { // Ensure content is centered
+                        if (targetData != null) {
+                            val totalAllCategories = categoryData.sumOf { it.totalAmount } // Recalculate here or pass as part of targetData if complex
+                            val percentage = if (totalAllCategories > 0) (targetData.totalAmount / totalAllCategories * 100).toInt() else 0
+                            Text(
+                                text = stringResource(R.string.graph_selected_pie_slice_details, targetData.categoryName, currencyFormatter.format(targetData.totalAmount), percentage),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Spacer(Modifier.height(MaterialTheme.typography.labelLarge.lineHeight.value.dp.times(LocalDensity.current.fontScale)))
+                        }
                     }
                 }
                 if (categoryData.isEmpty()) {
