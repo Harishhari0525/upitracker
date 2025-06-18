@@ -340,9 +340,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
-    val swipeActionsEnabled: StateFlow<Boolean> =
-        ThemePreference.isSwipeActionsEnabledFlow(application)
-            .stateIn(viewModelScope, SharingStarted.Lazily, true)
+    // val swipeActionsEnabled: StateFlow<Boolean> = // Removed
+    //     ThemePreference.isSwipeActionsEnabledFlow(application) // Removed
+    //         .stateIn(viewModelScope, SharingStarted.Lazily, true) // Removed
 
     val filters: StateFlow<TransactionFilters> = _filters
 
@@ -974,11 +974,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun toggleSwipeActions(enabled: Boolean) {
-        viewModelScope.launch {
-            ThemePreference.setSwipeActionsEnabled(getApplication(), enabled)
-        }
-    }
+    // fun toggleSwipeActions(enabled: Boolean) { // Removed
+    //     viewModelScope.launch { // Removed
+    //         ThemePreference.setSwipeActionsEnabled(getApplication(), enabled) // Removed
+    //     } // Removed
+    // } // Removed
 
     fun insertTransaction(transaction: Transaction) { // This is a general insert
         viewModelScope.launch {

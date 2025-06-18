@@ -234,5 +234,9 @@
     <string name="refund_category_snackbar_message">"Refund" category set. This transaction will be excluded from expense totals.</string>
     <string name="income_expense">Income/Expense</string>
 
-
+    <string name="dialog_title_transaction_actions">Transaction Actions</string>
+    <string name="dialog_text_choose_action_for">Choose an action for: %s</string>
+    <string name="dialog_icon_desc_transaction_actions">Transaction Actions Icon</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_delete">Delete</string>
 </resources>

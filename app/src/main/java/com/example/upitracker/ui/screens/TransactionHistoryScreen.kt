@@ -24,6 +24,7 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
 import com.example.upitracker.ui.components.EditCategoryDialog
+import com.example.upitracker.ui.components.TransactionActionsDialog // Import the new dialog
 import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.MainViewModel
@@ -72,7 +73,7 @@ fun TransactionHistoryScreen(
     val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState(initial = null)
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
-    val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
+    // val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState() // Not needed anymore
     val searchQuery by mainViewModel.searchQuery.collectAsState()
     val filters by mainViewModel.filters.collectAsState()
     val userCategories by mainViewModel.userCategories.collectAsState()
@@ -97,9 +98,18 @@ fun TransactionHistoryScreen(
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+    // State for the new TransactionActionsDialog
+    var showTransactionActionsDialog by remember { mutableStateOf(false) }
+    var transactionForDialog by remember { mutableStateOf<Transaction?>(null) }
+
     val openDeleteConfirmDialog = { transaction: Transaction ->
         transactionToDelete = transaction
         showDeleteConfirmDialog = true
+    }
+
+    val openTransactionActionsDialog = { transaction: Transaction ->
+        transactionForDialog = transaction
+        showTransactionActionsDialog = true
     }
 
     val openCategoryEditDialog = { transaction: Transaction ->
@@ -213,18 +223,12 @@ fun TransactionHistoryScreen(
                                             mainViewModel.selectTransaction(transaction.id)
                                             showDetailSheet = true
                                         },
-                                        onLongClick = { openDeleteConfirmDialog(transaction) },// ✨ USING the lambda here ✨
-                                        onArchiveSwipeAction = { txnToArchive -> // ✨ Handle Archive Swipe ✨
+                                        onLongClick = {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            mainViewModel.toggleTransactionArchiveStatus(txnToArchive)
-                                            // Snackbar for archive/restore is posted by ViewModel
-                                        },
-                                        onDeleteSwipeAction = { txnToDeleteFromSwipe -> // ✨ Handle Delete Swipe ✨
-                                            // Re-use the confirmation dialog for consistency, or direct delete with undo snackbar
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            openDeleteConfirmDialog(txnToDeleteFromSwipe)
-                                        },
-                                        swipeActionsEnabled = swipeActionsEnabled
+                                            openTransactionActionsDialog(transaction)
+                                        }
+                                        // onArchiveSwipeAction and onDeleteSwipeAction removed
+                                        // swipeActionsEnabled removed
                                     )
                                 }
                             }
@@ -297,13 +301,40 @@ fun TransactionHistoryScreen(
         )
     }
 
+    // Show the new TransactionActionsDialog
+    if (showTransactionActionsDialog && transactionForDialog != null) {
+        TransactionActionsDialog(
+            transaction = transactionForDialog!!,
+            onDismissRequest = {
+                showTransactionActionsDialog = false
+                transactionForDialog = null
+            },
+            onArchiveClick = {
+                mainViewModel.toggleTransactionArchiveStatus(transactionForDialog!!, archive = true)
+                // ViewModel should handle Snackbar message
+                showTransactionActionsDialog = false
+                transactionForDialog = null
+            },
+            onDeleteClick = {
+                openDeleteConfirmDialog(transactionForDialog!!)
+                showTransactionActionsDialog = false
+                transactionForDialog = null
+            }
+        )
+    }
+
     if (showDeleteConfirmDialog && transactionToDelete != null) {
         val context = LocalContext.current // Get context for Snackbar message
         DeleteTransactionConfirmationDialog(
             transactionDescription = transactionToDelete!!.description, // Pass some identifying info
             onConfirm = {
                 mainViewModel.deleteTransaction(transactionToDelete!!)
-                mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
+                // The archive toggle on delete was potentially problematic,
+                // as deleting should ideally just delete.
+                // If it's meant to ensure it's archived *before* deletion for some logic,
+                // that should be handled carefully or re-evaluated.
+                // For now, removing the toggle on delete from here as it's usually a separate action.
+                // mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
                 mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar)) // ✨ Use new string
                 showDeleteConfirmDialog = false
                 transactionToDelete = null
