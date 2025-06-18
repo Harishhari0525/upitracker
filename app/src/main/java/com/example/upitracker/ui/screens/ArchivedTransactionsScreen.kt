@@ -1,5 +1,3 @@
-// In ui/screens/ArchivedTransactionsScreen.kt
-
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.upitracker.ui.screens
@@ -15,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete // Added for swipe
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Restore // Added
-// import androidx.compose.material.icons.filled.RestoreFromTrash // Alternative
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,7 +105,7 @@ fun ArchivedTransactionsScreen(
 
                     SwipeToDismissBox(
                         state = dismissState,
-                        modifier = Modifier.animateItemPlacement(),
+                        modifier = Modifier,
                         enableDismissFromStartToEnd = true, // Swipe Right to Restore
                         enableDismissFromEndToStart = true,  // Swipe Left to Delete
                         backgroundContent = {

@@ -52,7 +52,6 @@ fun CurrentMonthExpensesScreen(
     val isImporting by mainViewModel.isImportingSms.collectAsState()
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
     val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
-    val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
     val context = LocalContext.current
 
@@ -187,18 +186,9 @@ fun CurrentMonthExpensesScreen(
                                         },
                                         onLongClick = {
                                             transactionToDelete = it
-                                            showDeleteConfirmDialog = true
-                                        },
-                                        onArchiveSwipeAction = { txnToArchive ->
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            mainViewModel.toggleTransactionArchiveStatus(txnToArchive, archive = true)
-                                        },
-                                        onDeleteSwipeAction = { txnToDeleteFromSwipe ->
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            transactionToDelete = txnToDeleteFromSwipe
                                             showDeleteConfirmDialog = true
-                                        },
-                                        swipeActionsEnabled = swipeActionsEnabled
+                                        }
                                     )
                                 }
                                 is SummaryHistoryItem -> {
