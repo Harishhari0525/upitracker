@@ -5,10 +5,14 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteForever // Added
+import androidx.compose.material.icons.filled.Restore // Added
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,8 +36,12 @@ fun ArchivedTransactionsScreen(
     val haptic = LocalHapticFeedback.current
     val archivedTransactions by mainViewModel.archivedUpiTransactions.collectAsState()
 
-    // State for the permanent delete confirmation dialog
+    // State for the permanent delete confirmation dialog (used by swipe and new dialog)
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+
+    // State for the new actions dialog
+    var showArchivedTransactionActionsDialog by remember { mutableStateOf(false) }
+    var transactionForDialog by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
         topBar = {
@@ -71,7 +79,11 @@ fun ArchivedTransactionsScreen(
                         modifier = Modifier.animateItem(),
                         transaction = transaction,
                         onClick = { /* No action on simple click */ },
-                        onLongClick = { transactionToDelete = it }, // Long click to show delete dialog
+                        onLongClick = {
+                            transactionForDialog = it
+                            showArchivedTransactionActionsDialog = true
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
                         onArchiveSwipeAction = { txn -> // Swipe right to RESTORE
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             mainViewModel.toggleTransactionArchiveStatus(txn, archive = false)
@@ -91,11 +103,66 @@ fun ArchivedTransactionsScreen(
                 transactionDescription = transactionToDelete!!.description,
                 onConfirm = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    mainViewModel.deleteTransaction(transactionToDelete!!)
+                    mainViewModel.deleteTransaction(transactionToDelete!!) // This will now use the Undo mechanism
                     transactionToDelete = null // Dismiss dialog
                 },
                 onDismiss = { transactionToDelete = null }
             )
         }
+
+        if (showArchivedTransactionActionsDialog && transactionForDialog != null) {
+            ArchivedTransactionActionsDialog(
+                transaction = transactionForDialog!!,
+                onDismiss = {
+                    showArchivedTransactionActionsDialog = false
+                    transactionForDialog = null
+                },
+                onRestore = { transaction ->
+                    mainViewModel.toggleTransactionArchiveStatus(transaction, archive = false)
+                    showArchivedTransactionActionsDialog = false
+                    transactionForDialog = null
+                },
+                onDeletePermanent = { transaction ->
+                    // This will trigger the existing delete confirmation dialog
+                    transactionToDelete = transaction
+                    showArchivedTransactionActionsDialog = false
+                    transactionForDialog = null
+                }
+            )
+        }
     }
+}
+
+@Composable
+private fun ArchivedTransactionActionsDialog(
+    transaction: Transaction,
+    onDismiss: () -> Unit,
+    onRestore: (Transaction) -> Unit,
+    onDeletePermanent: (Transaction) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Archived Transaction Actions") }, // Hardcoded as per plan
+        text = {
+            Column {
+                ListItem(
+                    headlineContent = { Text("Restore") }, // Hardcoded
+                    leadingContent = { Icon(Icons.Filled.Restore, contentDescription = "Restore") },
+                    modifier = Modifier.clickable { onRestore(transaction) }
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Delete Permanently") }, // Hardcoded
+                    leadingContent = { Icon(Icons.Filled.DeleteForever, contentDescription = "Delete Permanently") },
+                    modifier = Modifier.clickable { onDeletePermanent(transaction) }
+                )
+            }
+        },
+        confirmButton = { /* Not used, actions are in the list */ },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel") // Hardcoded
+            }
+        }
+    )
 }

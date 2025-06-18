@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job // Added for _deletePendingJob
+import kotlinx.coroutines.delay // Added for delay in deletion
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -323,8 +325,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    private var _lastArchivedTransaction: Transaction? = null
-    private var _lastArchivedTransactionOriginalCategory: String? = null
+    // private var _lastArchivedTransaction: Transaction? = null // Removed
+    // private var _lastArchivedTransactionOriginalCategory: String? = null // Removed
+
+    // --- State for Undo Delete ---
+    private var _transactionPendingDelete: Transaction? = null
+    private var _deletePendingJob: Job? = null
 
     // --- UI State Flows (Public) ---
     private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
@@ -888,10 +894,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateTransactionCategory(transactionId: Int, category: String?) {
         viewModelScope.launch {
-            if (_lastArchivedTransaction?.id == transactionId) {
-                _lastArchivedTransaction = null
-                _lastArchivedTransactionOriginalCategory = null
-            }
+            // Removed block that checked _lastArchivedTransaction
+            // if (_lastArchivedTransaction?.id == transactionId) {
+            //     _lastArchivedTransaction = null
+            //     _lastArchivedTransactionOriginalCategory = null
+            // }
             val transactionToUpdate = _transactions.value.find { it.id == transactionId }
             transactionToUpdate?.let {
                 val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
@@ -988,7 +995,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            transactionDao.delete(transaction)
+            // If a different transaction is already pending deletion, delete it immediately.
+            _transactionPendingDelete?.let { pendingTx ->
+                if (pendingTx.id != transaction.id) {
+                    _deletePendingJob?.cancel() // Cancel its specific job
+                    withContext(Dispatchers.IO) {
+                        transactionDao.delete(pendingTx)
+                    }
+                }
+            }
+            // Cancel any existing job, whether it's for the same transaction or a new one.
+            _deletePendingJob?.cancel()
+
+            _transactionPendingDelete = transaction.copy()
+
+            _snackbarEvents.emit(
+                SnackbarMessage(
+                    message = "Transaction deleted", // Using hardcoded string as per plan
+                    actionLabel = "Undo", // Using hardcoded string
+                    onAction = {
+                        _deletePendingJob?.cancel()
+                        _transactionPendingDelete = null
+                        postPlainSnackbarMessage("Deletion undone") // Using hardcoded string
+                    },
+                    onDismiss = null // Handled by the job's delay
+                )
+            )
+
+            _deletePendingJob = viewModelScope.launch {
+                delay(5000L) // 5-second delay for undo
+                _transactionPendingDelete?.let { pendingTxToDelete ->
+                    withContext(Dispatchers.IO) {
+                        transactionDao.delete(pendingTxToDelete)
+                    }
+                    _transactionPendingDelete = null
+                    // Optional: postPlainSnackbarMessage("Transaction permanently deleted")
+                }
+            }
         }
     }
 
@@ -1122,20 +1165,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun undoLastArchiveAction() {
-        viewModelScope.launch {
-            _lastArchivedTransaction?.let {
-                val restoredTransaction = it.copy(
-                    isArchived = false,
-                    category = _lastArchivedTransactionOriginalCategory
-                )
-                transactionDao.update(restoredTransaction)
-                postPlainSnackbarMessage("Archive undone for \"${it.description.take(20)}...\"") // TODO: String resource
-                _lastArchivedTransaction = null
-                _lastArchivedTransactionOriginalCategory = null
-            }
-        }
-    }
+    // fun undoLastArchiveAction() { // Removed
+    //     viewModelScope.launch { // Removed
+    //         _lastArchivedTransaction?.let { // Removed
+    //             val restoredTransaction = it.copy( // Removed
+    //                 isArchived = false, // Removed
+    //                 category = _lastArchivedTransactionOriginalCategory // Removed
+    //             ) // Removed
+    //             transactionDao.update(restoredTransaction) // Removed
+    //             postPlainSnackbarMessage("Archive undone for \"${it.description.take(20)}...\"") // TODO: String resource // Removed
+    //             _lastArchivedTransaction = null // Removed
+    //             _lastArchivedTransactionOriginalCategory = null // Removed
+    //         } // Removed
+    //     } // Removed
+    // } // Removed
 
     fun postPlainSnackbarMessage(message: String) {
         viewModelScope.launch {
