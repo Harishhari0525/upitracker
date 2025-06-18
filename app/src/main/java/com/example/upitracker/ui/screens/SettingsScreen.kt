@@ -118,21 +118,21 @@ fun SettingsScreen(
                 )
             }
         }
-        item {
-            val swipeEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
-            SettingItemRow(
-                icon = Icons.Filled.Swipe,
-                title = stringResource(R.string.settings_enable_swipe_actions),
-                summary = if (swipeEnabled) stringResource(R.string.settings_swipe_actions_enabled)
-                else stringResource(R.string.settings_swipe_actions_disabled),
-                onClick = { mainViewModel.toggleSwipeActions(!swipeEnabled) }
-            ) {
-                Switch(
-                    checked = swipeEnabled,
-                    onCheckedChange = { mainViewModel.toggleSwipeActions(it) }
-                )
-            }
-        }
+        // item { // Removed Swipe Actions Setting
+        //     val swipeEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
+        //     SettingItemRow(
+        //         icon = Icons.Filled.Swipe,
+        //         title = stringResource(R.string.settings_enable_swipe_actions),
+        //         summary = if (swipeEnabled) stringResource(R.string.settings_swipe_actions_enabled)
+        //         else stringResource(R.string.settings_swipe_actions_disabled),
+        //         onClick = { mainViewModel.toggleSwipeActions(!swipeEnabled) }
+        //     ) {
+        //         Switch(
+        //             checked = swipeEnabled,
+        //             onCheckedChange = { mainViewModel.toggleSwipeActions(it) }
+        //         )
+        //     }
+        // } // End of Removed Swipe Actions Setting
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
 
         // Security Section

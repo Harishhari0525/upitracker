@@ -43,10 +43,7 @@ fun TransactionCard(
     modifier: Modifier = Modifier,
     transaction: Transaction,
     onClick: (Transaction) -> Unit,
-    onLongClick: (Transaction) -> Unit,
-    onArchiveSwipeAction: (Transaction) -> Unit,
-    onDeleteSwipeAction: (Transaction) -> Unit,
-    swipeActionsEnabled: Boolean = true
+    onLongClick: (Transaction) -> Unit
 ) {
     val displayDate = remember(transaction.date) {
         try {
@@ -69,137 +66,129 @@ fun TransactionCard(
     }
 
     // ✨ Use Material 3's rememberSwipeToDismissBoxState ✨
-    val scope = rememberCoroutineScope()
+    // val scope = rememberCoroutineScope()
 
-// 1. Replace your dismissState with this simplified version
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = {
-            // We will simply approve any state change that passes the threshold.
-            // The actual action will be handled by the LaunchedEffect below.
-            it != SwipeToDismissBoxValue.Settled
-        },
-        // Your high threshold is the main controller now
-        positionalThreshold = { totalDistance -> totalDistance * 0.85f }
-    )
+// // 1. Replace your dismissState with this simplified version
+    // val dismissState = rememberSwipeToDismissBoxState(
+    //     confirmValueChange = {
+    //         // We will simply approve any state change that passes the threshold.
+    //         // The actual action will be handled by the LaunchedEffect below.
+    //         it != SwipeToDismissBoxValue.Settled
+    //     },
+    //     // Your high threshold is the main controller now
+    //     positionalThreshold = { totalDistance -> totalDistance * 0.85f }
+    // )
 
-// 2. Replace your old LaunchedEffect with this new one
-    LaunchedEffect(dismissState.currentValue) {
-        // We wait for the swipe to settle in a dismissed state
-        if (dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-            // Then we perform our action
-            onArchiveSwipeAction(transaction)
-            // AND immediately tell the card to animate back to the center
-            scope.launch {
-                dismissState.reset()
-            }
-        } else if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-            onDeleteSwipeAction(transaction)
-            scope.launch {
-                dismissState.reset()
-            }
-        }
-    }
+// // 2. Replace your old LaunchedEffect with this new one
+    // LaunchedEffect(dismissState.currentValue) {
+    //     // We wait for the swipe to settle in a dismissed state
+    //     if (dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
+    //         // Then we perform our action
+    //         onArchiveSwipeAction(transaction)
+    //         // AND immediately tell the card to animate back to the center
+    //         scope.launch {
+    //             dismissState.reset()
+    //         }
+    //     } else if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+    //         onDeleteSwipeAction(transaction)
+    //         scope.launch {
+    //             dismissState.reset()
+    //         }
+    //     }
+    // }
 
-    SwipeToDismissBox( // ✨ Material 3 SwipeToDismissBox ✨
-        state = dismissState,
-        modifier = modifier, // Apply fillMaxWidth here
-        enableDismissFromStartToEnd = swipeActionsEnabled, // Swipe Right (Archive)
-        enableDismissFromEndToStart = swipeActionsEnabled, // Swipe Left (Delete)
-        backgroundContent = {
-            val direction = dismissState.dismissDirection
-            val targetValue = dismissState.targetValue // Use targetValue for more stable color during swipe
+    // SwipeToDismissBox( // ✨ Material 3 SwipeToDismissBox ✨
+    //     state = dismissState,
+    //     modifier = modifier, // Apply fillMaxWidth here
+    //     enableDismissFromStartToEnd = swipeActionsEnabled, // Swipe Right (Archive)
+    //     enableDismissFromEndToStart = swipeActionsEnabled, // Swipe Left (Delete)
+    //     backgroundContent = {
+    //         val direction = dismissState.dismissDirection
+    //         val targetValue = dismissState.targetValue // Use targetValue for more stable color during swipe
 
-            val backgroundColor by animateColorAsState(
-                targetValue = when (targetValue) { // Check targetValue
-                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.secondaryContainer
-                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                    else -> Color.Transparent // Or a subtle background
-                },
-                label = "swipe_background_color"
-            )
+    //         val backgroundColor by animateColorAsState(
+    //             targetValue = when (targetValue) { // Check targetValue
+    //                 SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.secondaryContainer
+    //                 SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+    //                 else -> Color.Transparent // Or a subtle background
+    //             },
+    //             label = "swipe_background_color"
+    //         )
 
-            val (icon, iconTint, text) = when (direction) {
-                SwipeToDismissBoxValue.StartToEnd -> { // Swiped Right
-                    if (transaction.isArchived) {
-                        // This is an archived item, so the action is RESTORE
-                        Triple(
-                            Icons.Filled.RestoreFromTrash,
-                            MaterialTheme.colorScheme.onSecondaryContainer,
-                            stringResource(R.string.swipe_action_restore) // We will add this string
-                        )
-                    } else {
-                        // This is a normal item, so the action is ARCHIVE
-                        Triple(
-                            Icons.Filled.Archive,
-                            MaterialTheme.colorScheme.onSecondaryContainer,
-                            stringResource(R.string.swipe_action_archive)
-                        )
-                    }
-                }
-                SwipeToDismissBoxValue.EndToStart -> { // Swiped Left (Delete)
-                    Triple(
-                        Icons.Filled.Delete,
-                        MaterialTheme.colorScheme.onErrorContainer,
-                        stringResource(R.string.swipe_action_delete)
-                    )
-                }
-                else -> Triple(null, Color.Transparent, "") // Should not happen when swiping
-            }
+    //         val (icon, iconTint, text) = when (direction) {
+    //             SwipeToDismissBoxValue.StartToEnd -> { // Swiped Right
+    //                 if (transaction.isArchived) {
+    //                     // This is an archived item, so the action is RESTORE
+    //                     Triple(
+    //                         Icons.Filled.RestoreFromTrash,
+    //                         MaterialTheme.colorScheme.onSecondaryContainer,
+    //                         stringResource(R.string.swipe_action_restore) // We will add this string
+    //                     )
+    //                 } else {
+    //                     // This is a normal item, so the action is ARCHIVE
+    //                     Triple(
+    //                         Icons.Filled.Archive,
+    //                         MaterialTheme.colorScheme.onSecondaryContainer,
+    //                         stringResource(R.string.swipe_action_archive)
+    //                     )
+    //                 }
+    //             }
+    //             SwipeToDismissBoxValue.EndToStart -> { // Swiped Left (Delete)
+    //                 Triple(
+    //                     Icons.Filled.Delete,
+    //                     MaterialTheme.colorScheme.onErrorContainer,
+    //                     stringResource(R.string.swipe_action_delete)
+    //                 )
+    //             }
+    //             else -> Triple(null, Color.Transparent, "") // Should not happen when swiping
+    //         }
 
-            val alignment = when (direction) {
-                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
-                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
-                else -> Alignment.Center // Should not happen
-            }
+    //         val alignment = when (direction) {
+    //             SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+    //             SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+    //             else -> Alignment.Center // Should not happen
+    //         }
 
-            val iconScale by animateDpAsState(
-                if (targetValue == SwipeToDismissBoxValue.Settled) 0.75.dp else 1.dp, // Use targetValue
-                label = "swipe_icon_scale"
-            )
+    //         val iconScale by animateDpAsState(
+    //             if (targetValue == SwipeToDismissBoxValue.Settled) 0.75.dp else 1.dp, // Use targetValue
+    //             label = "swipe_icon_scale"
+    //         )
 
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(backgroundColor)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = alignment
-            ) {
-                if (icon != null) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = text,
-                            modifier = Modifier.scale(iconScale.value),
-                            tint = iconTint
-                        )
-                        Text(text = text, color = iconTint, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-        }
-    ) { // This is the content that will be swiped
-        Card(
-            modifier = Modifier // The SwipeToDismissBox now handles fillMaxWidth
-                .combinedClickable(
-                    onClick = { onClick(transaction) },
-                    onLongClick = { onLongClick(transaction) }
-                ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = animateDpAsState(
-                    if (dismissState.targetValue == SwipeToDismissBoxValue.Settled) 1.dp else 4.dp,  // Use targetValue
-                    label = "card_elevation"
-                ).value
+    //         Box(
+    //             Modifier
+    //                 .fillMaxSize()
+    //                 .background(backgroundColor)
+    //                 .padding(horizontal = 20.dp),
+    //             contentAlignment = alignment
+    //         ) {
+    //             if (icon != null) {
+    //                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    //                     Icon(
+    //                         imageVector = icon,
+    //                         contentDescription = text,
+    //                         modifier = Modifier.scale(iconScale.value),
+    //                         tint = iconTint
+    //                     )
+    //                     Text(text = text, color = iconTint, style = MaterialTheme.typography.labelMedium)
+    //                 }
+    //             }
+    //         }
+    //     }
+    // ) { // This is the content that will be swiped
+    Card(
+        modifier = modifier // The SwipeToDismissBox now handles fillMaxWidth
+            .combinedClickable(
+                onClick = { onClick(transaction) },
+                onLongClick = { onLongClick(transaction) }
             ),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(
-                    animateDpAsState(
-                        if (dismissState.targetValue == SwipeToDismissBoxValue.Settled) 1.dp else 4.dp, // Use targetValue
-                        label = "card_surface_elevation"
-                    ).value
-                )
-            )
-        ) {
-            Column(
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp // Removed animation based on dismissState
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp) // Removed animation based on dismissState
+        )
+    ) {
+        Column(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .fillMaxWidth(), // Content within card fills its width
@@ -257,5 +246,5 @@ fun TransactionCard(
                 Text(text = displayDate, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             }
         }
-    }
+    // } // This closing brace was for SwipeToDismissBox
 }
