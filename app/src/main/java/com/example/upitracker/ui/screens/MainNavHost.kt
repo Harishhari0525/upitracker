@@ -67,7 +67,7 @@ fun MainNavHost(
         // RegexEditorScreen is typically navigated to from SettingsScreen,
         // so SettingsScreen (inside MainAppScreen) will use the rootNavController to get here.
         composable(
-            "regexEditor",
+            "rule_management",
             enterTransition = {
                 slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
                 fadeIn(animationSpec = tween(300))
@@ -85,7 +85,7 @@ fun MainNavHost(
                 fadeOut(animationSpec = tween(300))
             }
         ) {
-            RegexEditorScreen(
+            RulesHubScreen( // ✨ Call our NEW unified hub screen here ✨
                 onBack = { navController.popBackStack() },
                 mainViewModel = mainViewModel
             )

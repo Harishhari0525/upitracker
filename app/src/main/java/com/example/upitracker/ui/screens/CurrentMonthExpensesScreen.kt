@@ -165,12 +165,12 @@ fun CurrentMonthExpensesScreen(
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 80.dp)
+                        contentPadding = PaddingValues(bottom = 6.dp)
                     ) {
                         items(currentMonthExpenseItems.take(25), key = { item ->
                             when (item) {
-                                is TransactionHistoryItem -> "txn-${item.transaction.id}"
-                                is SummaryHistoryItem -> "summary-${item.summary.id}"
+                                is TransactionHistoryItem -> "txn-${item.transaction.id}-${item.transaction.date}"
+                                is SummaryHistoryItem -> "summary-${item.summary.id}-${item.summary.date}"
                             }
                         }) { historyItem ->
                             when (historyItem) {
@@ -244,7 +244,12 @@ fun CurrentMonthExpensesScreen(
                 transactionDescription = transactionToDelete!!.description,
                 onConfirm = {
                     mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
-                    mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_archived_snackbar))
+                    mainViewModel.postSnackbarMessage(
+                        context.getString(
+                            R.string.transaction_archived_snackbar,
+                            transactionToDelete!!.description.take(20)
+                        )
+                    )
                     showDeleteConfirmDialog = false
                     transactionToDelete = null
                 },

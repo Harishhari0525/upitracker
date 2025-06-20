@@ -1,20 +1,20 @@
 package com.example.upitracker.util
 
-import android.app.Activity // For window operations
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.app.Activity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color // For Color.Transparent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
-import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.util.AppTypography
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.upitracker.viewmodel.MainViewModel
 
 // Assuming your AppLightColorScheme and AppDarkColorScheme are defined here as before
 // For brevity, I'll skip re-pasting them, but ensure they are present in your file.
@@ -90,20 +90,97 @@ private val AppDarkColorScheme = darkColorScheme(
     scrim = Color(0xFF000000)
 )
 
+// Theme 2: Forest
+val ForestLightColorScheme = lightColorScheme(
+    primary = Color(0xFF386A20),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFB7F397),
+    onPrimaryContainer = Color(0xFF042100),
+    secondary = Color(0xFF55624C),
+    onSecondary = Color(0xFFFFFFFF),
+    // ... add other colors or use generated ones
+    background = Color(0xFFFDFDF5),
+    surface = Color(0xFFFDFDF5),
+)
+val ForestDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF9CD67D),
+    onPrimary = Color(0xFF0E3900),
+    primaryContainer = Color(0xFF215106),
+    onPrimaryContainer = Color(0xFFB7F397),
+    secondary = Color(0xFFBDCBAF),
+    onSecondary = Color(0xFF283420),
+    // ... add other colors or use generated ones
+    background = Color(0xFF1A1C18),
+    surface = Color(0xFF1A1C18),
+)
 
+// Theme 3: Ocean
+val OceanLightColorScheme = lightColorScheme(
+    primary = Color(0xFF00658E),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFC7E7FF),
+    onPrimaryContainer = Color(0xFF001E2E),
+    secondary = Color(0xFF4F616E),
+    onSecondary = Color(0xFFFFFFFF),
+    background = Color(0xFFFCFCFF),
+    surface = Color(0xFFFCFCFF),
+)
+val OceanDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF85CFFF),
+    onPrimary = Color(0xFF00344C),
+    primaryContainer = Color(0xFF004C6C),
+    onPrimaryContainer = Color(0xFFC7E7FF),
+    secondary = Color(0xFFB7C9D6),
+    onSecondary = Color(0xFF21333E),
+    background = Color(0xFF1A1C1E),
+    surface = Color(0xFF1A1C1E),
+)
+
+// Theme 4: Rose
+val RoseLightColorScheme = lightColorScheme(
+    primary = Color(0xFF84436A),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFFFD8EC),
+    onPrimaryContainer = Color(0xFF360024),
+    secondary = Color(0xFF6B5861),
+    onSecondary = Color(0xFFFFFFFF),
+    background = Color(0xFFFFF7F8),
+    surface = Color(0xFFFFF7F8),
+)
+val RoseDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFF8B0D9),
+    onPrimary = Color(0xFF50133A),
+    primaryContainer = Color(0xFF6A2C51),
+    onPrimaryContainer = Color(0xFFFFD8EC),
+    secondary = Color(0xFFD5BFCA),
+    onSecondary = Color(0xFF3B2A32),
+    background = Color(0xFF1F1A1C),
+    surface = Color(0xFF1F1A1C),
+)
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun Theme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    mainViewModel: MainViewModel,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+
+    val isDarkMode by mainViewModel.isDarkMode.collectAsState()
+    val appTheme by mainViewModel.appTheme.collectAsState()
+
+    val colorScheme: ColorScheme = when {
+        dynamicColor && true -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (isDarkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> AppDarkColorScheme
-        else -> AppLightColorScheme
+        // If dynamic color is off or not supported, use our custom themes
+        else -> when (appTheme) {
+            AppTheme.DEFAULT -> if (isDarkMode) AppDarkColorScheme else AppLightColorScheme
+            AppTheme.FOREST -> if (isDarkMode) ForestDarkColorScheme else ForestLightColorScheme
+            AppTheme.OCEAN -> if (isDarkMode) OceanDarkColorScheme else OceanLightColorScheme
+            AppTheme.ROSE -> if (isDarkMode) RoseDarkColorScheme else RoseLightColorScheme
+        }
     }
 
     val view = LocalView.current
@@ -111,23 +188,16 @@ fun Theme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                // ✨ Make status bar transparent for edge-to-edge display ✨
                 window.statusBarColor = Color.Transparent.toArgb()
-                // If you also want the navigation bar to be transparent for edge-to-edge:
-                // window.navigationBarColor = Color.Transparent.toArgb()
-                // WindowCompat.setNavigationBarContrastEnforced(window, false) // If using translucent nav bar
-
-                // This tells the system to use dark icons on a light status bar background and vice-versa
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-                // Optional: For navigation bar icons if you make it transparent/translucent
-                // WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+                // ✨ FIX: Use the 'isDarkMode' state from the ViewModel, not the old 'darkTheme' parameter ✨
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDarkMode
             }
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography, // Using default Material 3 Typography
+        typography = AppTypography,
         shapes = AppShapes,
         content = content
     )

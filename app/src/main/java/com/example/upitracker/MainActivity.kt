@@ -52,6 +52,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.work.PeriodicWorkRequestBuilder
 import com.example.upitracker.util.PermanentDeleteWorker // ✨ Import the new worker
+import com.example.upitracker.util.RecurringTransactionWorker
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -106,6 +107,7 @@ class MainActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         scheduleArchivedSmsCleanup()
         schedulePermanentDeleteWorker()
+        scheduleRecurringTransactionWorker()
 
         // ... (db, dao, smsReceiver setup remains the same)
         val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
@@ -128,7 +130,7 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             val isDarkMode by mainViewModel.isDarkMode.collectAsState()
-            Theme(darkTheme = isDarkMode) {
+            Theme(mainViewModel = mainViewModel) {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val coroutineScope = rememberCoroutineScope()
 
@@ -200,7 +202,11 @@ class MainActivity : FragmentActivity() {
                     if (!onboardingCompleted) {
                         OnboardingScreen(
                             modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                            onOnboardingComplete = { mainViewModel.markOnboardingComplete() }
+                            // ✨ UPDATE the call to handle the new parameter ✨
+                            onOnboardingComplete = { isUpiLiteEnabled ->
+                                mainViewModel.markOnboardingComplete()
+                                mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+                            }
                         )
                     } else {
                         // Onboarding is complete, now handle PIN logic
@@ -378,6 +384,20 @@ class MainActivity : FragmentActivity() {
                 mainViewModel.postSnackbarMessage(mainMessage)
             }
         }
+    }
+
+    private fun scheduleRecurringTransactionWorker() {
+        // Run this check periodically (e.g., every 12 hours)
+        val recurringRequest =
+            PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, java.util.concurrent.TimeUnit.HOURS)
+                .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            RecurringTransactionWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            recurringRequest
+        )
+        Log.d("MainActivity", "Periodic recurring transaction worker scheduled.")
     }
 
     private suspend fun getAllSms(): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {

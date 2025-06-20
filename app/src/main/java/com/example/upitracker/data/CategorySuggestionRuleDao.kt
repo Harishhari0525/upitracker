@@ -1,22 +1,25 @@
-// In data/CategorySuggestionRuleDao.kt
-
 package com.example.upitracker.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategorySuggestionRuleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdateRule(rule: CategorySuggestionRule)
+    suspend fun insert(rule: CategorySuggestionRule)
 
-    @Query("SELECT * FROM category_suggestion_rules WHERE keyword = :keyword LIMIT 1")
-    suspend fun getRuleForKeyword(keyword: String): CategorySuggestionRule?
+    @Update
+    suspend fun update(rule: CategorySuggestionRule)
 
-    // Optional: A function to get all rules if we build a UI for it later
-    @Query("SELECT * FROM category_suggestion_rules ORDER BY keyword ASC")
-    fun getAllRules(): kotlinx.coroutines.flow.Flow<List<CategorySuggestionRule>>
+    @Delete
+    suspend fun delete(rule: CategorySuggestionRule)
+
+    @Query("SELECT * FROM category_suggestion_rules ORDER BY priority DESC")
+    fun getAllRules(): Flow<List<CategorySuggestionRule>>
 }

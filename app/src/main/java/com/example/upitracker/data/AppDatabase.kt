@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UpiLiteSummary::class,
         ArchivedSmsMessage::class, // ✨ Add new entity ✨
         Budget::class,
-        CategorySuggestionRule::class
+        CategorySuggestionRule::class,
+        RecurringRule::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun archivedSmsMessageDao(): ArchivedSmsMessageDao // ✨ Add new DAO abstract function ✨
     abstract fun budgetDao(): BudgetDao
     abstract fun categorySuggestionRuleDao(): CategorySuggestionRuleDao
+    abstract fun recurringRuleDao(): RecurringRuleDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -117,8 +119,40 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN pendingDeletionTimestamp INTEGER DEFAULT NULL")
             }
         }
+        val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `recurring_rules` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `amount` REAL NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `categoryName` TEXT NOT NULL,
+                        `periodType` TEXT NOT NULL,
+                        `dayOfPeriod` INTEGER NOT NULL,
+                        `nextDueDate` INTEGER NOT NULL,
+                        `creationDate` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
 
-
+        val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Drop the old simple table
+                db.execSQL("DROP TABLE IF EXISTS `category_suggestion_rules`")
+                // Create the new, more powerful table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `category_suggestion_rules` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `fieldToMatch` TEXT NOT NULL,
+                        `matcher` TEXT NOT NULL,
+                        `keyword` TEXT NOT NULL,
+                        `categoryName` TEXT NOT NULL,
+                        `priority` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -128,7 +162,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "upi_tracker_db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10) // ✨ Add new migration ✨
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
+                    ,MIGRATION_11_12) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

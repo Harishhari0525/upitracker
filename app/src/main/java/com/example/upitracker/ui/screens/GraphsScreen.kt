@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -69,13 +70,14 @@ import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
 // Helper extension functions
-fun TextUnit.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
-fun Dp.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { this@toPx.toPx() }
+fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
+fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
@@ -351,6 +353,7 @@ private fun PageContent(
             }
             3 -> { // ✨ This is the updated section for the Income vs. Expense chart
                 val incomeExpenseData by mainViewModel.incomeVsExpenseData.collectAsState()
+                val recentData = incomeExpenseData.takeLast(3)
 
                 Text(
                     "Income vs. Expense",
@@ -388,14 +391,18 @@ private fun PageContent(
                 }
 
                 if (incomeExpenseData.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-                        Text("No income or expense data for this period.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box(modifier = Modifier.fillMaxWidth().height(300.dp),
+                        contentAlignment = Alignment.Center) {
+                        Text("No income or expense data for this period.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize()) {
                         // ✨ 3. PASS the selection lambda to the chart ✨
                         IncomeExpenseGroupedBarChart(
-                            data = incomeExpenseData,
+                            data = recentData,
                             modifier = Modifier.fillMaxSize().padding(8.dp),
                             onBarGroupClick = { selectedIncomeExpensePoint = it }
                         )
@@ -621,7 +628,6 @@ fun SimpleDailyExpenseLineChart(
             ); return@Canvas
         }
 
-        // ... (rest of the Canvas drawing logic for the line chart remains the same as the last complete version)
         val rightPadding = 18.dp.toPx(); val yAxisLabelHorizontalPadding = 8.dp.toPx(); val yAxisTextWidthApproximation = axisLabelPaint.measureText(currencyFormatter.format(niceMaxAmount).replace("₹", "").trim()) + yAxisLabelHorizontalPadding
         val leftPaddingForYAxis = yAxisTextWidthApproximation + 14.dp.toPx(); val bottomPaddingForXLabels = 30.dp.toPx(); val topPadding = 20.dp.toPx()
         val chartWidth = (size.width - leftPaddingForYAxis - rightPadding).coerceAtLeast(0f); val chartHeight = (size.height - bottomPaddingForXLabels - topPadding).coerceAtLeast(0f)
@@ -643,14 +649,14 @@ fun SimpleDailyExpenseLineChart(
         if (pointCoordinates.isNotEmpty()) {
             segmentPath.moveTo(pointCoordinates.first().x, pointCoordinates.first().y)
             val totalLength = pointCoordinates.zipWithNext { a, b ->
-                kotlin.math.hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+                hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
             }.sum()
             var traversed = 0f
             val target = totalLength * drawProgress.value
             for (i in 1 until pointCoordinates.size) {
                 val start = pointCoordinates[i - 1]
                 val end = pointCoordinates[i]
-                val segLength = kotlin.math.hypot(
+                val segLength = hypot(
                     (end.x - start.x).toDouble(),
                     (end.y - start.y).toDouble()
                 ).toFloat()
@@ -691,53 +697,32 @@ fun IncomeExpenseGroupedBarChart(
     onBarGroupClick: (IncomeExpensePoint?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val incomeColor = Color(0xFF1B5E20)
+    // --- Define Colors ---
+    val incomeColor = Color(0xFF2E7D32) // Dark green for income
     val expenseColor = MaterialTheme.colorScheme.error
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val selectionHighlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
 
+    // --- Define Paints ---
     val density = LocalDensity.current
-    val barRegions = remember { mutableStateListOf<RectF>() }
+    val labelPaint = remember(density) {
+        Paint().apply {
+            textAlign = Paint.Align.CENTER
+            textSize = 10.sp.toPx(density)
+            isAntiAlias = true
+            color = Color.White.toArgb() // ✨ FIX: White text for high contrast on both bars
+        }
+    }
+    val axisLabelPaint = remember(density, axisColor) {
+        Paint().apply { color = axisColor.toArgb(); textAlign = Paint.Align.RIGHT; textSize = 12.sp.toPx(density); isAntiAlias = true }
+    }
+    val monthLabelPaint = remember(density, axisColor) {
+        Paint().apply { color = axisColor.toArgb(); textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true }
+    }
+
+    // --- Other State ---
+    val barRegions = remember(data) { mutableStateListOf<RectF>() }
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
-
-    val incomeLabelPaint = remember {
-        Paint().apply {
-            textAlign = Paint.Align.CENTER
-            textSize = 10.sp.toPx(density)
-            isAntiAlias = true
-        }
-    }
-
-    val expenseLabelPaint = remember(incomeLabelPaint) { incomeLabelPaint.apply {  } }
-    incomeLabelPaint.color = MaterialTheme.colorScheme.onPrimary.toArgb()
-    expenseLabelPaint.color = MaterialTheme.colorScheme.onError.toArgb()
-
-    val valueLabelPaint = remember(density) {
-        Paint().apply {
-            color = Color.White.toArgb()
-            textAlign = Paint.Align.CENTER
-            textSize = 10.sp.toPx(density)
-            isAntiAlias = true
-            // fakeBoldText = true // Optional: for better visibility
-        }
-    }
-
-    val axisLabelPaint = remember(density) {
-        Paint().apply {
-            color = axisColor.toArgb()
-            textAlign = Paint.Align.RIGHT
-            textSize = 12.sp.toPx(density)
-            isAntiAlias = true
-        }
-    }
-    val monthLabelPaint = remember(density) {
-        Paint().apply {
-            color = axisColor.toArgb()
-            textAlign = Paint.Align.CENTER
-            textSize = 10.sp.toPx(density)
-            isAntiAlias = true
-        }
-    }
 
     if (data.isEmpty()) return
 
@@ -761,25 +746,29 @@ fun IncomeExpenseGroupedBarChart(
             }
         }
 
-        Canvas(modifier = Modifier.fillMaxSize()
-            .pointerInput(data) {
-                detectTapGestures { tapOffset ->
-                    val tappedIndex = barRegions.indexOfFirst { region ->
-                        region.contains(tapOffset.x, tapOffset.y)
-                    }
-                    if (tappedIndex != -1) {
-                        selectedIndex = if (selectedIndex == tappedIndex) null else tappedIndex
-                        onBarGroupClick(selectedIndex?.let { data[it] })
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(data) {
+                    detectTapGestures { tapOffset ->
+                        val tappedIndex = barRegions.indexOfFirst { region -> region.contains(tapOffset.x, tapOffset.y) }
+                        if (tappedIndex != -1) {
+                            selectedIndex = if (selectedIndex == tappedIndex) null else tappedIndex
+                            onBarGroupClick(selectedIndex?.let { data[it] })
+                        }
                     }
                 }
-            }
         ) {
-            barRegions.clear()
+            // Initialize or clear the regions list to match the data size
+            if (barRegions.size != data.size) {
+                barRegions.clear()
+                repeat(data.size) { barRegions.add(RectF()) }
+            }
+
             val leftPadding = 56.dp.toPx()
             val bottomPadding = 30.dp.toPx()
-            val topPadding = 16.dp.toPx()
+            val topPadding = 24.dp.toPx()
             val rightPadding = 16.dp.toPx()
-
             val chartWidth = size.width - leftPadding - rightPadding
             val chartHeight = size.height - bottomPadding - topPadding
 
@@ -795,78 +784,53 @@ fun IncomeExpenseGroupedBarChart(
                     start = Offset(leftPadding - 4.dp.toPx(), yPos),
                     end = Offset(leftPadding + chartWidth, yPos)
                 )
-                drawContext.canvas.nativeCanvas.drawText(
-                    "%.0f".format(value),
-                    leftPadding - 8.dp.toPx(),
-                    yPos + axisLabelPaint.textSize / 3,
-                    axisLabelPaint
-                )
+                drawContext.canvas.nativeCanvas.drawText("%.0f".format(value), leftPadding - 8.dp.toPx(), yPos + axisLabelPaint.textSize / 3, axisLabelPaint)
             }
 
-            // Draw X and Y axis lines
-            drawLine(color = axisColor, start = Offset(leftPadding, topPadding), end = Offset(leftPadding, topPadding + chartHeight))
-            drawLine(color = axisColor, start = Offset(leftPadding, topPadding + chartHeight), end = Offset(leftPadding + chartWidth, topPadding + chartHeight))
-
-
-            // Draw Bars
+            // Draw Bars and Labels
             val groupWidth = chartWidth / data.size
-            val barPadding = groupWidth * 0.2f
-            val barWidth = ((groupWidth - barPadding) / 2).coerceAtLeast(1.dp.toPx())
-
             data.forEachIndexed { index, point ->
                 val groupLeft = leftPadding + (index * groupWidth)
-                barRegions.add(RectF(groupLeft, topPadding, groupLeft + groupWidth, topPadding + chartHeight))
-                val incomeBarHeight = if (absoluteMax > 0) (point.totalIncome / absoluteMax).toFloat() * chartHeight else 0f
-                drawRect(
-                    color = incomeColor,
-                    topLeft = Offset(groupLeft + (groupWidth * 0.1f), topPadding + chartHeight - incomeBarHeight),
-                    size = Size(groupWidth * 0.4f, incomeBarHeight)
-                )
-                val expenseBarHeight = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() * chartHeight else 0f
-                drawRect(
-                    color = expenseColor,
-                    topLeft = Offset(groupLeft + (groupWidth * 0.5f), topPadding + chartHeight - expenseBarHeight),
-                    size = Size(groupWidth * 0.4f, expenseBarHeight)
-                )
+                barRegions[index].set(groupLeft, topPadding, groupLeft + groupWidth, topPadding + chartHeight)
 
+                val barPairPadding = groupWidth * 0.2f
+                val barPairWidth = groupWidth - barPairPadding
+                val barWidth = barPairWidth / 2
+                val groupHorizontalPadding = (groupWidth - barPairWidth) / 2
+
+                // Income Bar
+                val incomeBarHeight = if (absoluteMax > 0) (point.totalIncome / absoluteMax).toFloat() * chartHeight else 0f
+                val incomeBarLeft = groupLeft + groupHorizontalPadding
                 drawRect(
                     color = incomeColor,
-                    topLeft = Offset(groupLeft, topPadding + chartHeight - incomeBarHeight),
+                    topLeft = Offset(incomeBarLeft, topPadding + chartHeight - incomeBarHeight),
                     size = Size(barWidth, incomeBarHeight)
                 )
-                if (point.totalIncome > 0 && incomeBarHeight > (valueLabelPaint.textSize + 2.dp.toPx(density))) {
-                    val incomeText = point.totalIncome.roundToInt().toString()
-                    drawContext.canvas.nativeCanvas.drawText(
-                        incomeText,
-                        groupLeft + barWidth / 2, // Center of the income bar
-                        topPadding + chartHeight - incomeBarHeight - 4.dp.toPx(density), // Above the income bar
-                        valueLabelPaint
-                    )
+
+                // Expense Bar
+                val expenseBarHeight = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() * chartHeight else 0f
+                val expenseBarLeft = incomeBarLeft + barWidth
+                drawRect(
+                    color = expenseColor,
+                    topLeft = Offset(expenseBarLeft, topPadding + chartHeight - expenseBarHeight),
+                    size = Size(barWidth, expenseBarHeight)
+                )
+
+                // Value labels drawing...
+                if (point.totalIncome > 0 && incomeBarHeight > (labelPaint.textSize + 4.dp.toPx())) {
+                    drawContext.canvas.nativeCanvas.drawText(point.totalIncome.roundToInt().toString(), incomeBarLeft + barWidth / 2, topPadding + chartHeight - incomeBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
                 }
-                if (point.totalExpense > 0 && expenseBarHeight > (valueLabelPaint.textSize + 2.dp.toPx(density))) {
-                    val expenseText = point.totalExpense.roundToInt().toString()
-                    drawContext.canvas.nativeCanvas.drawText(
-                        expenseText,
-                        groupLeft + barWidth + barWidth / 2, // Center of the expense bar
-                        topPadding + chartHeight - expenseBarHeight - 4.dp.toPx(density), // Above the expense bar
-                        valueLabelPaint
-                    )
+                if (point.totalExpense > 0 && expenseBarHeight > (labelPaint.textSize + 4.dp.toPx())) {
+                    drawContext.canvas.nativeCanvas.drawText(point.totalExpense.roundToInt().toString(), expenseBarLeft + barWidth / 2, topPadding + chartHeight - expenseBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
+                }
+
+                // Selection Highlight
+                if (index == selectedIndex) {
+                    drawRect(color = selectionHighlightColor, topLeft = Offset(groupLeft, topPadding), size = Size(groupWidth, chartHeight))
                 }
 
                 // Month Label
-                drawContext.canvas.nativeCanvas.drawText(
-                    point.yearMonth,
-                    groupLeft + barWidth,
-                    topPadding + chartHeight + bottomPadding - 8.dp.toPx(),
-                    monthLabelPaint
-                )
-                if (index == selectedIndex) {
-                    drawRect(
-                        color = selectionHighlightColor,
-                        topLeft = Offset(groupLeft, topPadding),
-                        size = Size(groupWidth, chartHeight)
-                    )
-                }
+                drawContext.canvas.nativeCanvas.drawText(point.yearMonth, groupLeft + groupWidth / 2, topPadding + chartHeight + bottomPadding - 8.dp.toPx(), monthLabelPaint)
             }
         }
     }

@@ -44,6 +44,14 @@ fun TransactionHistoryScreen(
 
     // State for our new Filter Bottom Sheet
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
+    val tabIcons = if (isUpiLiteEnabled) listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize) else listOf(Icons.Filled.AccountBalanceWallet)
+
+    val tabTitles = if (isUpiLiteEnabled) {
+        listOf("UPI", "UPI Lite")
+    } else {
+        listOf("UPI")
+    }
 
     // Collect all necessary state from ViewModel
     val filters by mainViewModel.filters.collectAsState()
@@ -72,9 +80,9 @@ fun TransactionHistoryScreen(
             )
 
             // Tabs and Pager for content
+        if (isUpiLiteEnabled) {
             SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
-                val tabTitles = listOf("UPI", "UPI Lite")
-                val tabIcons = listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize)
+                // ✨ FIX: The code that uses the 'tabTitles' variable ✨
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
                         selected = pagerState.currentPage == index,
@@ -85,14 +93,16 @@ fun TransactionHistoryScreen(
                 }
             }
             HorizontalDivider()
+        }
 
-            HorizontalPager(
+
+        HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
             ) { pageIndex ->
                 when (pageIndex) {
                     0 -> UpiTransactionsList(mainViewModel, onShowDetails = { showDetailSheet = true })
-                    1 -> UpiLiteSummariesList(mainViewModel)
+                    1 -> if (isUpiLiteEnabled) UpiLiteSummariesList(mainViewModel)
                 }
             }
         }

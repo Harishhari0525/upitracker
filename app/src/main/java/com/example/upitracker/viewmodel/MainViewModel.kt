@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
 import com.example.upitracker.data.AppDatabase
+import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.util.CsvExporter
@@ -17,8 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Job // Added for _deletePendingJob
-import kotlinx.coroutines.delay // Added for delay in deletion
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -29,6 +28,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow // Add this import
 import kotlinx.coroutines.flow.asSharedFlow
+import com.example.upitracker.data.RecurringRule
+import com.example.upitracker.data.CategorySuggestionRule
+import com.example.upitracker.data.RuleField
+import com.example.upitracker.data.RuleMatcher
+import com.example.upitracker.util.AppTheme
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -91,7 +95,7 @@ enum class AmountFilterType {
 
 data class BudgetStatus(
     val budgetId: Int,
-    val periodType: com.example.upitracker.data.BudgetPeriod,
+    val periodType: BudgetPeriod,
     val categoryName: String,
     val budgetAmount: Double,
     val spentAmount: Double,
@@ -140,6 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val upiLiteSummaryDao = db.upiLiteSummaryDao()
     private val budgetDao = db.budgetDao()
     private val categorySuggestionRuleDao = db.categorySuggestionRuleDao()
+    private val recurringRuleDao = db.recurringRuleDao()
 
     // --- Base Data Flows (Private) ---
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
@@ -152,6 +157,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
    private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
     val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> =
         _selectedUpiTransactionType.asStateFlow()
+
+    val isUpiLiteEnabled: StateFlow<Boolean> = ThemePreference.isUpiLiteEnabledFlow(application)
+        .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
@@ -180,9 +188,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiEvents = MutableSharedFlow<UiEvent>()
     val uiEvents = _uiEvents.asSharedFlow()
 
-    private var _transactionPendingDelete: Transaction? = null
-    private var _deletePendingJob: Job? = null
-
     // --- UI State Flows (Public) ---
     private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
     val snackbarEvents: SharedFlow<SnackbarMessage> = _snackbarEvents.asSharedFlow()
@@ -200,6 +205,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
+    val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
         if (id == null) {
@@ -209,8 +217,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val categorySuggestionRules: StateFlow<List<CategorySuggestionRule>> =
+        categorySuggestionRuleDao.getAllRules()
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
 
     private val _dateAndSearch = combine(
         _selectedDateRangeStart,
@@ -342,6 +353,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
+        .stateIn(viewModelScope, SharingStarted.Lazily, AppTheme.DEFAULT)
+
     val filters: StateFlow<TransactionFilters> = _filters
 
     val isOnboardingCompleted: StateFlow<Boolean> =
@@ -353,13 +367,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val incomeVsExpenseData: StateFlow<List<IncomeExpensePoint>> =
-        combine(_transactions, _selectedGraphPeriod) { transactions, period ->
+        combine(_transactions, _upiLiteSummaries, _selectedGraphPeriod) { transactions, summaries, period ->
             if (transactions.isEmpty()) {
                 return@combine emptyList()
             }
             val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
             val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
 
+            val summariesByMonth = summaries.groupBy { summary ->
+                yearMonthKeyFormat.format(Date(summary.date))
+            }
             // Group all transactions by month key ("yyyy-MM")
             val transactionsByMonth = transactions.groupBy { transaction ->
                 yearMonthKeyFormat.format(Date(transaction.date))
@@ -382,16 +399,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Get transactions for the current month key, or an empty list if none
                 val monthTransactions = transactionsByMonth[yearMonthKey] ?: emptyList()
+                val monthSummaries = summariesByMonth[yearMonthKey] ?: emptyList()
 
                 // Calculate totals for this month
                 val income = monthTransactions.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amount }
-                val expense = monthTransactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
+
+                val regularExpense = monthTransactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
+                val liteExpense = monthSummaries.sumOf { it.totalAmount }
+                val totalExpense = regularExpense + liteExpense
 
                 reportData.add(
                     IncomeExpensePoint(
                         yearMonth = displayLabel,
                         totalIncome = income,
-                        totalExpense = expense,
+                        totalExpense = totalExpense,
                         timestamp = monthStartTimestamp
                     )
                 )
@@ -413,9 +434,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // --- Rollover Calculation ---
                 val rolloverAmount = if (budget.allowRollover) {
                     val (prevPeriodStart, prevPeriodEnd) = when (budget.periodType) {
-                        com.example.upitracker.data.BudgetPeriod.WEEKLY -> getPreviousWeekRange()
-                        com.example.upitracker.data.BudgetPeriod.MONTHLY -> getPreviousMonthRange()
-                        com.example.upitracker.data.BudgetPeriod.YEARLY -> getPreviousYearRange()
+                        BudgetPeriod.WEEKLY -> getPreviousWeekRange()
+                        BudgetPeriod.MONTHLY -> getPreviousMonthRange()
+                        BudgetPeriod.YEARLY -> getPreviousYearRange()
                     }
                     val spentInPrevPeriod = debitTransactions
                         .filter { it.category.equals(budget.categoryName, true) && it.date in prevPeriodStart..prevPeriodEnd }
@@ -427,9 +448,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 // --- Current Period Calculation ---
                 val (currentPeriodStart, currentPeriodEnd) = when (budget.periodType) {
-                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-                    com.example.upitracker.data.BudgetPeriod.YEARLY -> getCurrentYearRange()
+                    BudgetPeriod.WEEKLY -> getCurrentWeekRange()
+                    BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
+                    BudgetPeriod.YEARLY -> getCurrentYearRange()
                 }
 
                 val spentInCurrentPeriod = debitTransactions
@@ -473,8 +494,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _upiLiteSummarySortOrder = MutableStateFlow(SortOrder.DESCENDING)
     val upiLiteSummarySortOrder: StateFlow<SortOrder> = _upiLiteSummarySortOrder.asStateFlow()
 
-    val selectedDateRangeStart: StateFlow<Long?> = _selectedDateRangeStart.asStateFlow()
-    val selectedDateRangeEnd:   StateFlow<Long?> = _selectedDateRangeEnd.asStateFlow()
     val setSearchQuery: (String) -> Unit = { _searchQuery.value = it }
 
     val filteredUpiTransactions: StateFlow<List<Transaction>> =
@@ -605,7 +624,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val currentMonthExpenseItems: StateFlow<List<HistoryListItem>> =
-        combine(_transactions, _upiLiteSummaries) { transactions, summaries ->
+        combine(_transactions, _upiLiteSummaries,  isUpiLiteEnabled) { transactions, summaries, upiLiteEnabled ->
             val (monthStart, monthEnd) = getCurrentMonthDateRange()
             val combinedItems = mutableListOf<HistoryListItem>()
 
@@ -617,14 +636,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             combinedItems.addAll(debitTransactions.map { TransactionHistoryItem(it) })
 
+            if (upiLiteEnabled) {
+                val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
+                combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
+            }
+
             // Filter and map UPI Lite summaries for the current month
             val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
+            val sortedList = combinedItems.sortedByDescending { it.displayDate }
             combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
 
             // Sort the combined list by date, most recent first
             combinedItems.sortedByDescending { it.displayDate }
+            sortedList.distinctBy { item ->
+                when (item) {
+                    is TransactionHistoryItem -> "txn-${item.transaction.id}"
+                    is SummaryHistoryItem -> "summary-${item.summary.id}"
+                }
+            }
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun setUpiLiteEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            ThemePreference.setUpiLiteEnabled(getApplication(), enabled)
+        }
+    }
 
     val currentMonthTotalExpenses: StateFlow<Double> = currentMonthExpenseItems
         .map { expenseItems ->
@@ -814,16 +851,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGraphPeriod.value = period
     }
 
+    fun addRecurringRule(
+        description: String,
+        amount: Double,
+        category: String,
+        period: BudgetPeriod,
+        dayOfPeriod: Int
+    ) {
+        if (description.isBlank() || amount <= 0 || category.isBlank()) {
+            postPlainSnackbarMessage("Invalid input. Please fill all fields.")
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // --- Calculate the first due date ---
+            val calendar = Calendar.getInstance()
+            val today = calendar.get(Calendar.DAY_OF_MONTH)
+
+            // For monthly rules
+            if (period == BudgetPeriod.MONTHLY) {
+                // If the day for this month has already passed, set it for next month
+                if (today >= dayOfPeriod) {
+                    calendar.add(Calendar.MONTH, 1)
+                }
+                calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod)
+            }
+            // TODO: Add logic for WEEKLY and YEARLY periods later
+
+            // Set time to a consistent point in the day, e.g., noon
+            calendar.set(Calendar.HOUR_OF_DAY, 12)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+
+            val nextDueDate = calendar.timeInMillis
+
+            val newRule = RecurringRule(
+                amount = amount,
+                description = description,
+                categoryName = category,
+                periodType = period,
+                dayOfPeriod = dayOfPeriod,
+                nextDueDate = nextDueDate
+            )
+            recurringRuleDao.insert(newRule)
+            postPlainSnackbarMessage("Recurring transaction for '$description' saved.")
+        }
+    }
+
+    fun deleteRecurringRule(rule: RecurringRule) {
+        viewModelScope.launch(Dispatchers.IO) {
+            recurringRuleDao.delete(rule)
+            postPlainSnackbarMessage("Recurring transaction deleted.")
+        }
+    }
+
     // In MainViewModel.kt, replace the addOrUpdateBudget function
 
-    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: com.example.upitracker.data.BudgetPeriod, allowRollover: Boolean) { // ✨ ADD allowRollover
+    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: BudgetPeriod, allowRollover: Boolean) { // ✨ ADD allowRollover
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
                 val (startDate, _) = when (periodType) {
-                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-                    com.example.upitracker.data.BudgetPeriod.YEARLY -> getCurrentYearRange()
+                    BudgetPeriod.WEEKLY -> getCurrentWeekRange()
+                    BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
+                    BudgetPeriod.YEARLY -> getCurrentYearRange()
                 }
 
                 val budget = com.example.upitracker.data.Budget(
@@ -888,6 +979,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showHistoryFilterSheet.value = true
     }
 
+    fun setAppTheme(theme: AppTheme) {
+        viewModelScope.launch {
+            ThemePreference.setAppTheme(getApplication(), theme)
+        }
+    }
+
     fun onFilterSheetDismiss() {
         _showHistoryFilterSheet.value = false
     }
@@ -900,21 +997,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val updatedTransaction = it.copy(category = newCategoryValue)
                 transactionDao.update(updatedTransaction)
 
-                // ✨ --- LEARNING LOGIC STARTS HERE --- ✨
+                // ✨ START: Updated Learning Logic ✨
                 if (!newCategoryValue.isNullOrBlank()) {
-                    // Heuristic: Use the sender/receiver as a keyword.
-                    // We clean it up by taking the first word and making it lowercase.
+                    // Use the sender/receiver as the keyword.
                     val keyword = it.senderOrReceiver.split(" ")[0].lowercase(Locale.getDefault())
 
                     if (keyword.isNotBlank()) {
-                        val newRule = com.example.upitracker.data.CategorySuggestionRule(
+                        // Create a rule with our new, more powerful structure
+                        val newRule = CategorySuggestionRule(
+                            fieldToMatch = RuleField.SENDER_OR_RECEIVER,
+                            matcher = RuleMatcher.CONTAINS,
                             keyword = keyword,
                             categoryName = newCategoryValue
                         )
-                        categorySuggestionRuleDao.insertOrUpdateRule(newRule)
+                        // Call the new 'insert' function in the DAO
+                        categorySuggestionRuleDao.insert(newRule)
                     }
                 }
-                // ✨ --- LEARNING LOGIC ENDS HERE --- ✨
+                // ✨ END: Updated Learning Logic ✨
 
                 if (newCategoryValue.equals("Refund", ignoreCase = true)) {
                     postPlainSnackbarMessage(
@@ -936,23 +1036,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             // Only try to categorize if it doesn't already have a category
             if (transaction.category.isNullOrBlank()) {
-                val keyword = transaction.senderOrReceiver.split(" ")[0].lowercase(Locale.getDefault())
-                val rule = categorySuggestionRuleDao.getRuleForKeyword(keyword)
+                val rules = categorySuggestionRules.first() // Get the current list of rules
+                var categorizedTransaction = transaction // Start with the original
 
-                if (rule != null) {
-                    // Rule found! Apply the category and insert.
-                    val categorizedTransaction = transaction.copy(category = rule.categoryName)
-                    transactionDao.insert(categorizedTransaction)
-                } else {
-                    // No rule found, insert the transaction as is.
-                    transactionDao.insert(transaction)
+                for (rule in rules) {
+                    val textToMatch = when (rule.fieldToMatch) {
+                        RuleField.DESCRIPTION -> transaction.description
+                        RuleField.SENDER_OR_RECEIVER -> transaction.senderOrReceiver
+                    }.lowercase()
+
+                    val keyword = rule.keyword.lowercase()
+
+                    val isMatch = when (rule.matcher) {
+                        RuleMatcher.CONTAINS -> textToMatch.contains(keyword)
+                        RuleMatcher.EQUALS -> textToMatch == keyword
+                        RuleMatcher.STARTS_WITH -> textToMatch.startsWith(keyword)
+                        RuleMatcher.ENDS_WITH -> textToMatch.endsWith(keyword)
+                    }
+
+                    if (isMatch) {
+                        // Rule matched! Apply the category and stop checking other rules.
+                        categorizedTransaction = transaction.copy(category = rule.categoryName)
+                        Log.d("AutoCategorize", "Rule matched: '${rule.keyword}' in ${rule.fieldToMatch}. Applying category '${rule.categoryName}'.")
+                        break
+                    }
                 }
+                // Insert the transaction, which is either the original or the newly categorized version
+                transactionDao.insert(categorizedTransaction)
+
             } else {
                 // Transaction already has a category, just insert it.
                 transactionDao.insert(transaction)
             }
         }
     }
+
+
+    // ✨ 4. ADD these functions at the bottom of your ViewModel for managing the rules ✨
+
+    fun addCategoryRule(
+        field: RuleField,
+        matcher: RuleMatcher,
+        keyword: String,
+        category: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (keyword.isNotBlank() && category.isNotBlank()) {
+                val newRule = CategorySuggestionRule(
+                    fieldToMatch = field,
+                    matcher = matcher,
+                    keyword = keyword,
+                    categoryName = category
+                )
+                categorySuggestionRuleDao.insert(newRule)
+                postPlainSnackbarMessage("New categorization rule saved.")
+            }
+        }
+    }
+
+    fun deleteCategoryRule(rule: CategorySuggestionRule) {
+        viewModelScope.launch(Dispatchers.IO) {
+            categorySuggestionRuleDao.delete(rule)
+            postPlainSnackbarMessage("Rule deleted.")
+        }
+    }
+
 
 
     fun addUpiLiteSummary(summary: UpiLiteSummary) {

@@ -14,10 +14,13 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Swipe
 import androidx.activity.compose.rememberLauncherForActivityResult // ✨
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -41,6 +44,11 @@ import java.util.Locale
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import com.example.upitracker.util.AppTheme
 
 private enum class PinChangeStep {
     NONE,
@@ -54,7 +62,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
-    onEditRegex: () -> Unit,
+    onNavigateToRules: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
     modifier: Modifier = Modifier,
     onBackupDatabase: () -> Unit, // ✨ ADD THIS
@@ -66,12 +74,16 @@ fun SettingsScreen(
     var isPinSet by remember { mutableStateOf(false) }
     var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) }
 
+    var showThemeDialog by remember { mutableStateOf(false) }
+    val currentTheme by mainViewModel.appTheme.collectAsState()
+
     val coroutineScope = rememberCoroutineScope()
     val isImportingSms by mainViewModel.isImportingSms.collectAsState()
     val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
     val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState() // ✨ Collect new state
     val isBackingUp by mainViewModel.isBackingUp.collectAsState() // ✨ ADD THIS
     val isRestoring by mainViewModel.isRestoring.collectAsState() // ✨ ADD THIS
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
 
@@ -94,9 +106,6 @@ fun SettingsScreen(
         }
     }
 
-    // ←――――――――— NO more Scaffold or inner TopAppBar! ―――――――――→
-
-    // Use only a LazyColumn (MainAppScreen’s TopAppBar is already visible)
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
@@ -118,21 +127,16 @@ fun SettingsScreen(
                 )
             }
         }
-        // item { // Removed Swipe Actions Setting
-        //     val swipeEnabled by mainViewModel.swipeActionsEnabled.collectAsState()
-        //     SettingItemRow(
-        //         icon = Icons.Filled.Swipe,
-        //         title = stringResource(R.string.settings_enable_swipe_actions),
-        //         summary = if (swipeEnabled) stringResource(R.string.settings_swipe_actions_enabled)
-        //         else stringResource(R.string.settings_swipe_actions_disabled),
-        //         onClick = { mainViewModel.toggleSwipeActions(!swipeEnabled) }
-        //     ) {
-        //         Switch(
-        //             checked = swipeEnabled,
-        //             onCheckedChange = { mainViewModel.toggleSwipeActions(it) }
-        //         )
-        //     }
-        // } // End of Removed Swipe Actions Setting
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Palette, // Example Icon
+                title = "App Theme",
+                summary = "Current: ${currentTheme.displayName}",
+                onClick = { showThemeDialog = true }
+            )
+        }
+
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
 
         // Security Section
@@ -161,9 +165,9 @@ fun SettingsScreen(
         item {
             SettingItemRow(
                 icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                title = stringResource(R.string.settings_edit_sms_regex),
-                summary = stringResource(R.string.settings_edit_sms_regex_summary),
-                onClick = onEditRegex
+                title = stringResource(R.string.settings_manage_rules_title),
+                summary = stringResource(R.string.settings_manage_rules_summary),
+                onClick = onNavigateToRules
             )
         }
 
@@ -325,7 +329,7 @@ fun SettingsScreen(
                 icon = Icons.AutoMirrored.Filled.HelpOutline,
                 title = stringResource(R.string.settings_about_app),
                 summary = stringResource(R.string.settings_app_version_summary, versionName),
-                onClick = { mainViewModel.postSnackbarMessage(context.getString(R.string.settings_about_app_coming_soon)) }
+                onClick = { showAboutDialog = true }
             )
         }
         item { Spacer(Modifier.height(16.dp)) }
@@ -408,6 +412,21 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+    if (showThemeDialog) {
+        ThemeChooserDialog(
+            currentTheme = currentTheme,
+            onDismiss = { showThemeDialog = false },
+            onThemeSelected = { theme ->
+                mainViewModel.setAppTheme(theme)
+                showThemeDialog = false
+            }
+        )
+    }
+    if (showAboutDialog) {
+        AboutDialog(
+            onDismiss = { showAboutDialog = false }
         )
     }
 }
@@ -498,6 +517,80 @@ fun DeleteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.dialog_button_cancel))
+            }
+        }
+    )
+}
+@Composable
+private fun ThemeChooserDialog(
+    currentTheme: AppTheme,
+    onDismiss: () -> Unit,
+    onThemeSelected: (AppTheme) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Choose a Theme") },
+        text = {
+            Column {
+                AppTheme.entries.forEach { theme ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onThemeSelected(theme) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = theme == currentTheme,
+                            onClick = { onThemeSelected(theme) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(theme.displayName)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    val aboutText = buildAnnotatedString {
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+            append("UPI Expense Tracker - Version 1.2\n\n")
+        }
+        append("Effortlessly manage your spending with UPI Expense Tracker, a powerful tool designed to give you a clear and complete picture of your finances.\n\n")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+            append("Core Features:\n")
+        }
+        append("• Automatic Tracking\n")
+        append("• Smart Categorization\n")
+        append("• Insightful Reports\n")
+        append("• Flexible Budgeting with Rollover\n")
+        append("• Recurring Payments\n")
+        append("• Data Backup, Restore & CSV Export\n")
+        append("• Personalization & Themes\n\n")
+        append("All data is stored privately and securely on your device.")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Info, contentDescription = "About App") },
+        title = { Text("About") },
+        text = {
+            // Make the text scrollable in case it's too long for the screen
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(text = aboutText)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
             }
         }
     )

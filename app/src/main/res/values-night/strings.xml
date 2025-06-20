@@ -59,7 +59,7 @@
     <string name="settings_section_about">About</string>
     <string name="settings_about_app">About UPI Tracker</string>
     <string name="settings_app_version_summary">Version %1$s</string> <string name="settings_about_app_coming_soon">About section coming soon!</string>
-    <string name="settings_app_version_placeholder">1.0.0-revamped</string> <string name="dialog_confirm_deletion_title">Confirm Deletion</string>
+    <string name="settings_app_version_placeholder">1.3</string> <string name="dialog_confirm_deletion_title">Confirm Deletion</string>
     <string name="dialog_confirm_deletion_message">Are you sure you want to permanently delete all transactions and UPI Lite summaries? This action cannot be undone.</string>
     <string name="dialog_button_delete_all">Delete All</string>
     <string name="dialog_button_cancel">Cancel</string>
@@ -181,7 +181,7 @@
     <string name="graph_category_pie_no_data">No categorized expenses found for the selected period, or no categories assigned yet.</string>
     <string name="graph_pie_chart_no_data">No categorized expenses to display for the selected period.</string>
     <string name="graph_legend_title">Categories</string>
-    <string name="transaction_archived_snackbar">Transaction \"%1$s…\" archived.</string>
+    <string name="transaction_archived_snackbar">Transaction \"%1$s…\" moved into Recycle Bin.</string>
     <string name="transaction_restored_snackbar">Transaction \"%1$s…\" restored.</string>
     <string name="swipe_action_delete">Delete</string>
     <string name="swipe_action_archive">Archive</string>
@@ -209,10 +209,10 @@
     <string name="regex_editor_test_result_invalid_regex">Invalid regex pattern.</string>
     <string name="regex_editor_test_result_group_template">\t\tGroup %1$d: %2$s</string>
     <string name="search_hint">Use values e.g., Recharge, Food</string>
-    <string name="settings_view_archived_transactions">Archived Transactions</string>
-    <string name="settings_view_archived_summary">View your archived Transactions</string>
+    <string name="settings_view_archived_transactions">Recycle Bin</string>
+    <string name="settings_view_archived_summary">View your Transactions in Recycle Bin</string>
     <string name="archived_transactions_title">Recycle Bin</string>
-    <string name="archived_empty_state">No Archived Transactions found</string>
+    <string name="archived_empty_state">No Deleted/Archived Transactions found</string>
     <string name="swipe_action_restore">Restore</string>
     <string name="bottom_nav_budget">Budgets</string>
     <string name="budget_empty_state">No budgets set yet. Tap the + button to add your first budget and track your spending!</string>
@@ -236,5 +236,7 @@
     <string name="refund_category_snackbar_message">"Refund" category set. This transaction will be excluded from expense totals.</string>
     <string name="income_expense">Income/Expense</string>
     <string name="dialog_restart_button_restart">Restart</string>
+    <string name="settings_manage_rules_title">Manage Rules</string>
+    <string name="settings_manage_rules_summary">For auto-categorization and advanced SMS parsing</string>
 
 </resources>

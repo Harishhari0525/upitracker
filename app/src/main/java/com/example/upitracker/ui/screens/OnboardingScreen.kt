@@ -1,6 +1,7 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
@@ -17,8 +18,11 @@ import com.example.upitracker.R
 @Composable
 fun OnboardingScreen(
     modifier: Modifier = Modifier,
-    onOnboardingComplete: () -> Unit // ✨ Changed parameter name for clarity ✨
+    onOnboardingComplete: (isUpiLiteEnabled: Boolean) -> Unit // ✨ Changed parameter name for clarity ✨
 ) {
+
+    var upiLiteChecked by remember { mutableStateOf(true) }
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -56,8 +60,27 @@ fun OnboardingScreen(
             )
             Spacer(Modifier.weight(1f))
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { upiLiteChecked = !upiLiteChecked }
+                    .padding(vertical = 8.dp, horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = upiLiteChecked,
+                    onCheckedChange = { upiLiteChecked = it }
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Track UPI Lite transactions?",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+
             Button(
-                onClick = onOnboardingComplete, // ✨ Call the passed lambda ✨
+                onClick = {onOnboardingComplete(upiLiteChecked)}, // ✨ Call the passed lambda ✨
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)

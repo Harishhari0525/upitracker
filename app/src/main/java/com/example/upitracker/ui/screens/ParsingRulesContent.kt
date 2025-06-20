@@ -4,15 +4,12 @@ package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,16 +21,13 @@ import com.example.upitracker.R
 import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
 @Composable
-fun RegexEditorScreen(
-    onBack: () -> Unit,
+fun ParsingRulesContent(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val regexListState = remember { mutableStateListOf<String>() }
     var newRegex by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
@@ -51,43 +45,18 @@ fun RegexEditorScreen(
         isLoading = false
     }
 
-    Scaffold(
-        modifier = modifier,
-        contentWindowInsets = WindowInsets(0),
-        topBar = {
-            TopAppBar(
-               // windowInsets = WindowInsets(0),
-                title = { Text(stringResource(R.string.regex_editor_top_bar_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back_button_description))
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                RegexPreference.setRegexPatterns(context, regexListState.toSet())
-                                mainViewModel.postPlainSnackbarMessage(context.getString(R.string.regex_editor_patterns_saved_message))
-                                onBack()
-                            }
-                        },
-                        enabled = !isLoading
-                    ) {
-                        Icon(Icons.Filled.Done, contentDescription = stringResource(R.string.regex_editor_save_patterns_desc))
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
+    Column(
             Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
             // --- Active Patterns Section ---
-            Text(stringResource(R.string.regex_editor_active_patterns_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            Text(stringResource(R.string.regex_editor_active_patterns_title), style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 16.dp))
+            Text("For advanced users. These are used to find transactions if the app's default parsers fail.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
@@ -101,21 +70,18 @@ fun RegexEditorScreen(
                     modifier = Modifier.padding(vertical = 20.dp)
                 )
             } else {
-                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                    itemsIndexed(regexListState, key = { _, item -> item }) { index, regexPattern ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    regexListState.forEach { regexPattern ->
                         ListItem(
                             headlineContent = { Text(regexPattern, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)) },
                             trailingContent = {
-                                IconButton(onClick = { regexListState.removeAt(index) }) {
+                                IconButton(onClick = { regexListState.remove(regexPattern) }) {
                                     Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.regex_editor_delete_pattern_desc), tint = MaterialTheme.colorScheme.error)
                                 }
                             },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
-                            modifier = Modifier.fillMaxWidth()
+                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
                         )
-                        if (index < regexListState.size - 1) {
-                            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-                        }
+                        HorizontalDivider()
                     }
                 }
             }
@@ -181,7 +147,7 @@ fun RegexEditorScreen(
                                 isTestMatchFound = false
                                 testResult = context.getString(R.string.regex_editor_test_result_no_match)
                             }
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             isTestMatchFound = false
                             testResult = context.getString(R.string.regex_editor_test_result_invalid_regex)
                         }
@@ -211,4 +177,3 @@ fun RegexEditorScreen(
             }
         }
     }
-}

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -14,9 +15,17 @@ import kotlinx.coroutines.flow.map
 // If this DataStore is only for theme, "theme_settings" might be more specific.
 val Context.settingsDataStore by preferencesDataStore(name = "app_settings") // Renamed for clarity if it holds more than just theme
 
+enum class AppTheme(val displayName: String) {
+    DEFAULT("Default"),
+    FOREST("Forest"),
+    OCEAN("Ocean"),
+    ROSE("Rose")
+}
+
 object ThemePreference {
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
-    // private val SWIPE_ACTIONS_KEY = booleanPreferencesKey("swipe_actions_enabled") // Removed
+    private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
+    private val APP_THEME_KEY = stringPreferencesKey("app_theme")
 
     /**
      * Retrieves the Flow for the dark mode preference.
@@ -33,11 +42,6 @@ object ThemePreference {
                 emit(false)
             }
 
-    // fun isSwipeActionsEnabledFlow(context: Context): Flow<Boolean> = // Removed
-    //     context.settingsDataStore.data.map { prefs: Preferences -> // Removed
-    //         prefs[SWIPE_ACTIONS_KEY] ?: true // Removed
-    //     }.catch { emit(true) } // Removed
-
     /**
      * Sets the dark mode preference.
      */
@@ -47,9 +51,28 @@ object ThemePreference {
         }
     }
 
-    // suspend fun setSwipeActionsEnabled(context: Context, enabled: Boolean) { // Removed
-    //     context.settingsDataStore.edit { prefs -> // Removed
-    //         prefs[SWIPE_ACTIONS_KEY] = enabled // Removed
-    //     } // Removed
-    // } // Removed
+    fun isUpiLiteEnabledFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            // Default to true, so existing users still see it.
+            prefs[UPI_LITE_ENABLED_KEY] ?: true
+        }
+
+    suspend fun setUpiLiteEnabled(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[UPI_LITE_ENABLED_KEY] = enabled
+        }
+    }
+
+    fun getAppThemeFlow(context: Context): Flow<AppTheme> =
+        context.settingsDataStore.data.map { prefs ->
+            // Default to AppTheme.DEFAULT if nothing is set
+            AppTheme.valueOf(prefs[APP_THEME_KEY] ?: AppTheme.DEFAULT.name)
+        }
+
+    suspend fun setAppTheme(context: Context, theme: AppTheme) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[APP_THEME_KEY] = theme.name
+        }
+    }
+
 }
