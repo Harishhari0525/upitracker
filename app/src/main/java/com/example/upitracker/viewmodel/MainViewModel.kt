@@ -27,6 +27,9 @@ import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableSharedFlow // Add this import
+import kotlinx.coroutines.flow.asSharedFlow
+
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
 data class MonthlyExpense(
@@ -174,6 +177,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _showUncategorized = MutableStateFlow(false)
 
+    private val _uiEvents = MutableSharedFlow<UiEvent>()
+    val uiEvents = _uiEvents.asSharedFlow()
+
+    private var _transactionPendingDelete: Transaction? = null
+    private var _deletePendingJob: Job? = null
+
+    // --- UI State Flows (Public) ---
+    private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
+    val snackbarEvents: SharedFlow<SnackbarMessage> = _snackbarEvents.asSharedFlow()
+
+    private val _isImportingSms = MutableStateFlow(false)
+    val isImportingSms: StateFlow<Boolean> = _isImportingSms.asStateFlow()
+
+    private val _isRefreshingSmsArchive = MutableStateFlow(false)
+
+    private val _showHistoryFilterSheet = MutableStateFlow(false)
+    val showHistoryFilterSheet: StateFlow<Boolean> = _showHistoryFilterSheet.asStateFlow()
+
+    val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
+
+    val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
         if (id == null) {
@@ -272,10 +298,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             _isBackingUp.value = true
             try {
-                // It's crucial to close the database to ensure all data is written to the file
-                // and the file is not locked by the current process.
-                db.close()
-
                 val sourceDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
 
                 contentResolver.openOutputStream(targetUri)?.use { outputStream ->
@@ -301,9 +323,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             _isRestoring.value = true
             try {
-                // Close the database before overwriting it.
-                db.close()
-
                 val targetDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
 
                 contentResolver.openInputStream(sourceUri)?.use { inputStream ->
@@ -312,8 +331,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } ?: throw IOException("Failed to open input stream for URI: $sourceUri")
 
-                // IMPORTANT: After a restore, the app must be restarted to load the new database.
-                postPlainSnackbarMessage("Restore successful! Please restart the app.")
+                _uiEvents.emit(UiEvent.RestartRequired("Restore successful! The app must now restart to apply changes."))
 
             } catch (e: Exception) {
                 Log.e("BackupRestore", "Error during database restore", e)
@@ -323,32 +341,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-
-
-    // private var _lastArchivedTransaction: Transaction? = null // Removed
-    // private var _lastArchivedTransactionOriginalCategory: String? = null // Removed
-
-    // --- State for Undo Delete ---
-    private var _transactionPendingDelete: Transaction? = null
-    private var _deletePendingJob: Job? = null
-
-    // --- UI State Flows (Public) ---
-    private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
-    val snackbarEvents: SharedFlow<SnackbarMessage> = _snackbarEvents.asSharedFlow()
-
-    private val _isImportingSms = MutableStateFlow(false)
-    val isImportingSms: StateFlow<Boolean> = _isImportingSms.asStateFlow()
-
-    private val _isRefreshingSmsArchive = MutableStateFlow(false)
-
-    val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
-
-    val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Lazily, false)
-
-    // val swipeActionsEnabled: StateFlow<Boolean> = // Removed
-    //     ThemePreference.isSwipeActionsEnabledFlow(application) // Removed
-    //         .stateIn(viewModelScope, SharingStarted.Lazily, true) // Removed
 
     val filters: StateFlow<TransactionFilters> = _filters
 
@@ -892,13 +884,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onFilterClick() {
+        _showHistoryFilterSheet.value = true
+    }
+
+    fun onFilterSheetDismiss() {
+        _showHistoryFilterSheet.value = false
+    }
+
     fun updateTransactionCategory(transactionId: Int, category: String?) {
         viewModelScope.launch {
-            // Removed block that checked _lastArchivedTransaction
-            // if (_lastArchivedTransaction?.id == transactionId) {
-            //     _lastArchivedTransaction = null
-            //     _lastArchivedTransactionOriginalCategory = null
-            // }
             val transactionToUpdate = _transactions.value.find { it.id == transactionId }
             transactionToUpdate?.let {
                 val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
@@ -937,9 +932,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // In MainViewModel.kt, add this new function
-
-    fun processAndInsertTransaction(transaction: com.example.upitracker.data.Transaction) {
+    fun processAndInsertTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
             // Only try to categorize if it doesn't already have a category
             if (transaction.category.isNullOrBlank()) {
@@ -981,12 +974,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // fun toggleSwipeActions(enabled: Boolean) { // Removed
-    //     viewModelScope.launch { // Removed
-    //         ThemePreference.setSwipeActionsEnabled(getApplication(), enabled) // Removed
-    //     } // Removed
-    // } // Removed
-
     fun insertTransaction(transaction: Transaction) { // This is a general insert
         viewModelScope.launch {
             transactionDao.insert(transaction) // Default OnConflictStrategy.REPLACE will handle if ID exists
@@ -995,43 +982,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            // If a different transaction is already pending deletion, delete it immediately.
-            _transactionPendingDelete?.let { pendingTx ->
-                if (pendingTx.id != transaction.id) {
-                    _deletePendingJob?.cancel() // Cancel its specific job
-                    withContext(Dispatchers.IO) {
-                        transactionDao.delete(pendingTx)
-                    }
-                }
-            }
-            // Cancel any existing job, whether it's for the same transaction or a new one.
-            _deletePendingJob?.cancel()
+            // Create a copy of the transaction and set the deletion timestamp.
+            val transactionToMark = transaction.copy(
+                pendingDeletionTimestamp = System.currentTimeMillis()
+            )
+            // This update hides the item from the UI because of our updated DAO query.
+            transactionDao.update(transactionToMark)
 
-            _transactionPendingDelete = transaction.copy()
-
+            // Show a snackbar with a reliable "Undo" action.
             _snackbarEvents.emit(
                 SnackbarMessage(
-                    message = "Transaction deleted", // Using hardcoded string as per plan
-                    actionLabel = "Undo", // Using hardcoded string
+                    message = "Transaction moved to trash", // TODO: Use string resource
+                    actionLabel = "Undo", // TODO: Use string resource
                     onAction = {
-                        _deletePendingJob?.cancel()
-                        _transactionPendingDelete = null
-                        postPlainSnackbarMessage("Deletion undone") // Using hardcoded string
-                    },
-                    onDismiss = null // Handled by the job's delay
+                        // The UNDO action simply sets the timestamp back to null, making it visible again.
+                        viewModelScope.launch {
+                            transactionDao.update(transaction.copy(pendingDeletionTimestamp = null))
+                            postPlainSnackbarMessage("Transaction restored") // TODO: Use string resource
+                        }
+                    }
                 )
             )
-
-            _deletePendingJob = viewModelScope.launch {
-                delay(5000L) // 5-second delay for undo
-                _transactionPendingDelete?.let { pendingTxToDelete ->
-                    withContext(Dispatchers.IO) {
-                        transactionDao.delete(pendingTxToDelete)
-                    }
-                    _transactionPendingDelete = null
-                    // Optional: postPlainSnackbarMessage("Transaction permanently deleted")
-                }
-            }
         }
     }
 
@@ -1165,34 +1136,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // fun undoLastArchiveAction() { // Removed
-    //     viewModelScope.launch { // Removed
-    //         _lastArchivedTransaction?.let { // Removed
-    //             val restoredTransaction = it.copy( // Removed
-    //                 isArchived = false, // Removed
-    //                 category = _lastArchivedTransactionOriginalCategory // Removed
-    //             ) // Removed
-    //             transactionDao.update(restoredTransaction) // Removed
-    //             postPlainSnackbarMessage("Archive undone for \"${it.description.take(20)}...\"") // TODO: String resource // Removed
-    //             _lastArchivedTransaction = null // Removed
-    //             _lastArchivedTransactionOriginalCategory = null // Removed
-    //         } // Removed
-    //     } // Removed
-    // } // Removed
-
     fun postPlainSnackbarMessage(message: String) {
         viewModelScope.launch {
             _snackbarEvents.emit(SnackbarMessage(message = message))
         }
     }
 
-    // In MainViewModel.kt, add these new helper functions
-
     private fun getCurrentWeekRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.firstDayOfWeek = Calendar.MONDAY
         calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
         val weekStart = calendar.timeInMillis
         calendar.add(Calendar.WEEK_OF_YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
@@ -1203,12 +1157,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun getCurrentYearRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_YEAR, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
         val yearStart = calendar.timeInMillis
         calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
         val yearEnd = calendar.timeInMillis
         return yearStart to yearEnd
+    }
+
+    sealed class UiEvent {
+        data class RestartRequired(val message: String) : UiEvent()
     }
 
     // Initialize base flows collection

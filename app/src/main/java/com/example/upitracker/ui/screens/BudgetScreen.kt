@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -92,7 +91,7 @@ private fun BudgetCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
     var showMenu by remember { mutableStateOf(false) }
     val progressColor = if (status.progress >= 1.0f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val rolloverColor = if (status.rolloverAmount >= 0) Color(0xFF006D3D) else MaterialTheme.colorScheme.error
@@ -154,43 +153,63 @@ private fun BudgetCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // Add this if it's not at the file level
 @Composable
 private fun AddEditBudgetDialog(
     budgetStatus: BudgetStatus?,
     onDismiss: () -> Unit,
-    onConfirm: (category: String, amount: Double, period: BudgetPeriod, allowRollover: Boolean) -> Unit // ✨ UPDATED
+    onConfirm: (category: String, amount: Double, period: BudgetPeriod, allowRollover: Boolean) -> Unit
 ) {
     var category by remember { mutableStateOf(budgetStatus?.categoryName ?: "") }
     var amount by remember { mutableStateOf(budgetStatus?.budgetAmount?.toString() ?: "") }
     var selectedPeriod by remember { mutableStateOf(budgetStatus?.periodType ?: BudgetPeriod.MONTHLY) }
-    var allowRollover by remember { mutableStateOf(budgetStatus?.allowRollover == true) } // ✨ NEW
+    var allowRollover by remember { mutableStateOf(budgetStatus?.allowRollover == true) }
     var isCategoryError by remember { mutableStateOf(false) }
     var isAmountError by remember { mutableStateOf(false) }
     val isEditing = budgetStatus != null
+
+    // ✨ State to control if the dropdown menu is expanded ✨
+    var isPeriodDropdownExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (!isEditing) stringResource(R.string.budget_add_title) else stringResource(R.string.budget_edit_title)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (!isEditing) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BudgetPeriod.entries.forEach { period ->
-                            FilterChip(
-                                selected = selectedPeriod == period,
-                                onClick = { selectedPeriod = period },
-                                label = { Text(period.name.lowercase().replaceFirstChar { it.titlecase() }) },
-                                leadingIcon = if (selectedPeriod == period) { { Icon(Icons.Default.Check, null) } } else null
-                            )
+                    // ✨ START: This is the new Dropdown Menu section ✨
+                    ExposedDropdownMenuBox(
+                        expanded = isPeriodDropdownExpanded,
+                        onExpandedChange = { isPeriodDropdownExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                            readOnly = true,
+                            value = selectedPeriod.name.replaceFirstChar { it.titlecase() },
+                            onValueChange = {},
+                            label = { Text("Budget Period") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPeriodDropdownExpanded) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = isPeriodDropdownExpanded,
+                            onDismissRequest = { isPeriodDropdownExpanded = false },
+                        ) {
+                            BudgetPeriod.entries.forEach { period ->
+                                DropdownMenuItem(
+                                    text = { Text(period.name.replaceFirstChar { it.titlecase() }) },
+                                    onClick = {
+                                        selectedPeriod = period
+                                        isPeriodDropdownExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
+                    // ✨ END: New Dropdown Menu section ✨
                 }
                 OutlinedTextField(value = category, onValueChange = { category = it; isCategoryError = false }, label = { Text(stringResource(R.string.budget_category_label)) }, singleLine = true, isError = isCategoryError)
-                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(value = amount, onValueChange = { amount = it; isAmountError = false }, label = { Text(stringResource(R.string.budget_amount_label)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = isAmountError, prefix = { Text("₹") })
-                Spacer(Modifier.height(16.dp))
-                // ✨ NEW: Switch for enabling rollover
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Enable Rollover", modifier = Modifier.weight(1f))
                     Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
@@ -204,7 +223,7 @@ private fun AddEditBudgetDialog(
                     isCategoryError = category.isBlank()
                     isAmountError = amountDouble == null || amountDouble <= 0
                     if (!isCategoryError && !isAmountError) {
-                        onConfirm(category, amountDouble!!, selectedPeriod, allowRollover) // ✨ UPDATED
+                        onConfirm(category, amountDouble!!, selectedPeriod, allowRollover)
                     }
                 }
             ) { Text(stringResource(R.string.button_save)) }

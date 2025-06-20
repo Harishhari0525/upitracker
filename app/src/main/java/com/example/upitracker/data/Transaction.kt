@@ -13,5 +13,6 @@ data class Transaction(
     val senderOrReceiver: String,
     val note: String = "",
     val category: String? = null, // ✨ New nullable field for category ✨
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    val pendingDeletionTimestamp: Long? = null
 )

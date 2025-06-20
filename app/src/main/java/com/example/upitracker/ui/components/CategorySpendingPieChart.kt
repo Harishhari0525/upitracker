@@ -1,32 +1,33 @@
-package com.example.upitracker.ui.components // Or your appropriate package if in GraphsScreen.kt
+package com.example.upitracker.ui.components
 
 import android.graphics.Paint
 import android.graphics.Rect
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures // For tap detection
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable // For legend interaction
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInput // For tap detection
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,22 +36,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import com.example.upitracker.R
 import com.example.upitracker.viewmodel.CategoryExpense
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
-import java.util.Locale
-import kotlin.math.atan2
+import java.util.*
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
-import androidx.compose.foundation.lazy.items
+import androidx.core.graphics.get
 
-// Helper extension functions (if not already globally available)
 fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 
-
-// Predefined list of colors for pie chart slices
 val pieChartColorsDefaults = listOf(
     Color(0xFFF44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
     Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
@@ -67,15 +66,23 @@ fun CategorySpendingPieChart(
     initiallySelectedCategoryName: String? = null
 ) {
     var selectedSliceIndex by remember { mutableStateOf<Int?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+
+    var hitTestBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    val idToCategoryMap = remember(categoryExpenses) {
+        categoryExpenses.mapIndexed { index, expense -> (index + 1) to expense }.toMap()
+    }
+    val canvasDrawScope = remember { CanvasDrawScope() }
+    val layoutDirection = LocalLayoutDirection.current
 
     LaunchedEffect(initiallySelectedCategoryName, categoryExpenses) {
         selectedSliceIndex = initiallySelectedCategoryName?.let { name ->
-            categoryExpenses.indexOfFirst { it.categoryName == name }
-                .takeIf { it != -1 }
+            categoryExpenses.indexOfFirst { it.categoryName == name }.takeIf { it != -1 }
         }
     }
 
-    if (categoryExpenses.isEmpty()) {
+    if (categoryExpenses.isEmpty() || categoryExpenses.all { it.totalAmount == 0.0 }) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.graph_pie_chart_no_data), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -83,156 +90,159 @@ fun CategorySpendingPieChart(
     }
 
     val totalAmount = remember(categoryExpenses) { categoryExpenses.sumOf { it.totalAmount } }
-    if (totalAmount == 0.0) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.graph_pie_chart_no_data), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
+    val sweepAnimations = remember(categoryExpenses) { categoryExpenses.map { Animatable(0f) } }
 
-    val density = LocalDensity.current
-    val labelTextSizePx = 9.sp.toPx(density)
-    val themedOnPrimaryColorArgb = MaterialTheme.colorScheme.onPrimary.toArgb()
-    val textPaintOnSlice = remember(themedOnPrimaryColorArgb, labelTextSizePx) {
-        Paint().apply { color = themedOnPrimaryColorArgb; textAlign = Paint.Align.CENTER; textSize = labelTextSizePx; isAntiAlias = true }
-    }
-
-    // ✨ Resolve themed outline color outside Canvas ✨
-    val themedOutlineColor = MaterialTheme.colorScheme.outline
-
-    // Store calculated slice angles for tap detection
-    val sliceInfos = remember(categoryExpenses, totalAmount) {
-        var currentStartAngle = -90f
-        categoryExpenses.map { expense ->
-            val proportion = if (totalAmount > 0) (expense.totalAmount / totalAmount).toFloat() else 0f
-            val sweepAngle = (360f * proportion).coerceAtLeast(0.1f)
-            val info = Triple(currentStartAngle, sweepAngle, expense)
-            currentStartAngle += sweepAngle
-            info
-        }
-    }
-
-    val sweepAnimations = remember(sliceInfos) { sliceInfos.map { Animatable(0f) } }
-    LaunchedEffect(sliceInfos) {
+    LaunchedEffect(categoryExpenses) {
         sweepAnimations.forEachIndexed { index, anim ->
+            val sweepAngle = (360f * (categoryExpenses.getOrNull(index)?.totalAmount ?: 0.0) / totalAmount).toFloat()
             anim.snapTo(0f)
-            anim.animateTo(sliceInfos[index].second, animationSpec = tween(durationMillis = 600))
+            anim.animateTo(sweepAngle, animationSpec = tween(durationMillis = 600))
         }
     }
 
     Canvas(
         modifier = modifier
-            .pointerInput(sliceInfos) {
+            .pointerInput(idToCategoryMap) {
                 detectTapGestures { tapOffset ->
-                    val canvasWidth = size.width.toFloat()
-                    val canvasHeight = size.height.toFloat()
-                    val center = Offset(canvasWidth / 2, canvasHeight / 2)
-                    val diameter = min(canvasWidth, canvasHeight) * 0.8f
-                    val radius = diameter / 2f
-
-                    val dx = tapOffset.x - center.x
-                    val dy = tapOffset.y - center.y
-                    val distanceSquared = dx * dx + dy * dy
-
-                    if (distanceSquared <= radius * radius) {
-                        var tapAngleDegrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                        if (tapAngleDegrees < 0) tapAngleDegrees += 360f
-
-                        var tappedSliceFoundIndex: Int? = null
-                        var currentAngleOffset = -90f // Align with drawArc starting logic
-                        for ((index, info) in sliceInfos.withIndex()) {
-                            val sliceStartDraw = info.first
-                            val sliceSweep = info.second
-
-                            // Normalize tap angle to be 0 at top, positive clockwise
-                            var normalizedTapAngleForHitTest = tapAngleDegrees
-                            if (normalizedTapAngleForHitTest < -90f) normalizedTapAngleForHitTest += 360f // Adjust if necessary based on atan2 range and drawing start
-
-                            // This hit detection is complex. A simpler way is often to iterate using the angles used for drawing.
-                            // Our drawing starts at -90 (North) and sweeps clockwise.
-                            // Convert tapAngleDegrees (0 East, CCW) to this system:
-                            var tapAngleRelativeToNorthCw = (90 - tapAngleDegrees + 360)%360
-
-                            var currentSliceStartAngle = (sliceStartDraw + 360F) % 360F
-                            var currentSliceEndAngle = (sliceStartDraw + sliceSweep + 360F) % 360F
-
-                            var inSlice = false
-                            if (currentSliceStartAngle <= currentSliceEndAngle) { // Does not cross 0/360 line from North
-                                if (tapAngleRelativeToNorthCw >= currentSliceStartAngle && tapAngleRelativeToNorthCw < currentSliceEndAngle) {
-                                    inSlice = true
-                                }
-                            } else { // Crosses 0/360 line (e.g. starts at 350, ends at 10)
-                                if (tapAngleRelativeToNorthCw >= currentSliceStartAngle || tapAngleRelativeToNorthCw < currentSliceEndAngle) {
-                                    inSlice = true
-                                }
-                            }
-
-                            if(inSlice){
-                                tappedSliceFoundIndex = index
-                                break
-                            }
+                    coroutineScope.launch {
+                        val currentSize = this@pointerInput.size
+                        if (hitTestBitmap == null || hitTestBitmap!!.width != currentSize.width || hitTestBitmap!!.height != currentSize.height) {
+                            hitTestBitmap = ImageBitmap(currentSize.width, currentSize.height)
                         }
 
-                        selectedSliceIndex = if (tappedSliceFoundIndex != null) {
-                            if (selectedSliceIndex == tappedSliceFoundIndex) null else tappedSliceFoundIndex
-                        } else { null }
-                        onSliceClick(selectedSliceIndex?.let { categoryExpenses[it] })
+                        hitTestBitmap?.let { bmp ->
+                            val hitTestCanvas = androidx.compose.ui.graphics.Canvas(bmp)
 
-                    } else {
-                        selectedSliceIndex = null; onSliceClick(null)
+                            // ✨ FIX: Correctly call draw() with proper types ✨
+                            canvasDrawScope.draw(density, layoutDirection, hitTestCanvas, currentSize.toSize()) {
+                                drawPie(
+                                    density = density, // Pass density down
+                                    expenses = categoryExpenses,
+                                    totalAmount = totalAmount,
+                                    forHitTest = true,
+                                    selectedIndex = selectedSliceIndex,
+                                    sweepAnimations = sweepAnimations.map { it.value },
+                                    idToCategoryMap = idToCategoryMap,
+                                )
+                            }
+
+                            val x = tapOffset.x.toInt().coerceIn(0, bmp.width - 1)
+                            val y = tapOffset.y.toInt().coerceIn(0, bmp.height - 1)
+                            val pixelColor = bmp.asAndroidBitmap()[x, y]
+
+                            val tappedId = android.graphics.Color.red(pixelColor)
+                            val tappedExpense = idToCategoryMap[tappedId]
+                            val tappedIndex = tappedExpense?.let { categoryExpenses.indexOf(it) }
+
+                            selectedSliceIndex = if (tappedIndex != null && selectedSliceIndex == tappedIndex) {
+                                null
+                            } else {
+                                tappedIndex
+                            }
+                            onSliceClick(selectedSliceIndex?.let { categoryExpenses[it] })
+                        }
                     }
                 }
             }
     ) {
-        val canvasWidth = size.width
-        val canvasHeight = size.height
-        val outerDiameter = min(canvasWidth, canvasHeight) * 0.8f
-        val outerRadius = outerDiameter / 2f
-        val center = Offset(canvasWidth / 2, canvasHeight / 2)
-        val explosionOffset = if (outerRadius > 0) outerRadius * 0.07f else 0f
-
-        sliceInfos.forEachIndexed { index, (startAngle, sweepAngle, expense) ->
-            val sliceColor = sliceColors[index % sliceColors.size]
-            val currentCenter = if (index == selectedSliceIndex) {
-                val midAngleRad = Math.toRadians(startAngle + sweepAngle / 2.0)
-                Offset(
-                    center.x + (explosionOffset * cos(midAngleRad)).toFloat(),
-                    center.y + (explosionOffset * sin(midAngleRad)).toFloat()
-                )
-            } else { center }
-
-            drawArc(
-                color = sliceColor, startAngle = startAngle, sweepAngle = sweepAnimations[index].value - 0.5f,
-                useCenter = true, topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
-                size = Size(outerDiameter, outerDiameter), style = Fill
-            )
-
-            if (index == selectedSliceIndex) {
-                drawArc(
-                    color = themedOutlineColor, // ✨ Use pre-resolved themed color ✨
-                    startAngle = startAngle, sweepAngle = sweepAnimations[index].value - 0.5f, useCenter = true,
-                    topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
-                    size = Size(outerDiameter, outerDiameter),
-                    style = Stroke(width = 2.dp.toPx()) // density is available via DrawScope, or pass it
-                )
-            }
-
-            if (sweepAnimations[index].value > 10) { // Draw labels on slices
-                val angleMiddleRad = Math.toRadians(startAngle + sweepAnimations[index].value / 2.0)
-                val labelRadius = outerRadius * 0.65f
-                val xPos = currentCenter.x + (labelRadius * cos(angleMiddleRad)).toFloat()
-                val yPos = currentCenter.y + (labelRadius * sin(angleMiddleRad)).toFloat()
-                val textBounds = Rect()
-                val percentage = if (totalAmount > 0) (expense.totalAmount / totalAmount * 100).toInt() else 0
-                val label = "$percentage%"
-                textPaintOnSlice.getTextBounds(label, 0, label.length, textBounds)
-                drawContext.canvas.nativeCanvas.drawText(label, xPos, yPos + textBounds.height() / 2f, textPaintOnSlice)
-            }
-        }
+        // This is the visible chart
+        drawPie(
+            density = density, // Pass density down
+            expenses = categoryExpenses,
+            totalAmount = totalAmount,
+            forHitTest = false,
+            selectedIndex = selectedSliceIndex,
+            sweepAnimations = sweepAnimations.map { it.value },
+            sliceColors = sliceColors
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun DrawScope.drawPie(
+    density: Density, // ✨ Accept density as a parameter
+    expenses: List<CategoryExpense>,
+    totalAmount: Double,
+    forHitTest: Boolean,
+    selectedIndex: Int?,
+    sweepAnimations: List<Float>,
+    sliceColors: List<Color> = pieChartColorsDefaults,
+    idToCategoryMap: Map<Int, CategoryExpense> = emptyMap()
+) {
+    val outerDiameter = min(size.width, size.height) * 0.8f
+    val outerRadius = outerDiameter / 2f
+    val explosionOffset = if (outerRadius > 0) outerRadius * 0.07f else 0f
+    var startAngle = -90f
+
+    val themedOutlineColor = Color.Black
+
+    // ✨ FIX: Do not use `remember` inside a non-composable function ✨
+    val labelTextPaint = Paint().apply {
+        color = android.graphics.Color.WHITE
+        textAlign = Paint.Align.CENTER
+        textSize = with(density) { 12.sp.toPx() } // Use density to convert sp to px
+        isAntiAlias = true
+    }
+
+    expenses.forEachIndexed { index, expense ->
+        val sweepAngle = sweepAnimations.getOrElse(index) { 0f }
+        val isSelected = index == selectedIndex
+
+        val currentCenter = if (isSelected) {
+            val midAngleRad = Math.toRadians(startAngle + sweepAngle / 2.0)
+            Offset(
+                center.x + (cos(midAngleRad) * explosionOffset).toFloat(),
+                center.y + (sin(midAngleRad) * explosionOffset).toFloat()
+            )
+        } else {
+            center
+        }
+
+        val color = if (forHitTest) {
+            val id = idToCategoryMap.entries.find { it.value == expense }?.key ?: 0
+            Color(red = id, green = 0, blue = 0)
+        } else {
+            sliceColors[index % sliceColors.size]
+        }
+
+        drawArc(
+            color = color,
+            startAngle = startAngle,
+            sweepAngle = sweepAngle - 0.5f,
+            useCenter = true,
+            topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
+            size = Size(outerDiameter, outerDiameter),
+            style = Fill
+        )
+
+        if (isSelected && !forHitTest) {
+            drawArc(
+                color = themedOutlineColor,
+                startAngle = startAngle,
+                sweepAngle = sweepAngle - 0.5f,
+                useCenter = true,
+                topLeft = Offset(currentCenter.x - outerRadius, currentCenter.y - outerRadius),
+                size = Size(outerDiameter, outerDiameter),
+                style = Stroke(width = with(density) { 2.dp.toPx() })
+            )
+        }
+
+        if (sweepAngle > 10 && !forHitTest) {
+            val angleMiddleRad = Math.toRadians(startAngle + sweepAngle / 2.0)
+            val labelRadius = outerRadius * 0.65f
+            val xPos = currentCenter.x + (cos(angleMiddleRad) * labelRadius).toFloat()
+            val yPos = currentCenter.y + (sin(angleMiddleRad) * labelRadius).toFloat()
+            val percentage = (expense.totalAmount / totalAmount * 100).toInt()
+            val textBounds = Rect()
+            val label = "$percentage%"
+            labelTextPaint.getTextBounds(label, 0, label.length, textBounds)
+            drawContext.canvas.nativeCanvas.drawText(label, xPos, yPos + textBounds.height() / 2f, labelTextPaint)
+        }
+        startAngle += sweepAngle
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryLegend(
     modifier: Modifier = Modifier,
@@ -247,25 +257,42 @@ fun CategoryLegend(
 
     Column(modifier = modifier) {
         Text(stringResource(R.string.graph_legend_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-        val itemsToShow = categoryExpenses.take(6) // Limit legend items
+        val itemsToShow = categoryExpenses.take(6)
         itemsToShow.forEachIndexed { index, expense ->
             val color = sliceColors[index % sliceColors.size]
             val percentage = if (totalAmount > 0) (expense.totalAmount / totalAmount * 100) else 0.0
-            val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+            val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
             val isSelected = expense.categoryName == selectedCategoryName
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { onLegendItemClick(expense.categoryName) }.padding(vertical = 4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onLegendItemClick(expense.categoryName) }
+                    .padding(vertical = 4.dp)
                     .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
             ) {
                 Box(modifier = Modifier.size(14.dp).background(color))
                 Spacer(Modifier.width(8.dp))
-                Text(text = expense.categoryName, style = MaterialTheme.typography.bodyMedium, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                Text(
+                    text = expense.categoryName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.weight(1f)
+                )
                 Spacer(Modifier.width(8.dp))
-                Text(text = currencyFormat.format(expense.totalAmount), style = MaterialTheme.typography.bodyMedium, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = currencyFormatter.format(expense.totalAmount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.width(8.dp))
-                Text(text = "(${percentage.toInt()}%)", style = MaterialTheme.typography.bodySmall, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = "(${percentage.toInt()}%)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         if (categoryExpenses.size > itemsToShow.size) {
@@ -274,10 +301,7 @@ fun CategoryLegend(
                 modifier = Modifier.padding(start = 16.dp)
             ) {
                 Text(
-                    stringResource(
-                        R.string.graph_legend_and_more,
-                        categoryExpenses.size - itemsToShow.size
-                    ),
+                    stringResource(R.string.graph_legend_and_more, categoryExpenses.size - itemsToShow.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 22.dp)
@@ -298,7 +322,7 @@ private fun FullCategoryLegendDialog(
     allCategoryExpenses: List<CategoryExpense>,
     onDismiss: () -> Unit
 ) {
-    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -306,16 +330,12 @@ private fun FullCategoryLegendDialog(
         text = {
             LazyColumn {
                 items(allCategoryExpenses) { expense ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Text(
-                            text = expense.categoryName,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = currencyFormat.format(expense.totalAmount),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)) {
+                        Text(text = expense.categoryName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(text = currencyFormat.format(expense.totalAmount), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -326,10 +346,4 @@ private fun FullCategoryLegendDialog(
             }
         }
     )
-}
-
-// Helper to format currency for legend (can be moved to a common util)
-private fun Double.toCurrencyString(): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-    return format.format(this)
 }

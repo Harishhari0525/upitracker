@@ -3,6 +3,8 @@
     <string name="app_name">UPI Expense Tracker</string>
 
     <string name="settings_title">Settings</string>
+    <string name="dialog_restart_required_title">Restart Required</string>
+    <string name="dialog_restart_button_exit">Exit App</string>
     <string name="settings_back_button_description">Back</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_dark_mode">Dark Mode</string>
@@ -166,15 +168,15 @@
     <string name="category_textfield_placeholder">E.g., Food, Travel, Bills</string>
     <string name="button_save">Save</string>
     <string name="category_edit_icon_desc">Edit Category</string>
-    <string name="graph_tab_daily_trend">Daily Trend</string>
-    <string name="graph_tab_monthly_summary">Monthly Summary</string>
+    <string name="graph_tab_daily_trend">Daily</string>
+    <string name="graph_tab_monthly_summary">Monthly</string>
     <string name="settings_export_csv_in_progress">Exporting in progress…</string>
     <string name="csv_export_cancelled">CSV export cancelled.</string>
     <string name="csv_export_no_transactions">No transactions to export.</string>
     <string name="csv_export_success">Transactions exported successfully to CSV.</string>
     <string name="csv_export_error">Error exporting CSV: %1$s</string>
     <string name="csv_export_error_unexpected">An unexpected error occurred during CSV export.</string>
-    <string name="graph_tab_category_pie">By Category</string>
+    <string name="graph_tab_category_pie">Category</string>
     <string name="graph_category_pie_title">Spending by Category</string>
     <string name="graph_category_pie_no_data">No categorized expenses found for the selected period, or no categories assigned yet.</string>
     <string name="graph_pie_chart_no_data">No categorized expenses to display for the selected period.</string>
@@ -233,5 +235,6 @@
     <string name="button_restore">Restore</string>
     <string name="refund_category_snackbar_message">"Refund" category set. This transaction will be excluded from expense totals.</string>
     <string name="income_expense">Income/Expense</string>
+    <string name="dialog_restart_button_restart">Restart</string>
 
 </resources>

@@ -2,279 +2,135 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
-import com.example.upitracker.data.Transaction
-import com.example.upitracker.data.UpiLiteSummary
-import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
-import com.example.upitracker.ui.components.EditCategoryDialog
-import com.example.upitracker.ui.components.TransactionActionsDialog // Import the new dialog
-import com.example.upitracker.ui.components.TransactionCard
+import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
-import com.example.upitracker.viewmodel.MainViewModel
-import com.example.upitracker.viewmodel.SortOrder
-import com.example.upitracker.viewmodel.SortableTransactionField
-import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
-import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.input.KeyboardType
-import com.example.upitracker.viewmodel.AmountFilterType
+import com.example.upitracker.viewmodel.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TransactionHistoryScreen(
     mainViewModel: MainViewModel,
-  //  onTransactionClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tabTitles = listOf(
-        stringResource(R.string.tab_upi),
-        stringResource(R.string.tab_upi_lite)
-    )
-    val tabIcons = listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize)
-    val haptic = LocalHapticFeedback.current
-    val pagerState = rememberPagerState { tabTitles.size }
+    // State for the main view (tabs, detail sheet)
+    val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
-
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
+    val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDetailSheet by remember { mutableStateOf(false) }
+    val showFilterSheet by mainViewModel.showHistoryFilterSheet.collectAsState()
 
-    // Collect Filter States from ViewModel
-    val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
-    val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
-    val filteredUpiLiteSummaries: List<UpiLiteSummary> by mainViewModel.filteredUpiLiteSummaries.collectAsState()
-    val selectedStartDate by mainViewModel.selectedDateRangeStart.collectAsState(initial = null)
-    val selectedEndDate by mainViewModel.selectedDateRangeEnd.collectAsState(initial = null)
-    val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
-    val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
-    // val swipeActionsEnabled by mainViewModel.swipeActionsEnabled.collectAsState() // Not needed anymore
-    val searchQuery by mainViewModel.searchQuery.collectAsState()
+    // State for our new Filter Bottom Sheet
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Collect all necessary state from ViewModel
     val filters by mainViewModel.filters.collectAsState()
-    val userCategories by mainViewModel.userCategories.collectAsState()
 
-    // --- DatePickerDialog States (managed within this screen) ---
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
-    val datePickerStateStart = rememberDatePickerState(initialSelectedDateMillis = selectedStartDate)
-    val datePickerStateEnd = rememberDatePickerState(initialSelectedDateMillis = selectedEndDate)
-
-    LaunchedEffect(selectedStartDate) { datePickerStateStart.selectedDateMillis = selectedStartDate }
-    LaunchedEffect(selectedEndDate) { datePickerStateEnd.selectedDateMillis = selectedEndDate }
-
-    // ✨ --- State and Lambda for Category Edit Dialog - DEFINED HERE AT THE SCREEN LEVEL --- ✨
-    var transactionToEditCategory by remember { mutableStateOf<Transaction?>(null) }
-    var showCategoryEditDialog by remember { mutableStateOf(false) }
-
-    // ✨ Collect Sort States from ViewModel ✨
-    val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
-    val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
-
-    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-
-    // State for the new TransactionActionsDialog
-    var showTransactionActionsDialog by remember { mutableStateOf(false) }
-    var transactionForDialog by remember { mutableStateOf<Transaction?>(null) }
-
-    val openDeleteConfirmDialog = { transaction: Transaction ->
-        transactionToDelete = transaction
-        showDeleteConfirmDialog = true
-    }
-
-    val openTransactionActionsDialog = { transaction: Transaction ->
-        transactionForDialog = transaction
-        showTransactionActionsDialog = true
-    }
-
-    val openCategoryEditDialog = { transaction: Transaction ->
-        transactionToEditCategory = transaction
-        showCategoryEditDialog = true
-    }
-
-    // ✨ --- End of Category Edit Dialog State and Lambda --- ✨
-
-    Column(modifier = modifier.fillMaxSize()) {
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { mainViewModel.setSearchQuery(it) },
-            label = { Text(stringResource(R.string.search_hint)) },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        )
-
-        DateFilterControls(
-            selectedStartDate = selectedStartDate,
-            selectedEndDate = selectedEndDate,
-            onStartDateClick = { showStartDatePicker = true },
-            onEndDateClick = { showEndDatePicker = true },
-            onClearDates = { mainViewModel.clearDateRangeFilter() }
-        )
-
-        AdvancedFilterControls(
-            filters = filters,
-            onToggleUncategorized = { mainViewModel.toggleUncategorizedFilter(it) },
-            onSetAmountFilter = { type, val1, val2 -> mainViewModel.setAmountFilter(type, val1, val2) }
-        )
-
-        HorizontalDivider()
-
-        SecondaryTabRow(
-            selectedTabIndex = pagerState.currentPage,
-            // The new indicator pattern is much cleaner
-            indicator = {
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
-                )
-            }
+    Column(
+            modifier = modifier
+                .fillMaxSize()
         ) {
-            tabTitles.forEachIndexed { index, title ->
-                Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(title, style = MaterialTheme.typography.labelLarge) },
-                    icon = { Icon(tabIcons[index], contentDescription = title) },
-                    selectedContentColor = MaterialTheme.colorScheme.primary,
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // Search bar remains at the top
+            OutlinedTextField(
+                value = filters.searchQuery,
+                onValueChange = { mainViewModel.setSearchQuery(it) },
+                label = { Text(stringResource(R.string.search_hint)) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            // A new row to display currently active filters
+            ActiveFiltersRow(
+                filters = filters,
+                onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
+                onClearAmountFilter = { mainViewModel.setAmountFilter(AmountFilterType.ALL, null, null) },
+                onClearUncategorizedFilter = { mainViewModel.toggleUncategorizedFilter(false) }
+            )
+
+            // Tabs and Pager for content
+            SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
+                val tabTitles = listOf("UPI", "UPI Lite")
+                val tabIcons = listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize)
+                tabTitles.forEachIndexed { index, title ->
+                    Tab(
+                        selected = pagerState.currentPage == index,
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                        text = { Text(title) },
+                        icon = { Icon(tabIcons[index], contentDescription = title) }
+                    )
+                }
+            }
+            HorizontalDivider()
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { pageIndex ->
+                when (pageIndex) {
+                    0 -> UpiTransactionsList(mainViewModel, onShowDetails = { showDetailSheet = true })
+                    1 -> UpiLiteSummariesList(mainViewModel)
+                }
             }
         }
-        HorizontalDivider()
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) { pageIndex ->
-            when (pageIndex) {
-                0 -> { // UPI Transactions Tab
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            UpiTransactionTypeFilter.entries.forEach { filterType ->
-                                FilterChip(
-                                    selected = selectedUpiFilterType == filterType,
-                                    onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                                    label = {
-                                        Text(filterType.name.replace("_", " ")
-                                            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() })
-                                    },
-                                    leadingIcon = if (selectedUpiFilterType == filterType) {
-                                        { Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.filter_chip_selected_desc)) }
-                                    } else null
-                                )
-                            }
-                        }
-                        SortControls(
-                            currentSortField = upiSortField,
-                            currentSortOrder = upiSortOrder,
-                            onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
-                        )
-
-                        if (filteredUpiTransactions.isEmpty()) {
-                            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
-                                    TransactionCard(
-                                        modifier = Modifier.animateItem(
-                                            fadeInSpec = tween(durationMillis = 300),
-                                            fadeOutSpec = tween(durationMillis = 300)
-                                        ),
-                                        transaction = transaction,
-                                        onClick = {
-                                            mainViewModel.selectTransaction(transaction.id)
-                                            showDetailSheet = true
-                                        },
-                                        onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            openTransactionActionsDialog(transaction)
-                                        }
-                                        // onArchiveSwipeAction and onDeleteSwipeAction removed
-                                        // swipeActionsEnabled removed
-                                    )
-                                }
-                            }
+    // The BottomSheet for Filters
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { mainViewModel.onFilterSheetDismiss() },
+            sheetState = filterSheetState,
+        ) {
+            FilterSheetContent(
+                mainViewModel = mainViewModel,
+                filters = filters,
+                onCloseSheet = {
+                    coroutineScope.launch { filterSheetState.hide() }.invokeOnCompletion {
+                        if (!filterSheetState.isVisible) {
+                            mainViewModel.onFilterSheetDismiss()
                         }
                     }
                 }
-                1 -> { // UPI Lite Summaries Tab
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        // ✨ Sorting Controls for UPI Lite Summaries ✨
-                        UpiLiteSummarySortControls(
-                            currentSortField = upiLiteSortField,
-                            currentSortOrder = upiLiteSortOrder,
-                            onSortFieldSelected = { field -> mainViewModel.setUpiLiteSummarySort(field) }
-                        )
-
-                        if (filteredUpiLiteSummaries.isEmpty()) {
-                            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(all = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
-                                    UpiLiteSummaryCard(summary = summary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            )
         }
     }
+
+    // The BottomSheet for Transaction Details (remains unchanged)
     if (showDetailSheet) {
         ModalBottomSheet(
             onDismissRequest = {
                 showDetailSheet = false
                 mainViewModel.selectTransaction(null)
             },
-            sheetState = sheetState
+            sheetState = detailSheetState
         ) {
             TransactionDetailSheetContent(
                 mainViewModel = mainViewModel,
                 onDismiss = {
-                    scope.launch { sheetState.hide() }.invokeOnCompletion {
-                        if (!sheetState.isVisible) {
+                    coroutineScope.launch { detailSheetState.hide() }.invokeOnCompletion {
+                        if (!detailSheetState.isVisible) {
                             showDetailSheet = false
                             mainViewModel.selectTransaction(null)
                         }
@@ -283,118 +139,250 @@ fun TransactionHistoryScreen(
             )
         }
     }
+}
 
-    // --- Category Edit Dialog Invocation - Placed within the scope of TransactionHistoryScreen ---
-    if (showCategoryEditDialog && transactionToEditCategory != null) {
-        EditCategoryDialog(
-            transaction = transactionToEditCategory!!,
-            suggestionCategories = userCategories,
-            onDismiss = {
-                showCategoryEditDialog = false
-                transactionToEditCategory = null
-            },
-            onSaveCategory = { transactionId, newCategory ->
-                mainViewModel.updateTransactionCategory(transactionId, newCategory)
-                showCategoryEditDialog = false
-                transactionToEditCategory = null
-            }
-        )
-    }
+@Composable
+private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () -> Unit) {
+    val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
+    val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
+    val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
+    val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
 
-    // Show the new TransactionActionsDialog
-    if (showTransactionActionsDialog && transactionForDialog != null) {
-        TransactionActionsDialog(
-            transaction = transactionForDialog!!,
-            onDismissRequest = {
-                showTransactionActionsDialog = false
-                transactionForDialog = null
-            },
-            onArchiveClick = {
-                mainViewModel.toggleTransactionArchiveStatus(transactionForDialog!!, archive = true)
-                // ViewModel should handle Snackbar message
-                showTransactionActionsDialog = false
-                transactionForDialog = null
-            },
-            onDeleteClick = {
-                openDeleteConfirmDialog(transactionForDialog!!)
-                showTransactionActionsDialog = false
-                transactionForDialog = null
-            }
-        )
-    }
-
-    if (showDeleteConfirmDialog && transactionToDelete != null) {
-        val context = LocalContext.current // Get context for Snackbar message
-        DeleteTransactionConfirmationDialog(
-            transactionDescription = transactionToDelete!!.description, // Pass some identifying info
-            onConfirm = {
-                mainViewModel.deleteTransaction(transactionToDelete!!)
-                // The archive toggle on delete was potentially problematic,
-                // as deleting should ideally just delete.
-                // If it's meant to ensure it's archived *before* deletion for some logic,
-                // that should be handled carefully or re-evaluated.
-                // For now, removing the toggle on delete from here as it's usually a separate action.
-                // mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
-                mainViewModel.postSnackbarMessage(context.getString(R.string.transaction_deleted_snackbar)) // ✨ Use new string
-                showDeleteConfirmDialog = false
-                transactionToDelete = null
-            },
-            onDismiss = {
-                showDeleteConfirmDialog = false
-                transactionToDelete = null
-            }
-        )
-    }
-
-    // --- DatePicker Dialogs ---
-    if (showStartDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showStartDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    showStartDatePicker = false
-                    datePickerStateStart.selectedDateMillis?.let {
-                        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                        cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
-                        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                        mainViewModel.setDateRangeFilter(cal.timeInMillis, selectedEndDate)
-                    }
-                }) { Text(stringResource(R.string.dialog_button_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showStartDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DatePicker(state = datePickerStateStart)
+            UpiTransactionTypeFilter.entries.forEach { filterType ->
+                FilterChip(
+                    selected = selectedUpiFilterType == filterType,
+                    onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
+                    label = { Text(filterType.name.replace("_", " ").replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
+                    leadingIcon = if (selectedUpiFilterType == filterType) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null
+                )
+            }
         }
-    }
+        SortControls(
+            currentSortField = upiSortField,
+            currentSortOrder = upiSortOrder,
+            onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
+        )
 
-    if (showEndDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showEndDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    showEndDatePicker = false
-                    datePickerStateEnd.selectedDateMillis?.let {
-                        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                        cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
-                        cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
-                        mainViewModel.setDateRangeFilter(selectedStartDate, cal.timeInMillis)
-                    }
-                }) { Text(stringResource(R.string.dialog_button_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEndDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
+        if (filteredUpiTransactions.isEmpty()) {
+            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
+                    TransactionCardWithMenu(
+                        modifier = Modifier.animateItem(tween(300)),
+                        transaction = transaction,
+                        onClick = {
+                            mainViewModel.selectTransaction(it.id)
+                            onShowDetails()
+                        },
+                        onArchive = {
+                            mainViewModel.toggleTransactionArchiveStatus(it, archive = true)
+                        },
+                        onDelete = {
+                            mainViewModel.deleteTransaction(it)
+                        }
+                    )
+                }
             }
-        ) {
-            DatePicker(state = datePickerStateEnd)
         }
     }
 }
 
-// --- Helper Composable for TransactionHistoryScreen ---
+@Composable
+private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
+    val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
+    val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
+    val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        UpiLiteSummarySortControls(
+            currentSortField = upiLiteSortField,
+            currentSortOrder = upiLiteSortOrder,
+            onSortFieldSelected = { field -> mainViewModel.setUpiLiteSummarySort(field) }
+        )
+
+        if (filteredUpiLiteSummaries.isEmpty()) {
+            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(all = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
+                    UpiLiteSummaryCard(summary = summary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSheetContent(
+    mainViewModel: MainViewModel,
+    filters: TransactionFilters,
+    onCloseSheet: () -> Unit
+) {
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    val datePickerStateStart = rememberDatePickerState(initialSelectedDateMillis = filters.startDate)
+    val datePickerStateEnd = rememberDatePickerState(initialSelectedDateMillis = filters.endDate)
+
+    Column(
+        modifier = Modifier.padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Filters", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onCloseSheet) {
+                Icon(Icons.Default.Close, contentDescription = "Close Filters")
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        DateFilterControls(
+            selectedStartDate = filters.startDate,
+            selectedEndDate = filters.endDate,
+            onStartDateClick = { showStartDatePicker = true },
+            onEndDateClick = { showEndDatePicker = true },
+            onClearDates = { mainViewModel.clearDateRangeFilter() }
+        )
+        AdvancedFilterControls(
+            filters = filters,
+            onToggleUncategorized = { mainViewModel.toggleUncategorizedFilter(it) },
+            onSetAmountFilter = { type, val1, val2 -> mainViewModel.setAmountFilter(type, val1, val2) }
+        )
+        Spacer(modifier = Modifier.navigationBarsPadding())
+
+        if (showStartDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showStartDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showStartDatePicker = false
+                        datePickerStateStart.selectedDateMillis?.let {
+                            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                            cal.timeInMillis = it
+                            cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+                            cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                            mainViewModel.setDateRangeFilter(cal.timeInMillis, filters.endDate)
+                        }
+                    }) { Text(stringResource(R.string.dialog_button_ok)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showStartDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
+                }
+            ) { DatePicker(state = datePickerStateStart) }
+        }
+
+        if (showEndDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showEndDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showEndDatePicker = false
+                        datePickerStateEnd.selectedDateMillis?.let {
+                            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                            cal.timeInMillis = it
+                            cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                            cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                            mainViewModel.setDateRangeFilter(filters.startDate, cal.timeInMillis)
+                        }
+                    }) { Text(stringResource(R.string.dialog_button_ok)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEndDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
+                }
+            ) { DatePicker(state = datePickerStateEnd) }
+        }
+    }
+}
+
+@Composable
+private fun ActiveFiltersRow(
+    filters: TransactionFilters,
+    onClearDateFilter: () -> Unit,
+    onClearAmountFilter: () -> Unit,
+    onClearUncategorizedFilter: () -> Unit
+) {
+    val showRow = filters.startDate != null || filters.amountType != AmountFilterType.ALL || filters.showUncategorized
+    if (showRow) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (filters.startDate != null) {
+                val formatter = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+                val start = formatter.format(Date(filters.startDate))
+                val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
+                FilterChip(
+                    selected = false,
+                    onClick = {},
+                    label = { Text("$start - $end") },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Cancel,
+                            contentDescription = "Clear date filter",
+                            modifier = Modifier
+                                .size(FilterChipDefaults.IconSize)
+                                .clickable(onClick = onClearDateFilter)
+                        )
+                    }
+                )
+            }
+            if (filters.amountType != AmountFilterType.ALL) {
+                FilterChip(
+                    selected = false,
+                    onClick = {},
+                    label = { Text("Amount") },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Cancel,
+                            contentDescription = "Clear amount filter",
+                            modifier = Modifier
+                                .size(FilterChipDefaults.IconSize)
+                                .clickable(onClick = onClearAmountFilter)
+                        )
+                    }
+                )
+            }
+            if (filters.showUncategorized) {
+                FilterChip(
+                    selected = false,
+                    onClick = {},
+                    label = { Text("Uncategorized") },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Cancel,
+                            contentDescription = "Clear uncategorized filter",
+                            modifier = Modifier
+                                .size(FilterChipDefaults.IconSize)
+                                .clickable(onClick = onClearUncategorizedFilter)
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun DateFilterControls(
@@ -563,7 +551,7 @@ fun UpiLiteSummarySortControls(
 
 @Composable
 fun AdvancedFilterControls(
-    filters: com.example.upitracker.viewmodel.TransactionFilters, // Pass the data object directly
+    filters: TransactionFilters, // Pass the data object directly
     onToggleUncategorized: (Boolean) -> Unit, // Pass the specific lambda
     onSetAmountFilter: (AmountFilterType, Double?, Double?) -> Unit // Pass the specific lambda
 ) {

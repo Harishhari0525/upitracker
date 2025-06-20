@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +71,16 @@ fun MainAppScreen(
                         text = currentScreen?.labelResId?.let { stringResource(it) }
                             ?: stringResource(R.string.app_name)
                     )
+                },
+                actions = {
+                    if (currentRoute == BottomNavItem.History.route) {
+                        IconButton(onClick = { mainViewModel.onFilterClick() }) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Show Filters"
+                            )
+                        }
+                    }
                 }
             )
         },
@@ -120,13 +131,12 @@ fun MainAppScreen(
             }
         },
         floatingActionButton = {
-            // Only show the FAB if we are on the Home screen
             if (currentRoute == BottomNavItem.Home.route) {
-                ExtendedFloatingActionButton(
-                    onClick = { showAddTransactionDialog = true },
-                    icon = { Icon(Icons.Filled.Add, "Add new transaction") },
-                    text = { Text(text = "Txn") }
-                )
+                FloatingActionButton(
+                    onClick = { showAddTransactionDialog = true }
+                ) {
+                    Icon(Icons.Filled.Add, "Add new transaction")
+                }
             }
         }
     ) { innerPadding ->

@@ -8,7 +8,7 @@ interface TransactionDao {
     /**
      * Gets all non-archived transactions, ordered by date descending.
      */
-    @Query("SELECT * FROM transactions WHERE isArchived = 0 ORDER BY date DESC") // ✨ Filter for non-archived
+    @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<Transaction>>
 
     /**
@@ -45,5 +45,8 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     fun getTransactionById(id: Int): Flow<Transaction?>
+
+    @Query("DELETE FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp")
+    suspend fun permanentlyDeletePending(cutoffTimestamp: Long)
 
 }

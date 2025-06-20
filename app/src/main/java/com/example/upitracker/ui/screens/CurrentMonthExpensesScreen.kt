@@ -19,9 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
-import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.SummaryHistoryItem
@@ -37,6 +34,7 @@ import com.example.upitracker.viewmodel.TransactionHistoryItem
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+import com.example.upitracker.ui.components.TransactionCardWithMenu
 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -48,11 +46,10 @@ fun CurrentMonthExpensesScreen(
     onViewAllClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
     val isImporting by mainViewModel.isImportingSms.collectAsState()
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
     val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
     val context = LocalContext.current
 
     // --- NEW: State Management for Bottom Sheet ---
@@ -167,7 +164,8 @@ fun CurrentMonthExpensesScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         items(currentMonthExpenseItems.take(25), key = { item ->
                             when (item) {
@@ -177,16 +175,19 @@ fun CurrentMonthExpensesScreen(
                         }) { historyItem ->
                             when (historyItem) {
                                 is TransactionHistoryItem -> {
-                                    TransactionCard(
+                                    TransactionCardWithMenu(
                                         modifier = Modifier.animateItem(),
                                         transaction = historyItem.transaction,
                                         onClick = {
-                                            mainViewModel.selectTransaction(historyItem.transaction.id)
+                                            mainViewModel.selectTransaction(it.id)
                                             showDetailSheet = true
                                         },
-                                        onLongClick = {
+                                        onArchive = {
+                                            mainViewModel.toggleTransactionArchiveStatus(it, archive = true)
+                                        },
+                                        onDelete = {
+                                            // Your existing logic to show a confirmation dialog
                                             transactionToDelete = it
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             showDeleteConfirmDialog = true
                                         }
                                     )

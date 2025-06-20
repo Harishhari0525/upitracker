@@ -6,6 +6,7 @@ package com.example.upitracker.ui.screens
 import android.graphics.Paint
 import androidx.compose.animation.ExperimentalAnimationApi
 import android.graphics.Rect
+import android.graphics.RectF
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -62,6 +64,7 @@ import com.example.upitracker.viewmodel.MonthlyExpense
 import com.example.upitracker.viewmodel.GraphPeriod
 import com.example.upitracker.viewmodel.DailyExpensePoint
 import com.example.upitracker.viewmodel.CategoryExpense
+import com.example.upitracker.viewmodel.IncomeExpensePoint
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
@@ -83,7 +86,7 @@ fun GraphsScreen(
 ) {
     val lastNMonthsExpenses by mainViewModel.lastNMonthsExpenses.collectAsState()
     val dailyTrendExpenses by mainViewModel.dailyExpensesTrend.collectAsState()
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
     val selectedGraphPeriod by mainViewModel.selectedGraphPeriod.collectAsState()
 
     val graphTabTitles = listOf(
@@ -104,13 +107,14 @@ fun GraphsScreen(
     Column(
         modifier = modifier.fillMaxSize().animateContentSize()
     ) {
-        PrimaryTabRow(
+        SecondaryScrollableTabRow(
             selectedTabIndex = pagerState.currentPage,
             indicator = {
                 TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
                 )
-            }
+            },
+            edgePadding = 16.dp
         ) {
             graphTabTitles.forEachIndexed { index, title ->
                 Tab(
@@ -176,6 +180,7 @@ private fun PageContent(
     var selectedDailyPointData by remember { mutableStateOf<DailyExpensePoint?>(null) }
     var selectedPieSliceData by remember { mutableStateOf<CategoryExpense?>(null) }
     var currentlySelectedCategoryNameForPie by remember { mutableStateOf<String?>(null) }
+    var selectedIncomeExpensePoint by remember { mutableStateOf<IncomeExpensePoint?>(null) }
 
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -226,10 +231,14 @@ private fun PageContent(
             }
             1 -> { // Monthly Expenses Bar Chart Page
                 Text(
-                    if (lastNMonthsExpenses.isNotEmpty()) stringResource(R.string.graph_monthly_expenses_subtitle, lastNMonthsExpenses.size)
-                    else stringResource(R.string.graph_monthly_expenses_subtitle_empty),
-                    style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp).align(Alignment.CenterHorizontally)
+                    // All logic is now cleanly assigned to the 'text' parameter
+                    text = "Monthly Debit Totals (Last ${selectedGraphPeriod.months} Months)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .padding(bottom = 16.dp)
+                        .align(Alignment.CenterHorizontally)
                 )
                 SingleChoiceSegmentedButtonRow(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -243,7 +252,7 @@ private fun PageContent(
                                 selectedBarData = null // Clear selection when period changes
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = GraphPeriod.entries.size),
-                            label = { Text(period.displayName) }
+                            label = { Text(period.displayName, fontWeight = FontWeight.Normal) }
                         )
                     }
                 }
@@ -340,14 +349,43 @@ private fun PageContent(
                     }
                 }
             }
-            3 -> { // ✨ ADD THIS ENTIRE NEW CASE
+            3 -> { // ✨ This is the updated section for the Income vs. Expense chart
                 val incomeExpenseData by mainViewModel.incomeVsExpenseData.collectAsState()
 
                 Text(
-                    "Income vs. Expense", // TODO: Add to strings.xml
+                    "Income vs. Expense",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 16.dp).align(Alignment.CenterHorizontally)
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp).align(Alignment.CenterHorizontally)
                 )
+
+                // ✨ 2. ADD AnimatedContent to display the selected month's details ✨
+                AnimatedContent(
+                    targetState = selectedIncomeExpensePoint,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(220, delayMillis = 90)))
+                            .togetherWith(fadeOut(animationSpec = tween(90)))
+                    },
+                    label = "selected_income_expense_transition",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 40.dp)
+                ) { targetData ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        if (targetData != null) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = targetData.yearMonth,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Income: ${currencyFormatter.format(targetData.totalIncome)} | Expense: ${currencyFormatter.format(targetData.totalExpense)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (incomeExpenseData.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
@@ -355,9 +393,11 @@ private fun PageContent(
                     }
                 } else {
                     ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize()) {
+                        // ✨ 3. PASS the selection lambda to the chart ✨
                         IncomeExpenseGroupedBarChart(
                             data = incomeExpenseData,
-                            modifier = Modifier.fillMaxSize().padding(8.dp)
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            onBarGroupClick = { selectedIncomeExpensePoint = it }
                         )
                     }
                 }
@@ -647,14 +687,30 @@ fun calculateNiceMax(actualMax: Double): Double {
 
 @Composable
 fun IncomeExpenseGroupedBarChart(
-    data: List<com.example.upitracker.viewmodel.IncomeExpensePoint>,
+    data: List<IncomeExpensePoint>,
+    onBarGroupClick: (IncomeExpensePoint?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val incomeColor = MaterialTheme.colorScheme.primary
+    val incomeColor = Color(0xFF1B5E20)
     val expenseColor = MaterialTheme.colorScheme.error
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val selectionHighlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
 
     val density = LocalDensity.current
+    val barRegions = remember { mutableStateListOf<RectF>() }
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+
+    val incomeLabelPaint = remember {
+        Paint().apply {
+            textAlign = Paint.Align.CENTER
+            textSize = 10.sp.toPx(density)
+            isAntiAlias = true
+        }
+    }
+
+    val expenseLabelPaint = remember(incomeLabelPaint) { incomeLabelPaint.apply {  } }
+    incomeLabelPaint.color = MaterialTheme.colorScheme.onPrimary.toArgb()
+    expenseLabelPaint.color = MaterialTheme.colorScheme.onError.toArgb()
 
     val valueLabelPaint = remember(density) {
         Paint().apply {
@@ -685,9 +741,7 @@ fun IncomeExpenseGroupedBarChart(
 
     if (data.isEmpty()) return
 
-    val maxIncome = data.maxOfOrNull { it.totalIncome } ?: 0.0
-    val maxExpense = data.maxOfOrNull { it.totalExpense } ?: 0.0
-    val absoluteMax = calculateNiceMax(maxOf(maxIncome, maxExpense))
+    val absoluteMax = calculateNiceMax(data.flatMap { listOf(it.totalIncome, it.totalExpense) }.maxOrNull() ?: 0.0)
 
     Column(modifier = modifier) {
         // Legend
@@ -707,7 +761,20 @@ fun IncomeExpenseGroupedBarChart(
             }
         }
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        Canvas(modifier = Modifier.fillMaxSize()
+            .pointerInput(data) {
+                detectTapGestures { tapOffset ->
+                    val tappedIndex = barRegions.indexOfFirst { region ->
+                        region.contains(tapOffset.x, tapOffset.y)
+                    }
+                    if (tappedIndex != -1) {
+                        selectedIndex = if (selectedIndex == tappedIndex) null else tappedIndex
+                        onBarGroupClick(selectedIndex?.let { data[it] })
+                    }
+                }
+            }
+        ) {
+            barRegions.clear()
             val leftPadding = 56.dp.toPx()
             val bottomPadding = 30.dp.toPx()
             val topPadding = 16.dp.toPx()
@@ -747,11 +814,21 @@ fun IncomeExpenseGroupedBarChart(
             val barWidth = ((groupWidth - barPadding) / 2).coerceAtLeast(1.dp.toPx())
 
             data.forEachIndexed { index, point ->
-                val groupLeft = leftPadding + (index * groupWidth) + (barPadding / 2)
+                val groupLeft = leftPadding + (index * groupWidth)
+                barRegions.add(RectF(groupLeft, topPadding, groupLeft + groupWidth, topPadding + chartHeight))
+                val incomeBarHeight = if (absoluteMax > 0) (point.totalIncome / absoluteMax).toFloat() * chartHeight else 0f
+                drawRect(
+                    color = incomeColor,
+                    topLeft = Offset(groupLeft + (groupWidth * 0.1f), topPadding + chartHeight - incomeBarHeight),
+                    size = Size(groupWidth * 0.4f, incomeBarHeight)
+                )
+                val expenseBarHeight = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() * chartHeight else 0f
+                drawRect(
+                    color = expenseColor,
+                    topLeft = Offset(groupLeft + (groupWidth * 0.5f), topPadding + chartHeight - expenseBarHeight),
+                    size = Size(groupWidth * 0.4f, expenseBarHeight)
+                )
 
-                // Income Bar
-                val incomeRatio = if (absoluteMax > 0) (point.totalIncome / absoluteMax).toFloat() else 0f
-                val incomeBarHeight = incomeRatio * chartHeight
                 drawRect(
                     color = incomeColor,
                     topLeft = Offset(groupLeft, topPadding + chartHeight - incomeBarHeight),
@@ -766,15 +843,6 @@ fun IncomeExpenseGroupedBarChart(
                         valueLabelPaint
                     )
                 }
-
-                // Expense Bar
-                val expenseRatio = if (absoluteMax > 0) (point.totalExpense / absoluteMax).toFloat() else 0f
-                val expenseBarHeight = expenseRatio * chartHeight
-                drawRect(
-                    color = expenseColor,
-                    topLeft = Offset(groupLeft + barWidth, topPadding + chartHeight - expenseBarHeight),
-                    size = Size(barWidth, expenseBarHeight)
-                )
                 if (point.totalExpense > 0 && expenseBarHeight > (valueLabelPaint.textSize + 2.dp.toPx(density))) {
                     val expenseText = point.totalExpense.roundToInt().toString()
                     drawContext.canvas.nativeCanvas.drawText(
@@ -792,6 +860,13 @@ fun IncomeExpenseGroupedBarChart(
                     topPadding + chartHeight + bottomPadding - 8.dp.toPx(),
                     monthLabelPaint
                 )
+                if (index == selectedIndex) {
+                    drawRect(
+                        color = selectionHighlightColor,
+                        topLeft = Offset(groupLeft, topPadding),
+                        size = Size(groupWidth, chartHeight)
+                    )
+                }
             }
         }
     }

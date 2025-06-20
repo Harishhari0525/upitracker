@@ -14,6 +14,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SyncProblem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -37,23 +43,27 @@ import com.example.upitracker.util.PinStorage
 import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.util.Theme
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.util.RestartUtil
 import kotlinx.coroutines.Dispatchers
 import com.example.upitracker.data.ArchivedSmsMessage
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.work.PeriodicWorkRequestBuilder
+import com.example.upitracker.util.PermanentDeleteWorker // ✨ Import the new worker
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.example.upitracker.util.BiometricHelper // ✨ Import BiometricHelper
 import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.upitracker.util.CleanupArchivedSmsWorker
 import kotlinx.coroutines.flow.firstOrNull
 import java.util.concurrent.TimeUnit
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 
 class MainActivity : FragmentActivity() {
 
@@ -95,6 +105,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         scheduleArchivedSmsCleanup()
+        schedulePermanentDeleteWorker()
 
         // ... (db, dao, smsReceiver setup remains the same)
         val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
@@ -120,6 +131,9 @@ class MainActivity : FragmentActivity() {
             Theme(darkTheme = isDarkMode) {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val coroutineScope = rememberCoroutineScope()
+
+                var showRestartDialog by remember { mutableStateOf(false) }
+                var restartDialogMessage by remember { mutableStateOf("") }
 
                 LaunchedEffect(Unit) {
                     mainViewModel.snackbarEvents.collectLatest { snackbarMessageData ->
@@ -152,6 +166,22 @@ class MainActivity : FragmentActivity() {
                             // PIN is set but locked, do nothing here, PinLockScreen will handle
                         } else { // No PIN or PIN is set and unlocked
                             pinUnlocked = true
+                        }
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    mainViewModel.uiEvents.collectLatest { event ->
+                        when (event) {
+                            // ✨ FIX: Add "MainViewModel." before UiEvent ✨
+                            is MainViewModel.UiEvent.RestartRequired -> {
+                                restartDialogMessage = event.message
+                                showRestartDialog = true
+                            }
+                            // ✨ BEST PRACTICE: Add an else branch to make the 'when' exhaustive ✨
+                            else -> {
+                                // Do nothing for other potential events in the future
+                            }
                         }
                     }
                 }
@@ -237,6 +267,14 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                 }
+                if (showRestartDialog) {
+                    ForceRestartDialog(
+                        message = restartDialogMessage,
+                        onConfirm = {
+                            RestartUtil.restartApp(this@MainActivity)
+                        }
+                    )
+                }
             }
         }
     }
@@ -314,7 +352,7 @@ class MainActivity : FragmentActivity() {
                 if (transaction != null) {
                     isUpiRelatedForBackup = true // Mark as UPI related for backup
                     val exists = dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description)
-                    if (exists == null) { mainViewModel.processAndInsertTransaction(transaction);
+                    if (exists == null) { mainViewModel.processAndInsertTransaction(transaction)
                         txnCount++ }
                 }
                 if (isUpiRelatedForBackup) {
@@ -477,9 +515,35 @@ class MainActivity : FragmentActivity() {
             }
         }
     }
+    private fun schedulePermanentDeleteWorker() {
+        val deleteRequest =
+            PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS)
+                .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            PermanentDeleteWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            deleteRequest
+        )
+        Log.d("MainActivity", "Periodic permanent delete worker scheduled.")
+    }
 
     override fun onDestroy() {
         super.onDestroy()
         smsReceiver?.let { unregisterReceiver(it) }
     }
+}
+@Composable
+private fun ForceRestartDialog(message: String, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = { /* This dialog cannot be dismissed */ },
+        icon = { Icon(Icons.Filled.SyncProblem, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text(text = stringResource(R.string.dialog_restart_required_title)) },
+        text = { Text(text = message) },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(text = stringResource(R.string.dialog_restart_button_restart))
+            }
+        }
+    )
 }
