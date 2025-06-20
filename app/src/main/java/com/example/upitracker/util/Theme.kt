@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.upitracker.viewmodel.MainViewModel
 
 // Assuming your AppLightColorScheme and AppDarkColorScheme are defined here as before
@@ -168,18 +167,17 @@ fun Theme(
 
     val isDarkMode by mainViewModel.isDarkMode.collectAsState()
     val appTheme by mainViewModel.appTheme.collectAsState()
+    val context = LocalContext.current
 
-    val colorScheme: ColorScheme = when {
-        dynamicColor && true -> {
-            val context = LocalContext.current
+    val colorScheme: ColorScheme = when (appTheme) {
+        // If the user chooses a specific theme, we MUST use it.
+        AppTheme.FOREST -> if (isDarkMode) ForestDarkColorScheme else ForestLightColorScheme
+        AppTheme.OCEAN -> if (isDarkMode) OceanDarkColorScheme else OceanLightColorScheme
+        AppTheme.ROSE -> if (isDarkMode) RoseDarkColorScheme else RoseLightColorScheme
+
+        // Only for the DEFAULT theme do we check for Dynamic Color.
+        AppTheme.DEFAULT -> {
             if (isDarkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        // If dynamic color is off or not supported, use our custom themes
-        else -> when (appTheme) {
-            AppTheme.DEFAULT -> if (isDarkMode) AppDarkColorScheme else AppLightColorScheme
-            AppTheme.FOREST -> if (isDarkMode) ForestDarkColorScheme else ForestLightColorScheme
-            AppTheme.OCEAN -> if (isDarkMode) OceanDarkColorScheme else OceanLightColorScheme
-            AppTheme.ROSE -> if (isDarkMode) RoseDarkColorScheme else RoseLightColorScheme
         }
     }
 
@@ -189,8 +187,14 @@ fun Theme(
             val window = (view.context as? Activity)?.window
             if (window != null) {
                 window.statusBarColor = Color.Transparent.toArgb()
-                // ✨ FIX: Use the 'isDarkMode' state from the ViewModel, not the old 'darkTheme' parameter ✨
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDarkMode
+                // This check needs to know if the FINAL applied scheme is dark
+                val finalSchemeIsDark = when (appTheme) {
+                    AppTheme.DEFAULT -> isDarkMode
+                    AppTheme.FOREST -> isDarkMode
+                    AppTheme.OCEAN -> isDarkMode
+                    AppTheme.ROSE -> isDarkMode
+                }
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !finalSchemeIsDark
             }
         }
     }
