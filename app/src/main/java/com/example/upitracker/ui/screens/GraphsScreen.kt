@@ -44,6 +44,8 @@ import androidx.compose.ui.geometry.Rect as ComposeRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -57,6 +59,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.upitracker.R
 import com.example.upitracker.ui.components.CategoryLegend
 import com.example.upitracker.ui.components.CategorySpendingPieChart
@@ -185,6 +194,7 @@ private fun PageContent(
     var selectedIncomeExpensePoint by remember { mutableStateOf<IncomeExpensePoint?>(null) }
 
 
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         when (pageIndex) {
             0 -> { // Daily Trend Line Chart Page
@@ -232,6 +242,9 @@ private fun PageContent(
                 }
             }
             1 -> { // Monthly Expenses Bar Chart Page
+
+                var showLandscapeDialog by remember { mutableStateOf(false) }
+
                 Text(
                     // All logic is now cleanly assigned to the 'text' parameter
                     text = "Monthly Debit Totals (Last ${selectedGraphPeriod.months} Months)",
@@ -282,16 +295,84 @@ private fun PageContent(
                 }
                 if (lastNMonthsExpenses.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.graph_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.graph_no_data),
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize()) {
-                        SimpleMonthlyExpenseBarChart(
-                            monthlyExpenses = lastNMonthsExpenses,
-                            currencyFormatter = currencyFormatter,
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                            onBarClick = { expense -> selectedBarData = expense }
-                        )
+                    Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
+                        ElevatedCard(modifier = Modifier.fillMaxSize().animateContentSize()) {
+                            SimpleMonthlyExpenseBarChart(
+                                monthlyExpenses = lastNMonthsExpenses,
+                                currencyFormatter = currencyFormatter,
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                onBarClick = { expense -> selectedBarData = expense },
+                                forceShowAllLabels = false
+                            )
+                        }
+                        if (selectedGraphPeriod == GraphPeriod.TWELVE_MONTHS) {
+                            IconButton(
+                                onClick = { showLandscapeDialog = true },
+                                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                            ) {
+                                Icon(Icons.Default.Fullscreen, contentDescription = "View in Landscape")
+                            }
+                        }
+                    }
+
+
+// 3. Add the Dialog composable at the end of this page's content
+                    if (showLandscapeDialog) {
+                        val context = LocalContext.current
+
+                        // This effect will lock and unlock the screen orientation
+                        DisposableEffect(Unit) {
+                            val activity = context as? Activity
+                            val originalOrientation = activity?.requestedOrientation
+                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+                            onDispose {
+                                // Restore original orientation when the dialog is dismissed
+                                activity?.requestedOrientation = originalOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                            }
+                        }
+
+                        Dialog(
+                            onDismissRequest = { showLandscapeDialog = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false) // Important for fullscreen
+                        ) {
+                            Scaffold{ paddingValues ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(paddingValues)
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    // Reuse the chart, but tell it to show all labels
+                                    SimpleMonthlyExpenseBarChart(
+                                        monthlyExpenses = lastNMonthsExpenses,
+                                        currencyFormatter = currencyFormatter,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onBarClick = { /* Clicks can be disabled or handled here */ },
+                                        forceShowAllLabels = true // The key change!
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { showLandscapeDialog = false },
+                                    modifier = Modifier
+                                        .align(Alignment.Start) // This positions it within the parent Box
+                                        .padding(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close Landscape View",
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -422,7 +503,8 @@ fun SimpleMonthlyExpenseBarChart(
     barColor: Color = MaterialTheme.colorScheme.primary,
     selectedBarColor: Color = MaterialTheme.colorScheme.secondary,
     axisColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    onBarClick: (expense: MonthlyExpense?) -> Unit
+    onBarClick: (expense: MonthlyExpense?) -> Unit,
+    forceShowAllLabels: Boolean = false
 ) {
     var selectedBarIndex by remember { mutableStateOf<Int?>(null) }
     val density = LocalDensity.current
@@ -442,25 +524,21 @@ fun SimpleMonthlyExpenseBarChart(
         Paint().apply { color = themedAxisColorArgb; textAlign = Paint.Align.CENTER; textSize = 10.sp.toPx(density); isAntiAlias = true } }
 
     if (monthlyExpenses.isEmpty()) {
-        Text(stringResource(R.string.graph_bar_chart_no_data_period), modifier = modifier.padding(16.dp).fillMaxSize(), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.graph_bar_chart_no_data_period),
+            modifier = modifier.padding(16.dp).fillMaxSize(),
+            textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
 
     val actualMaxAmount = remember(monthlyExpenses) { monthlyExpenses.maxOfOrNull { it.totalAmount } ?: 0.0 }
     val niceMaxAmount = remember(actualMaxAmount) { calculateNiceMax(actualMaxAmount) }
 
-    val barHeightRatios = remember(monthlyExpenses) {
-        List(monthlyExpenses.size) { Animatable(0f) }
-    }
+    val animationProgress = remember { Animatable(0f) }
 
-    LaunchedEffect(monthlyExpenses, niceMaxAmount) {
-        barHeightRatios.forEachIndexed { index, anim ->
-            val ratio = if (index < monthlyExpenses.size && niceMaxAmount > 0) {
-                (monthlyExpenses[index].totalAmount / niceMaxAmount).toFloat()
-            } else 0f
-            anim.snapTo(0f)
-            anim.animateTo(ratio, animationSpec = tween(durationMillis = 600))
-        }
+    LaunchedEffect(monthlyExpenses) {
+        animationProgress.snapTo(0f)
+        animationProgress.animateTo(1f, animationSpec = tween(durationMillis = 800)) // A single, smooth animation
     }
 
     Canvas(
@@ -517,25 +595,66 @@ fun SimpleMonthlyExpenseBarChart(
         val barWidth = (totalBarWidthAndSpacing - barSpacing).coerceAtLeast(4.dp.toPx())
 
         monthlyExpenses.forEachIndexed { index, expense ->
-            val animRatio = barHeightRatios.getOrNull(index)?.value ?: 0f
-            val barHeight = (animRatio * chartHeight).coerceAtLeast(0f)
+            val ratio = if (niceMaxAmount > 0) (expense.totalAmount / niceMaxAmount).toFloat() else 0f
+            val barHeight = (ratio * chartHeight * animationProgress.value).coerceAtLeast(0f)
             val xOffsetInChart = (index * totalBarWidthAndSpacing) + (barSpacing / 2)
             val barLeft = leftPaddingForYAxis + xOffsetInChart
             val barTop = topPaddingForBarValues + chartHeight - barHeight
-            val barRect = ComposeRect(left = barLeft, top = barTop, right = barLeft + barWidth, bottom = topPaddingForBarValues + chartHeight)
+            val barRect = ComposeRect(left = barLeft,
+                top = barTop,
+                right = barLeft + barWidth,
+                bottom = topPaddingForBarValues + chartHeight)
             barRegions.add(barRect)
-            val currentBarColorToDraw = if (index == selectedBarIndex) themedSelectedBarColor else themedBarColor
-            drawRect(color = currentBarColorToDraw, topLeft = Offset(x = barLeft, y = barTop), size = Size(width = barWidth, height = barHeight))
+
+            val currentBarColorToDraw =
+                if (index == selectedBarIndex) themedSelectedBarColor
+                else
+                    themedBarColor
+
+            drawRect(color = currentBarColorToDraw,
+                topLeft = Offset(x = barLeft, y = barTop),
+                size = Size(width = barWidth, height = barHeight))
+
             if (index == selectedBarIndex) {
-                drawRect(color = themedOutlineColor, topLeft = Offset(x = barLeft, y = barTop), size = Size(width = barWidth, height = barHeight), style = Stroke(width = 2.dp.toPx()))
+                drawRect(color = themedOutlineColor,
+                    topLeft = Offset(x = barLeft, y = barTop),
+                    size = Size(width = barWidth, height = barHeight),
+                    style = Stroke(width = 2.dp.toPx()))
             }
-            if (barCount <= 8 || index % ((barCount / 8).coerceAtLeast(1)) == 0 || index == barCount -1) {
-                val monthTextBounds = Rect(); monthLabelPaint.getTextBounds(expense.yearMonth, 0, expense.yearMonth.length, monthTextBounds)
-                drawContext.canvas.nativeCanvas.drawText(expense.yearMonth, barLeft + barWidth / 2, topPaddingForBarValues + chartHeight + bottomPaddingForXLabels / 2 + monthTextBounds.height() / 2f, monthLabelPaint)
+            val showMonthLabel = forceShowAllLabels || when {
+                barCount <= 7 -> true
+                barCount <= 12 -> index % 2 == 0
+                else -> false // Don't show any labels if there are too many in portrait
             }
+            if (showMonthLabel) {
+                val monthTextBounds = Rect()
+                monthLabelPaint.getTextBounds(expense.yearMonth, 0, expense.yearMonth.length, monthTextBounds)
+                drawContext.canvas.nativeCanvas.drawText(expense.yearMonth, barLeft + barWidth / 2,
+                    topPaddingForBarValues + chartHeight + bottomPaddingForXLabels / 2 + monthTextBounds.height() / 2f,
+                    monthLabelPaint)
+            }
+
             if (expense.totalAmount > 0 && barHeight > (valueLabelPaint.textSize + 2.dp.toPx())) {
+                // In landscape, always show the value. In portrait, only show if there's enough space.
+                if(forceShowAllLabels) {
+                    val valueText = expense.totalAmount.roundToInt().toString()
+                    drawContext.canvas.nativeCanvas.drawText(
+                        valueText,
+                        barLeft + barWidth / 2,
+                        barTop - 4.dp.toPx(),
+                        valueLabelPaint
+                    )
+                }
+            }
+
+            if (forceShowAllLabels || (expense.totalAmount > 0 && barHeight > (valueLabelPaint.textSize + 2.dp.toPx()))) {
                 val valueText = expense.totalAmount.roundToInt().toString()
-                drawContext.canvas.nativeCanvas.drawText(valueText, barLeft + barWidth / 2, barTop - 4.dp.toPx(), valueLabelPaint)
+                drawContext.canvas.nativeCanvas.drawText(
+                    valueText,
+                    barLeft + barWidth / 2,
+                    barTop - 4.dp.toPx(),
+                    valueLabelPaint
+                )
             }
         }
     }
@@ -628,24 +747,65 @@ fun SimpleDailyExpenseLineChart(
             ); return@Canvas
         }
 
-        val rightPadding = 18.dp.toPx(); val yAxisLabelHorizontalPadding = 8.dp.toPx(); val yAxisTextWidthApproximation = axisLabelPaint.measureText(currencyFormatter.format(niceMaxAmount).replace("₹", "").trim()) + yAxisLabelHorizontalPadding
-        val leftPaddingForYAxis = yAxisTextWidthApproximation + 14.dp.toPx(); val bottomPaddingForXLabels = 30.dp.toPx(); val topPadding = 20.dp.toPx()
-        val chartWidth = (size.width - leftPaddingForYAxis - rightPadding).coerceAtLeast(0f); val chartHeight = (size.height - bottomPaddingForXLabels - topPadding).coerceAtLeast(0f)
-        if (chartHeight <= 0f || chartWidth <= 0f) { Log.w("LineChartDraw", "Not enough space: $chartWidth x $chartHeight"); return@Canvas }
-        drawLine(color = axisColor.copy(alpha = 0.5f), start = Offset(leftPaddingForYAxis, topPadding), end = Offset(leftPaddingForYAxis, topPadding + chartHeight)); drawLine(color = axisColor.copy(alpha = 0.5f), start = Offset(leftPaddingForYAxis, topPadding + chartHeight), end = Offset(leftPaddingForYAxis + chartWidth, topPadding + chartHeight))
-        val yAxisSegments = 4; for (i in 0..yAxisSegments) { val value = niceMaxAmount / yAxisSegments * i; val yPos = topPadding + chartHeight - (value / niceMaxAmount * chartHeight).toFloat(); drawLine(color = axisColor.copy(alpha = 0.1f), start = Offset(leftPaddingForYAxis - 4.dp.toPx(), yPos), end = Offset(leftPaddingForYAxis + chartWidth, yPos)); val textBounds = Rect(); val labelText = currencyFormatter.format(value).replace("₹", "").trim(); axisLabelPaint.getTextBounds(labelText, 0, labelText.length, textBounds); drawContext.canvas.nativeCanvas.drawText(labelText, leftPaddingForYAxis - yAxisLabelHorizontalPadding, yPos + textBounds.height() / 2f, axisLabelPaint) }
-        val linePath = Path(); val xStep = if (pointCount > 1) chartWidth / (pointCount - 1).toFloat() else 0f
+        val rightPadding = 18.dp.toPx()
+        val yAxisLabelHorizontalPadding = 8.dp.toPx()
+        val yAxisTextWidthApproximation = axisLabelPaint.measureText(currencyFormatter.format(niceMaxAmount).replace("₹", "").trim()) + yAxisLabelHorizontalPadding
+        val leftPaddingForYAxis = yAxisTextWidthApproximation + 14.dp.toPx()
+        val bottomPaddingForXLabels = 30.dp.toPx(); val topPadding = 20.dp.toPx()
+        val chartWidth = (size.width - leftPaddingForYAxis - rightPadding).coerceAtLeast(0f)
+        val chartHeight = (size.height - bottomPaddingForXLabels - topPadding).coerceAtLeast(0f)
+
+        if (chartHeight <= 0f || chartWidth <= 0f) {
+            Log.w("LineChartDraw", "Not enough space: $chartWidth x $chartHeight"); return@Canvas
+        }
+
+        drawLine(color = axisColor.copy(alpha = 0.5f),
+            start = Offset(leftPaddingForYAxis, topPadding),
+            end = Offset(leftPaddingForYAxis, topPadding + chartHeight))
+
+        drawLine(color = axisColor.copy(alpha = 0.5f),
+            start = Offset(leftPaddingForYAxis, topPadding + chartHeight),
+            end = Offset(leftPaddingForYAxis + chartWidth, topPadding + chartHeight))
+
+        val yAxisSegments = 4; for (i in 0..yAxisSegments) {
+            val value = niceMaxAmount / yAxisSegments * i
+        val yPos = topPadding + chartHeight - (value / niceMaxAmount * chartHeight).toFloat()
+        drawLine(color = axisColor.copy(alpha = 0.1f),
+            start = Offset(leftPaddingForYAxis - 4.dp.toPx(), yPos),
+            end = Offset(leftPaddingForYAxis + chartWidth, yPos))
+        val textBounds = Rect(); val labelText = currencyFormatter.format(value).replace("₹", "").trim()
+        axisLabelPaint.getTextBounds(labelText, 0, labelText.length, textBounds)
+
+        drawContext.canvas.nativeCanvas.drawText(
+            labelText, leftPaddingForYAxis - yAxisLabelHorizontalPadding, yPos + textBounds.height() / 2f, axisLabelPaint)
+        }
+
+        val linePath = Path()
+        val xStep = if (pointCount > 1) chartWidth / (pointCount - 1).toFloat() else 0f
         dailyExpenses.forEachIndexed { index, point ->
-            val xPos = leftPaddingForYAxis + (index * xStep); val yPosRatio = if (niceMaxAmount > 0) point.totalAmount / niceMaxAmount else 0.0
-            val yPosOnCanvas = topPadding + chartHeight - (yPosRatio * chartHeight).toFloat().coerceIn(topPadding, topPadding + chartHeight)
+            val xPos = leftPaddingForYAxis + (index * xStep)
+            val yPosRatio = if (niceMaxAmount > 0) point.totalAmount / niceMaxAmount else 0.0
+            val yPosOnCanvas = topPadding + chartHeight - (yPosRatio * chartHeight).toFloat()
             pointCoordinates.add(Offset(xPos,yPosOnCanvas))
-            if (index == 0) { linePath.moveTo(xPos, yPosOnCanvas) } else { linePath.lineTo(xPos, yPosOnCanvas) }
-            val currentPointColorToDraw = if (index == selectedPointIndex) selectedPointColor else pointColor
-            val currentPointRadius = if (index == selectedPointIndex) 6.dp.toPx() else 3.dp.toPx()
+            if (index == 0) {
+                linePath.moveTo(xPos, yPosOnCanvas)
+            }
+            else {
+                linePath.lineTo(xPos, yPosOnCanvas)
+            }
+            val currentPointColorToDraw =
+                if (index == selectedPointIndex) selectedPointColor
+            else pointColor
+
+            val currentPointRadius = if (index == selectedPointIndex) 6.dp.toPx()
+            else 3.dp.toPx()
+
             drawCircle(color = currentPointColorToDraw, radius = currentPointRadius, center = Offset(xPos, yPosOnCanvas))
+
             if (pointCount <= 7 || index % ((pointCount / 7).coerceAtLeast(1)) == 0 || index == pointCount -1 ) { val dayTextBounds = Rect(); dayLabelPaint.getTextBounds(point.dayLabel, 0, point.dayLabel.length, dayTextBounds); drawContext.canvas.nativeCanvas.drawText(point.dayLabel, xPos, topPadding + chartHeight + bottomPaddingForXLabels / 2 + dayTextBounds.height()/2f, dayLabelPaint) }
         }
         val segmentPath = Path()
+
         if (pointCoordinates.isNotEmpty()) {
             segmentPath.moveTo(pointCoordinates.first().x, pointCoordinates.first().y)
             val totalLength = pointCoordinates.zipWithNext { a, b ->
@@ -673,7 +833,15 @@ fun SimpleDailyExpenseLineChart(
                 }
             }
         }
-        drawPath(path = segmentPath, color = lineColor, style = Stroke(width = 2.dp.toPx()))
+        drawPath(
+            path = segmentPath,
+            color = lineColor, // Use the solid theme color
+            style = Stroke(
+                width = 2.dp.toPx(),
+                cap = StrokeCap.Round, // Makes the start/end of the line smooth
+                join = StrokeJoin.Round // Makes the corners of the line smooth
+            )
+        )
     }
 }
 
@@ -818,19 +986,28 @@ fun IncomeExpenseGroupedBarChart(
 
                 // Value labels drawing...
                 if (point.totalIncome > 0 && incomeBarHeight > (labelPaint.textSize + 4.dp.toPx())) {
-                    drawContext.canvas.nativeCanvas.drawText(point.totalIncome.roundToInt().toString(), incomeBarLeft + barWidth / 2, topPadding + chartHeight - incomeBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
+                    drawContext.canvas.nativeCanvas.drawText(point.totalIncome.roundToInt().toString(),
+                        incomeBarLeft + barWidth / 2,
+                        topPadding + chartHeight - incomeBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
                 }
                 if (point.totalExpense > 0 && expenseBarHeight > (labelPaint.textSize + 4.dp.toPx())) {
-                    drawContext.canvas.nativeCanvas.drawText(point.totalExpense.roundToInt().toString(), expenseBarLeft + barWidth / 2, topPadding + chartHeight - expenseBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
+                    drawContext.canvas.nativeCanvas.drawText(point.totalExpense.roundToInt().toString(),
+                        expenseBarLeft + barWidth / 2,
+                        topPadding + chartHeight - expenseBarHeight + labelPaint.textSize + 2.dp.toPx(), labelPaint)
                 }
 
                 // Selection Highlight
                 if (index == selectedIndex) {
-                    drawRect(color = selectionHighlightColor, topLeft = Offset(groupLeft, topPadding), size = Size(groupWidth, chartHeight))
+                    drawRect(color = selectionHighlightColor,
+                        topLeft = Offset(groupLeft, topPadding),
+                        size = Size(groupWidth, chartHeight))
                 }
 
                 // Month Label
-                drawContext.canvas.nativeCanvas.drawText(point.yearMonth, groupLeft + groupWidth / 2, topPadding + chartHeight + bottomPadding - 8.dp.toPx(), monthLabelPaint)
+                drawContext.canvas.nativeCanvas.drawText(point.yearMonth,
+                    groupLeft + groupWidth / 2,
+                    topPadding + chartHeight + bottomPadding - 8.dp.toPx(),
+                    monthLabelPaint)
             }
         }
     }

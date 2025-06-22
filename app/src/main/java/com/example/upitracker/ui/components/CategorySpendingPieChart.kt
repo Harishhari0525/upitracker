@@ -46,6 +46,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 import androidx.core.graphics.get
+import kotlin.math.roundToInt
 
 fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
@@ -289,7 +290,7 @@ fun CategoryLegend(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "(${percentage.toInt()}%)",
+                    text = "(${percentage.roundToInt()}%)",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )

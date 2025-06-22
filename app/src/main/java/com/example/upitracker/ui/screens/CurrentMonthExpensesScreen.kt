@@ -1,263 +1,233 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.upitracker.ui.screens
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.R
-import com.example.upitracker.data.Transaction
-import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
-import com.example.upitracker.ui.components.UpiLiteSummaryCard
+import androidx.compose.ui.unit.sp
+import com.example.upitracker.ui.components.TransactionCardWithMenu
+import com.example.upitracker.viewmodel.BankMessageCount
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.viewmodel.SpendingTrend
 import com.example.upitracker.viewmodel.SummaryHistoryItem
 import com.example.upitracker.viewmodel.TransactionHistoryItem
-import kotlinx.coroutines.launch
 import java.text.NumberFormat
-import java.util.Locale
-import com.example.upitracker.ui.components.TransactionCardWithMenu
+import java.util.*
 
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CurrentMonthExpensesScreen(
     mainViewModel: MainViewModel,
-    onImportOldSms: () -> Unit,
-    onTransactionClick: (Int) -> Unit,
     onViewAllClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isImporting by mainViewModel.isImportingSms.collectAsState()
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
-    val currentMonthExpenseItems by mainViewModel.currentMonthExpenseItems.collectAsState()
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
-    val context = LocalContext.current
+    val bankMessageCounts by mainViewModel.bankMessageCounts.collectAsState()
+    val highestSpendingDay by mainViewModel.highestSpendingDay.collectAsState()
+    val highestSpendingCategory by mainViewModel.highestSpendingCategory.collectAsState()
+    val mostUsedApp by mainViewModel.mostUsedUpiApp.collectAsState()
+    val recentTransactions by mainViewModel.currentMonthExpenseItems.collectAsState()
 
-    // --- NEW: State Management for Bottom Sheet ---
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
-    )
-    val scope = rememberCoroutineScope()
-    var showDetailSheet by remember { mutableStateOf(false) }
-
-    // --- NEW: State Management for M3 Pull-to-Refresh ---
-    val pullRefreshState = rememberPullToRefreshState()
-
-    val animatedTotal by animateFloatAsState(
-        targetValue = currentMonthExpensesTotal.toFloat(),
-        animationSpec = tween(durationMillis = 1000),
-        label = "animatedTotalExpense"
+    val trends = listOf(highestSpendingDay, highestSpendingCategory, mostUsedApp)
+    val trendIcons = mapOf(
+        "Highest Spend Day" to Icons.Default.CalendarToday,
+        "Top Spending Category" to Icons.Default.Category,
+        "Most Used App" to Icons.Default.PhoneAndroid
     )
 
-    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-
-    // The main layout Box
-    Box(modifier = modifier.fillMaxSize()) {
-
-        PullToRefreshBox(
-            modifier = Modifier.fillMaxSize(),
-            isRefreshing = isImporting,
-            onRefresh = onImportOldSms,
-            state = pullRefreshState,
-            indicator = {
-                PullToRefreshDefaults.LoadingIndicator(
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    state = pullRefreshState,
-                    isRefreshing = isImporting
-                )
-            }
-        ) {
-            // This Column was previously inside the M2 pullRefresh Box
-            Column(
-                modifier = Modifier
-                    .fillMaxSize() // Content fills the PullToRefreshBox
-                    .padding(16.dp)
-            ) {
-                // Expressive Summary Card for Total Expenses
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Box(
-                        modifier = Modifier.background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
-                                )
-                            )
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 24.dp, vertical = 32.dp)
-                                .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    stringResource(R.string.home_current_month_expenses_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    currencyFormatter.format(animatedTotal),
-                                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Icon(
-                                imageVector = Icons.Filled.TrackChanges,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    stringResource(R.string.home_recent_expenses_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                if (currentMonthExpenseItems.isEmpty() && !isImporting) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            stringResource(R.string.home_no_expenses_this_month),
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 6.dp)
-                    ) {
-                        items(currentMonthExpenseItems.take(25), key = { item ->
-                            when (item) {
-                                is TransactionHistoryItem -> "txn-${item.transaction.id}-${item.transaction.date}"
-                                is SummaryHistoryItem -> "summary-${item.summary.id}-${item.summary.date}"
-                            }
-                        }) { historyItem ->
-                            when (historyItem) {
-                                is TransactionHistoryItem -> {
-                                    TransactionCardWithMenu(
-                                        modifier = Modifier.animateItem(),
-                                        transaction = historyItem.transaction,
-                                        onClick = {
-                                            mainViewModel.selectTransaction(it.id)
-                                            showDetailSheet = true
-                                        },
-                                        onArchive = {
-                                            mainViewModel.toggleTransactionArchiveStatus(it, archive = true)
-                                        },
-                                        onDelete = {
-                                            // Your existing logic to show a confirmation dialog
-                                            transactionToDelete = it
-                                            showDeleteConfirmDialog = true
-                                        }
-                                    )
-                                }
-                                is SummaryHistoryItem -> {
-                                    UpiLiteSummaryCard(summary = historyItem.summary)
-                                }
-                            }
-                        }
-
-
-                        if (currentMonthExpenseItems.size > 25) {
-                            item {
-                                TextButton(
-                                    onClick = onViewAllClick,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(stringResource(R.string.home_view_all_this_month_button, currentMonthExpenseItems.size))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // M3 PullToRefreshBox manages its own indicator via the `indicator` slot
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            // first apply system‐bars as padding to the *layout* itself
+            .windowInsetsPadding(WindowInsets.systemBars)
+            // then apply your own 16.dp padding around the content
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        // you can leave contentPadding empty now
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        item {
+            TotalExpensesHeroCard(total = currentMonthExpensesTotal)
         }
 
-        // NEW: The ModalBottomSheet for showing details
-        if (showDetailSheet) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    showDetailSheet = false
-                    mainViewModel.selectTransaction(null) // Clear selection on dismiss
-                },
-                sheetState = sheetState
-            ) {
-                // This composable should be in your `TransactionDetailSheetContent.kt` file
-                TransactionDetailSheetContent(
-                    mainViewModel = mainViewModel,
-                    onDismiss = {
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            if (!sheetState.isVisible) {
-                                showDetailSheet = false
-                                mainViewModel.selectTransaction(null)
-                            }
-                        }
-                    }
-                )
-            }
+        item {
+            SectionHeader(title = "Bank Activity")
+            BankActivityCard(counts = bankMessageCounts)
         }
 
-        if (showDeleteConfirmDialog && transactionToDelete != null) {
-            DeleteTransactionConfirmationDialog(
-                transactionDescription = transactionToDelete!!.description,
-                onConfirm = {
-                    mainViewModel.toggleTransactionArchiveStatus(transactionToDelete!!, archive = true)
-                    mainViewModel.postSnackbarMessage(
-                        context.getString(
-                            R.string.transaction_archived_snackbar,
-                            transactionToDelete!!.description.take(20)
-                        )
-                    )
-                    showDeleteConfirmDialog = false
-                    transactionToDelete = null
-                },
-                onDismiss = {
-                    showDeleteConfirmDialog = false
-                    transactionToDelete = null
-                }
+        item {
+            SectionHeader(title = "Spending Trends")
+        }
+
+        items(trends) { trend ->
+            TrendCard(
+                trend = trend,
+                icon = trendIcons[trend.title] ?: Icons.Default.Info
             )
+        }
+
+        item {
+            RecentTransactionsHeader(onViewAllClick = onViewAllClick)
+        }
+
+        if (recentTransactions.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No transactions this month yet.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            items(recentTransactions.take(3), key = { item ->
+                when (item) {
+                    is TransactionHistoryItem -> "txn-home-${item.transaction.id}-${item.transaction.date}"
+                    is SummaryHistoryItem -> "summary-home-${item.summary.id}-${item.summary.date}"
+                }
+            }) { item ->
+                if (item is TransactionHistoryItem) {
+                    TransactionCardWithMenu(
+                        transaction = item.transaction,
+                        onClick = { /* Detail view can be handled here if needed */ },
+                        onArchive = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
+                        onDelete = { mainViewModel.deleteTransaction(it) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TotalExpensesHeroCard(total: Double) {
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Current Month's Expenses",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    currencyFormatter.format(total),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 40.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.TrackChanges,
+                contentDescription = "Monthly Expenses",
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f))
+                    .padding(10.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+private fun BankActivityCard(counts: List<BankMessageCount>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            counts.take(3).forEach { item ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(item.bankName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Text("${item.count} messages", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendCard(trend: SpendingTrend, icon: ImageVector) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)),
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = trend.title,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(trend.title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(2.dp))
+                Text(trend.value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trend.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+}
+
+@Composable
+private fun RecentTransactionsHeader(onViewAllClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SectionHeader(title = "Recent Transactions")
+        TextButton(onClick = onViewAllClick) {
+            Text("View All")
+            Spacer(Modifier.width(4.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View All Transactions", modifier = Modifier.size(18.dp))
         }
     }
 }

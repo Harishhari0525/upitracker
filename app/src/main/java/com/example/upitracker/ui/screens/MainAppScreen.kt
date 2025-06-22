@@ -1,8 +1,8 @@
-@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalAnimationApi::class) // Added ExperimentalAnimationApi
+@file:OptIn(ExperimentalMaterial3Api::class,
+    androidx.compose.animation.ExperimentalAnimationApi::class)
 
 package com.example.upitracker.ui.screens
 
-import android.util.Log // ✨ Add Log import for debugging
 import androidx.compose.animation.core.tween // Animation imports
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +29,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.upitracker.R
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.viewmodel.MainViewModel
 
@@ -60,30 +58,6 @@ fun MainAppScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0),
-        topBar = {
-            TopAppBar(
-                // windowInsets = WindowInsets(0),
-                title = {
-                    val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
-                    val currentRoute = navBackStackEntry?.destination?.route
-                    val currentScreen = bottomNavItems.find { it.route == currentRoute }
-                    Text(
-                        text = currentScreen?.labelResId?.let { stringResource(it) }
-                            ?: stringResource(R.string.app_name)
-                    )
-                },
-                actions = {
-                    if (currentRoute == BottomNavItem.History.route) {
-                        IconButton(onClick = { mainViewModel.onFilterClick() }) {
-                            Icon(
-                                imageVector = Icons.Default.FilterList,
-                                contentDescription = "Show Filters"
-                            )
-                        }
-                    }
-                }
-            )
-        },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
@@ -91,18 +65,9 @@ fun MainAppScreen(
                 val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
-                // ✨ Log current destination route ✨
-                LaunchedEffect(currentDestination) {
-                    Log.d("BottomNav", "Current Destination Route: ${currentDestination?.route}")
-                }
-
                 bottomNavItems.forEach { screen ->
-                    // ✨ Simplify selection logic for debugging, then try hierarchy if needed ✨
-                    val isSelected = currentDestination?.route == screen.route
-                    // val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
 
-                    // ✨ Log selection status for each item ✨
-                    Log.d("BottomNav", "Item: ${stringResource(screen.labelResId)}, Route: ${screen.route}, IsSelected: $isSelected")
+                    val isSelected = currentDestination?.route == screen.route
 
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelResId)) },
@@ -131,12 +96,33 @@ fun MainAppScreen(
             }
         },
         floatingActionButton = {
-            if (currentRoute == BottomNavItem.Home.route) {
-                FloatingActionButton(
-                    onClick = { showAddTransactionDialog = true }
-                ) {
+            // The FAB now only appears on the History screen to add a new transaction.
+            if (currentRoute == BottomNavItem.History.route) {
+                FloatingActionButton(onClick = { showAddTransactionDialog = true }) {
                     Icon(Icons.Filled.Add, "Add new transaction")
                 }
+            }
+        },
+        topBar = {
+            // The TopAppBar is hidden on the Home screen.
+            if (currentRoute != BottomNavItem.Home.route) {
+                TopAppBar(
+                    title = {
+                        val currentScreen = bottomNavItems.find { it.route == currentRoute }
+                        Text(text = currentScreen?.labelResId?.let { stringResource(it) } ?: "")
+                    },
+                    actions = {
+                        // The Filter button is now back in the TopAppBar for the History screen.
+                        if (currentRoute == BottomNavItem.History.route) {
+                            IconButton(onClick = { mainViewModel.onFilterClick() }) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Show Filters"
+                                )
+                            }
+                        }
+                    }
+                )
             }
         }
     ) { innerPadding ->
@@ -151,39 +137,40 @@ fun MainAppScreen(
                 BottomNavItem.Home.route,
                 enterTransition = {
                     slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
-                    fadeIn(animationSpec = tween(300))
+                            fadeIn(animationSpec = tween(300))
                 },
                 exitTransition = {
                     slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
-                    fadeOut(animationSpec = tween(300))
+                            fadeOut(animationSpec = tween(300))
                 },
                 popEnterTransition = {
                     slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
-                    fadeIn(animationSpec = tween(300))
+                            fadeIn(animationSpec = tween(300))
                 },
                 popExitTransition = {
                     slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
-                    fadeOut(animationSpec = tween(300))
+                            fadeOut(animationSpec = tween(300))
                 }
             ) {
                 CurrentMonthExpensesScreen(
                     mainViewModel = mainViewModel,
-                    onImportOldSms = onImportOldSms,
-                    modifier = Modifier.fillMaxSize(),
+                    // ✨ FIX: The onViewAllClick now uses the SAME logic as the bottom navigation bar ✨
                     onViewAllClick = {
-                        // This action uses the contentNavController
                         contentNavController.navigate(BottomNavItem.History.route) {
+                            // Pop up to the start destination of the graph to
+                            // avoid building up a large stack of destinations
+                            // on the back stack as users select items
                             popUpTo(contentNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
+                            // Avoid multiple copies of the same destination when
+                            // re-selecting the same item
                             launchSingleTop = true
+                            // Restore state when re-selecting a previously selected item
                             restoreState = true
                         }
                     },
-                    onTransactionClick = { transactionId ->
-                        // This action uses the rootNavController
-                        rootNavController.navigate("transaction_detail/$transactionId")
-                    }
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             composable(

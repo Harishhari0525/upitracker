@@ -33,6 +33,7 @@ import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
+import java.text.NumberFormat
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -67,6 +68,12 @@ data class SummaryHistoryItem(val summary: UpiLiteSummary) : HistoryListItem {
     override val displayDate: Long get() = summary.date
     override val itemType: String get() = "UpiLiteSummary"
 }
+
+data class SpendingTrend(
+    val title: String,
+    val value: String,
+    val subtitle: String
+)
 
 enum class UpiTransactionTypeFilter {
     ALL, DEBIT, CREDIT
@@ -137,6 +144,8 @@ data class TransactionFilters(
     val amountValue1: Double?,
     val amountValue2: Double?
 )
+
+data class BankMessageCount(val bankName: String, val count: Int)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
@@ -229,6 +238,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery
     ) { start, end, query -> Triple(start, end, query) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Triple(null, null, ""))
+
+    private val archivedSmsDao = db.archivedSmsMessageDao()
+
+    val bankMessageCounts: StateFlow<List<BankMessageCount>> =
+        archivedSmsDao.getAllArchivedSms() // Assuming this returns Flow<List<ArchivedSmsMessage>>
+            .map { allMessages ->
+                allMessages
+                    .mapNotNull { msg ->
+                        // Heuristically determine bank name from sender address
+                        val sender = msg.originalSender.uppercase()
+                        when {
+                            sender.contains("HDFC") -> "HDFC Bank"
+                            sender.contains("ICICI") -> "ICICI Bank"
+                            sender.contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
+                            sender.contains("AXIS") -> "Axis Bank"
+                            sender.contains("KOTAK") -> "Kotak Mahindra Bank"
+                            sender.contains("PNB") -> "Punjab National Bank"
+                            sender.contains("CANARA") -> "Canara Bank"
+                            sender.contains("IDBI") -> "IDBI Bank"
+                            sender.contains("UNION") -> "Union Bank of India"
+                            sender.contains("BANK OF BARODA") -> "Bank of Baroda"
+                            sender.contains("YES") -> "Yes Bank"
+                            sender.contains("FEDERAL") -> "Federal Bank"
+                            sender.contains("CITI") -> "Citi Bank"
+                            sender.contains("RBL") -> "RBL Bank"
+                            else -> null // Ignore senders we don't recognize
+                        }
+                    }
+                    .groupingBy { it }
+                    .eachCount()
+                    .map { (bankName, count) -> BankMessageCount(bankName, count) }
+                    .sortedByDescending { it.count }
+            }
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _filters = combine(
         _selectedUpiTransactionType,
@@ -673,6 +716,97 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val highestSpendingDay: StateFlow<SpendingTrend> = _transactions
+        .map { transactions ->
+            val debitTransactions = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
+            if (debitTransactions.isEmpty()) {
+                return@map SpendingTrend("Highest Spend Day", "₹0.00", "No spending data.")
+            }
+
+            val spendingByDay = debitTransactions.groupBy {
+                val cal = Calendar.getInstance()
+                cal.timeInMillis = it.date
+                cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                cal.timeInMillis
+            }
+
+            val maxDayEntry = spendingByDay.maxByOrNull { entry -> entry.value.sumOf { it.amount } }
+
+            if (maxDayEntry == null) {
+                SpendingTrend("Highest Spend Day", "₹0.00", "No spending data.")
+            } else {
+                val date = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date(maxDayEntry.key))
+                val amount = maxDayEntry.value.sumOf { it.amount }
+                // ✨ FIX: Create and use NumberFormat directly, without 'remember' ✨
+                val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(amount)
+                SpendingTrend("Highest Spend Day", formattedAmount, "On $date")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Highest Spend Day", "₹0.00", "Calculating..."))
+
+    /**
+     * Calculates and provides the category with the highest total debit amount.
+     */
+    val highestSpendingCategory: StateFlow<SpendingTrend> = _transactions
+        .map { transactions ->
+            val categorizedDebits = transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true) && !it.category.isNullOrBlank()
+            }
+            if (categorizedDebits.isEmpty()) {
+                return@map SpendingTrend("Top Spending Category", "-", "No categorized spending.")
+            }
+
+            val spendingByCategory = categorizedDebits.groupBy { it.category!! }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+
+            val topCategory = spendingByCategory.maxByOrNull { it.value }
+
+            if (topCategory == null) {
+                SpendingTrend("Top Spending Category", "-", "No categorized spending.")
+            } else {
+                // ✨ FIX: Create and use NumberFormat directly, without 'remember' ✨
+                val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(topCategory.value)
+                SpendingTrend("Top Spending Category", topCategory.key, "Total spent: $formattedAmount")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Top Spending Category", "-", "Calculating..."))
+
+    /**
+     * Heuristically determines the most used UPI app based on VPA handles.
+     */
+    val mostUsedUpiApp: StateFlow<SpendingTrend> = _transactions
+        .map { transactions ->
+            val upiAppMap = mapOf(
+                "@ybl" to "PhonePe",
+                "@okicici" to "Google Pay",
+                "@okaxis" to "Google Pay",
+                "@okhdfcbank" to "Google Pay",
+                "@paytm" to "Paytm",
+                "@axl" to "Axis Pay",
+                "@apl" to "Amazon Pay"
+            )
+
+            val appCounts = transactions
+                .mapNotNull { transaction ->
+                    upiAppMap.entries.find { (handle, _) ->
+                        transaction.description.contains(handle, ignoreCase = true) ||
+                                transaction.senderOrReceiver.contains(handle, ignoreCase = true)
+                    }?.value
+                }
+                .groupingBy { it }
+                .eachCount()
+
+            val topApp = appCounts.maxByOrNull { it.value }
+
+            if (topApp == null) {
+                SpendingTrend("Most Used App", "-", "Could not determine.")
+            } else {
+                SpendingTrend("Most Used App", topApp.key, "${topApp.value} transactions recorded")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Most Used App", "-", "Calculating..."))
+
 
     // --- Graph Data (Public) ---
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
