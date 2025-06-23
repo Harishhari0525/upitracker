@@ -2,7 +2,9 @@ package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -10,24 +12,27 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.data.RecurringRule
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditRecurringRuleDialog(
+    ruleToEdit: RecurringRule?,
     onDismiss: () -> Unit,
     onConfirm: (description: String, amount: Double, category: String, period: BudgetPeriod, day: Int) -> Unit
 ) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var dayOfMonth by remember { mutableStateOf("") }
-    val selectedPeriod by remember { mutableStateOf(BudgetPeriod.MONTHLY) } // For now, only support monthly
+    var description by remember { mutableStateOf(ruleToEdit?.description ?: "") }
+    var amount by remember { mutableStateOf(ruleToEdit?.amount?.toString() ?: "") }
+    var category by remember { mutableStateOf(ruleToEdit?.categoryName ?: "") }
+    var dayOfMonth by remember { mutableStateOf(ruleToEdit?.dayOfPeriod?.toString() ?: "") }
+    val selectedPeriod by remember { mutableStateOf(ruleToEdit?.periodType ?: BudgetPeriod.MONTHLY) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Recurring Transaction") },
+        title = { Text(if (ruleToEdit == null) "Add Recurring Transaction" else "Edit Recurring Transaction") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },

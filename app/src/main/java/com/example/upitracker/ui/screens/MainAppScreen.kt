@@ -11,10 +11,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +55,7 @@ fun MainAppScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0),
+       // contentWindowInsets = WindowInsets(0),
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
@@ -103,29 +101,7 @@ fun MainAppScreen(
                 }
             }
         },
-        topBar = {
-            // The TopAppBar is hidden on the Home screen.
-            if (currentRoute != BottomNavItem.Home.route) {
-                TopAppBar(
-                    title = {
-                        val currentScreen = bottomNavItems.find { it.route == currentRoute }
-                        Text(text = currentScreen?.labelResId?.let { stringResource(it) } ?: "")
-                    },
-                    actions = {
-                        // The Filter button is now back in the TopAppBar for the History screen.
-                        if (currentRoute == BottomNavItem.History.route) {
-                            IconButton(onClick = { mainViewModel.onFilterClick() }) {
-                                Icon(
-                                    imageVector = Icons.Default.FilterList,
-                                    contentDescription = "Show Filters"
-                                )
-                            }
-                        }
-                    }
-                )
-            }
-        }
-    ) { innerPadding ->
+        ) { innerPadding ->
         NavHost(
             navController = contentNavController,
             startDestination = BottomNavItem.Home.route,

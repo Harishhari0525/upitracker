@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
 import com.example.upitracker.ui.components.RecurringRuleCard
 import com.example.upitracker.viewmodel.MainViewModel
@@ -27,6 +28,8 @@ fun RecurringScreen(
 ) {
     val recurringRules by mainViewModel.recurringRules.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+
+    var ruleToEdit by remember { mutableStateOf<RecurringRule?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -57,7 +60,8 @@ fun RecurringScreen(
                 items(recurringRules, key = { it.id }) { rule ->
                     RecurringRuleCard(
                         rule = rule,
-                        onDelete = { mainViewModel.deleteRecurringRule(rule) }
+                        onDelete = { mainViewModel.deleteRecurringRule(rule) },
+                        onEdit = { ruleToEdit = rule }
                     )
                 }
             }
@@ -70,7 +74,8 @@ fun RecurringScreen(
             onConfirm = { description, amount, category, period, day ->
                 mainViewModel.addRecurringRule(description, amount, category, period, day)
                 showAddDialog = false
-            }
+            },
+            ruleToEdit = ruleToEdit
         )
     }
 }

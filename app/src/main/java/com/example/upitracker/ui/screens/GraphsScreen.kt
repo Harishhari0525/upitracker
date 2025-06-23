@@ -314,7 +314,7 @@ private fun PageContent(
                         if (selectedGraphPeriod == GraphPeriod.TWELVE_MONTHS) {
                             IconButton(
                                 onClick = { showLandscapeDialog = true },
-                                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                                modifier = Modifier.align(Alignment.TopEnd).padding(15.dp)
                             ) {
                                 Icon(Icons.Default.Fullscreen, contentDescription = "View in Landscape")
                             }
@@ -362,8 +362,8 @@ private fun PageContent(
                                 IconButton(
                                     onClick = { showLandscapeDialog = false },
                                     modifier = Modifier
-                                        .align(Alignment.Start) // This positions it within the parent Box
-                                        .padding(10.dp)
+                                        .align(Alignment.End) // This positions it within the parent Box
+                                        .padding(5.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Close,

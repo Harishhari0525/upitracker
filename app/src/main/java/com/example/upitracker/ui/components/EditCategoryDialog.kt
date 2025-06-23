@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/example/upitracker/ui/components/EditCategoryDialog.kt
 package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -16,11 +15,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-
-private val suggestionCategories = listOf(
-    "Food", "Shopping", "Transport", "Bills", "Health", "Entertainment", "Groceries"
-)
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -28,9 +27,23 @@ fun EditCategoryDialog(
     transaction: Transaction,
     suggestionCategories: List<String>,
     onDismiss: () -> Unit,
-    onSaveCategory: (transactionId: Int, newCategory: String?) -> Unit
+    onSave: (transactionId: Int, newDescription: String, newAmount: Double, newCategory: String?) -> Unit
 ) {
     var categoryText by remember { mutableStateOf(transaction.category ?: "") }
+    var descriptionText by remember { mutableStateOf(transaction.description) }
+    var amountText by remember { mutableStateOf(transaction.amount.toString()) }
+
+    val filteredSuggestions = remember(categoryText, suggestionCategories) {
+        if (categoryText.isBlank() || categoryText == transaction.category) {
+            // If the input is blank, show the default suggestions
+            suggestionCategories
+        } else {
+            // Otherwise, filter the list to show only categories containing the typed text
+            suggestionCategories.filter {
+                it.contains(categoryText, ignoreCase = true)
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -42,7 +55,21 @@ fun EditCategoryDialog(
             )
         },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = descriptionText,
+                    onValueChange = { descriptionText = it },
+                    label = { Text("Description") }
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                 value = categoryText,
                 onValueChange = { categoryText = it },
@@ -59,7 +86,7 @@ fun EditCategoryDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    suggestionCategories.forEach { category ->
+                    filteredSuggestions.forEach { category ->
                         FilterChip(
                             selected = categoryText.equals(category, ignoreCase = true),
                             onClick = { categoryText = category },
@@ -72,7 +99,16 @@ fun EditCategoryDialog(
         ,
         confirmButton = {
             Button(onClick = {
-                onSaveCategory(transaction.id, categoryText.trim().takeIf { it.isNotBlank() })
+                val newAmount = amountText.toDoubleOrNull()
+                if (newAmount != null) {
+                    // CALL THE NEW onSave LAMBDA
+                    onSave(
+                        transaction.id,
+                        descriptionText,
+                        newAmount,
+                        categoryText.trim().takeIf { it.isNotBlank() }
+                    )
+                }
             }) {
                 Text(stringResource(R.string.button_save))
             }

@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategorySuggestionRule::class,
         RecurringRule::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -153,6 +153,40 @@ abstract class AppDatabase : RoomDatabase() {
                 """.trimIndent())
             }
         }
+        val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Step 1: Create a new temporary table with the correct, final schema.
+                db.execSQL("""
+            CREATE TABLE `archived_sms_messages_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `originalSender` TEXT NOT NULL,
+                `originalBody` TEXT NOT NULL,
+                `originalTimestamp` INTEGER NOT NULL,
+                `backupTimestamp` INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+                // Step 2: Copy only the unique rows from the old table into the new one.
+                // The GROUP BY clause ensures that only one row for each combination of
+                // sender, body, and timestamp is inserted.
+                db.execSQL("""
+            INSERT INTO `archived_sms_messages_new` (`originalSender`, `originalBody`, `originalTimestamp`, `backupTimestamp`)
+            SELECT `originalSender`, `originalBody`, `originalTimestamp`, MIN(`backupTimestamp`)
+            FROM `archived_sms_messages`
+            GROUP BY `originalSender`, `originalBody`, `originalTimestamp`
+        """.trimIndent())
+
+                // Step 3: Drop the old table with the duplicate data.
+                db.execSQL("DROP TABLE `archived_sms_messages`")
+
+                // Step 4: Rename our new, clean table to the original table's name.
+                db.execSQL("ALTER TABLE `archived_sms_messages_new` RENAME TO `archived_sms_messages`")
+
+                // Step 5: Finally, add the unique index to the now-clean table. This ensures
+                // the schema matches what Room expects for version 13.
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_archived_sms_messages_on_content` ON `archived_sms_messages` (`originalSender`, `originalBody`, `originalTimestamp`)")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -163,7 +197,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
-                    ,MIGRATION_11_12) // ✨ Add new migration ✨
+                    ,MIGRATION_11_12, MIGRATION_12_13) // ✨ Add new migration ✨
                     // Consider .fallbackToDestructiveMigration() only if absolutely necessary during heavy dev
                     .build()
                 INSTANCE = instance

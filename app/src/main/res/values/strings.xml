@@ -232,7 +232,7 @@
     <string name="detail_label_party">From/To</string>
     <string name="detail_label_date_time">Date &amp; Time</string>
     <string name="detail_label_note">Note</string>
-    <string name="button_edit_category">Edit Category</string>
+    <string name="button_edit_category">Edit Transaction Details</string>
     <string name="button_archive">Archive</string>
     <string name="button_restore">Restore</string>
     <string name="refund_category_snackbar_message">"Refund" category set. This transaction will be excluded from expense totals.</string>

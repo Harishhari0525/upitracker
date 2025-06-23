@@ -33,7 +33,6 @@ import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
-import java.text.NumberFormat
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -175,7 +174,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val REFUNDCATEGORY = "Refund"
+    private val refundCategory = "Refund"
 
     private val _isBackingUp = MutableStateFlow(false)
     val isBackingUp: StateFlow<Boolean> = _isBackingUp.asStateFlow()
@@ -346,8 +345,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return yearStart to yearEnd
     }
 
-    // In MainViewModel.kt, add this new public function
-
     fun backupDatabase(targetUri: Uri, contentResolver: ContentResolver) {
         viewModelScope.launch(Dispatchers.IO) {
             _isBackingUp.value = true
@@ -470,7 +467,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
+                        !it.category.equals(refundCategory, ignoreCase = true)
             }
 
             budgets.map { budget ->
@@ -674,7 +671,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Filter and map debit transactions for the current month
             val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true)
-                        && !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
+                        && !it.category.equals(refundCategory, ignoreCase = true)
                         && it.date in monthStart..monthEnd
             }
             combinedItems.addAll(debitTransactions.map { TransactionHistoryItem(it) })
@@ -717,102 +714,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
-    val highestSpendingDay: StateFlow<SpendingTrend> = _transactions
-        .map { transactions ->
-            val debitTransactions = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
-            if (debitTransactions.isEmpty()) {
-                return@map SpendingTrend("Highest Spend Day", "₹0.00", "No spending data.")
-            }
-
-            val spendingByDay = debitTransactions.groupBy {
-                val cal = Calendar.getInstance()
-                cal.timeInMillis = it.date
-                cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                cal.timeInMillis
-            }
-
-            val maxDayEntry = spendingByDay.maxByOrNull { entry -> entry.value.sumOf { it.amount } }
-
-            if (maxDayEntry == null) {
-                SpendingTrend("Highest Spend Day", "₹0.00", "No spending data.")
-            } else {
-                val date = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date(maxDayEntry.key))
-                val amount = maxDayEntry.value.sumOf { it.amount }
-                // ✨ FIX: Create and use NumberFormat directly, without 'remember' ✨
-                val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(amount)
-                SpendingTrend("Highest Spend Day", formattedAmount, "On $date")
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Highest Spend Day", "₹0.00", "Calculating..."))
-
-    /**
-     * Calculates and provides the category with the highest total debit amount.
-     */
-    val highestSpendingCategory: StateFlow<SpendingTrend> = _transactions
-        .map { transactions ->
-            val categorizedDebits = transactions.filter {
-                it.type.equals("DEBIT", ignoreCase = true) && !it.category.isNullOrBlank()
-            }
-            if (categorizedDebits.isEmpty()) {
-                return@map SpendingTrend("Top Spending Category", "-", "No categorized spending.")
-            }
-
-            val spendingByCategory = categorizedDebits.groupBy { it.category!! }
-                .mapValues { entry -> entry.value.sumOf { it.amount } }
-
-            val topCategory = spendingByCategory.maxByOrNull { it.value }
-
-            if (topCategory == null) {
-                SpendingTrend("Top Spending Category", "-", "No categorized spending.")
-            } else {
-                // ✨ FIX: Create and use NumberFormat directly, without 'remember' ✨
-                val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(topCategory.value)
-                SpendingTrend("Top Spending Category", topCategory.key, "Total spent: $formattedAmount")
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Top Spending Category", "-", "Calculating..."))
-
-    /**
-     * Heuristically determines the most used UPI app based on VPA handles.
-     */
-    val mostUsedUpiApp: StateFlow<SpendingTrend> = _transactions
-        .map { transactions ->
-            val upiAppMap = mapOf(
-                "@ybl" to "PhonePe",
-                "@okicici" to "Google Pay",
-                "@okaxis" to "Google Pay",
-                "@okhdfcbank" to "Google Pay",
-                "@paytm" to "Paytm",
-                "@axl" to "Axis Pay",
-                "@apl" to "Amazon Pay"
-            )
-
-            val appCounts = transactions
-                .mapNotNull { transaction ->
-                    upiAppMap.entries.find { (handle, _) ->
-                        transaction.description.contains(handle, ignoreCase = true) ||
-                                transaction.senderOrReceiver.contains(handle, ignoreCase = true)
-                    }?.value
-                }
-                .groupingBy { it }
-                .eachCount()
-
-            val topApp = appCounts.maxByOrNull { it.value }
-
-            if (topApp == null) {
-                SpendingTrend("Most Used App", "-", "Could not determine.")
-            } else {
-                SpendingTrend("Most Used App", topApp.key, "${topApp.value} transactions recorded")
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Lazily, SpendingTrend("Most Used App", "-", "Calculating..."))
-
-
     // --- Graph Data (Public) ---
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
         combine(_transactions, _selectedGraphPeriod) { allTransactions, period ->
             // Log.d("ViewModelDebug", "Recalculating lastNMonthsExpenses. Input transactions: ${allTransactions.size}, Period: ${period.displayName} (${period.months} months)")
-            val result = calculateLastNMonthsExpenses(allTransactions, period.months, REFUNDCATEGORY)
+            val result = calculateLastNMonthsExpenses(allTransactions, period.months, refundCategory)
             // Log.d("ViewModelDebug", "Resulting monthly expenses for graph: ${result.size} items")
             result
         }
@@ -876,7 +782,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
             val relevantTransactions = allTransactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(REFUNDCATEGORY, ignoreCase = true) &&
+                        !it.category.equals(refundCategory, ignoreCase = true) &&
                         it.date in rangeStart..rangeEnd
             }
             val expensesByDayTimestamp = relevantTransactions
@@ -951,7 +857,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.type.equals(
                         "DEBIT",
                         ignoreCase = true
-                    ) && !it.category.isNullOrBlank() && !it.category.equals(REFUNDCATEGORY, ignoreCase = true)
+                    ) && !it.category.isNullOrBlank() && !it.category.equals(refundCategory, ignoreCase = true)
                 }
                 .groupBy { it.category!! }
                 .map { (categoryName, transactionsInCategory) ->
@@ -1039,9 +945,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // In MainViewModel.kt, replace the addOrUpdateBudget function
+    fun updateRecurringRule(
+        ruleId: Int,
+        newDescription: String,
+        newAmount: Double,
+        newCategory: String,
+        newPeriod: BudgetPeriod,
+        newDay: Int
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // First, get the original rule from the database.
+            // This is important to preserve non-editable fields like the creationDate.
+            val originalRule = recurringRuleDao.getRuleById(ruleId)
 
-    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: BudgetPeriod, allowRollover: Boolean) { // ✨ ADD allowRollover
+            originalRule?.let {
+                // Create a new rule object by copying the original and applying changes.
+                val updatedRule = it.copy(
+                    description = newDescription,
+                    amount = newAmount,
+                    categoryName = newCategory,
+                    periodType = newPeriod,
+                    dayOfPeriod = newDay
+                    // Note: We are not changing the nextDueDate here,
+                    // which is usually the desired behavior for an edit.
+                )
+                // Use the existing DAO function to update the database.
+                recurringRuleDao.update(updatedRule)
+                postPlainSnackbarMessage("Recurring rule updated.")
+            }
+        }
+    }
+
+    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: BudgetPeriod, allowRollover: Boolean, budgetId: Int? = null) { // ✨ ADD allowRollover
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
@@ -1052,6 +987,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val budget = com.example.upitracker.data.Budget(
+                    id = budgetId ?: 0,
                     categoryName = trimmedCategory,
                     budgetAmount = amount,
                     periodType = periodType,
@@ -1123,45 +1059,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showHistoryFilterSheet.value = false
     }
 
-    fun updateTransactionCategory(transactionId: Int, category: String?) {
-        viewModelScope.launch {
-            val transactionToUpdate = _transactions.value.find { it.id == transactionId }
-            transactionToUpdate?.let {
-                val newCategoryValue = category?.trim().takeIf { cat -> cat?.isNotBlank() == true }
-                val updatedTransaction = it.copy(category = newCategoryValue)
+    fun updateTransactionDetails(
+        transactionId: Int,
+        newDescription: String,
+        newAmount: Double,
+        newCategory: String?
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // First, get the original transaction from our current list of transactions
+            val originalTransaction = _transactions.value.find { it.id == transactionId }
+
+            originalTransaction?.let {
+                // Create a new transaction object by copying the original and applying changes
+                val updatedTransaction = it.copy(
+                    description = newDescription.trim(),
+                    amount = newAmount,
+                    category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                )
+
+                // Use the existing DAO function to update the database
                 transactionDao.update(updatedTransaction)
 
-                // ✨ START: Updated Learning Logic ✨
-                if (!newCategoryValue.isNullOrBlank()) {
-                    // Use the sender/receiver as the keyword.
-                    val keyword = it.senderOrReceiver.split(" ")[0].lowercase(Locale.getDefault())
-
-                    if (keyword.isNotBlank()) {
-                        // Create a rule with our new, more powerful structure
-                        val newRule = CategorySuggestionRule(
-                            fieldToMatch = RuleField.SENDER_OR_RECEIVER,
-                            matcher = RuleMatcher.CONTAINS,
-                            keyword = keyword,
-                            categoryName = newCategoryValue
-                        )
-                        // Call the new 'insert' function in the DAO
-                        categorySuggestionRuleDao.insert(newRule)
-                    }
-                }
-                // ✨ END: Updated Learning Logic ✨
-
-                if (newCategoryValue.equals("Refund", ignoreCase = true)) {
-                    postPlainSnackbarMessage(
-                        getApplication<Application>().getString(R.string.refund_category_snackbar_message)
-                    )
-                } else {
-                    val message = if (newCategoryValue.isNullOrBlank()) {
-                        getApplication<Application>().getString(R.string.category_removed_success)
-                    } else {
-                        getApplication<Application>().getString(R.string.category_updated_success, newCategoryValue)
-                    }
-                    postSnackbarMessage(message)
-                }
+                // Let the user know the update was successful
+                postPlainSnackbarMessage("Transaction updated successfully!")
             }
         }
     }

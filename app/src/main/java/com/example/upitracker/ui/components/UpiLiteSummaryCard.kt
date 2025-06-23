@@ -22,7 +22,7 @@ fun UpiLiteSummaryCard(
     val displayDate = remember(summary.date) {
         try {
             displayDateFormat.format(Date(summary.date))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "Invalid Date" // Fallback
         }
     }
@@ -74,7 +74,7 @@ fun UpiLiteSummaryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "₹${try { "%.2f".format(summary.totalAmount) } catch (e: Exception) { "0.00" }}",
+                    text = "₹${try { "%.2f".format(summary.totalAmount) } catch (_: Exception) { "0.00" }}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )

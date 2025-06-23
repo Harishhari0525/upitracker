@@ -48,8 +48,6 @@ import kotlin.math.sin
 import androidx.core.graphics.get
 import kotlin.math.roundToInt
 
-fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
-fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 
 val pieChartColorsDefaults = listOf(
     Color(0xFFF44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),

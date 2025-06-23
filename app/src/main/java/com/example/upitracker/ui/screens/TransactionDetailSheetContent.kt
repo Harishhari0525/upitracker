@@ -115,9 +115,9 @@ fun TransactionDetailSheetContent(
                 transaction = transaction!!,
                 onDismiss = { showEditCategoryDialog = false },
                 suggestionCategories = userCategories,
-                onSaveCategory = { transactionId, newCategory ->
-                    mainViewModel.updateTransactionCategory(transactionId, newCategory)
-                    showEditCategoryDialog = false
+                onSave = { id, desc, amount, cat ->
+                    mainViewModel.updateTransactionDetails(id, desc, amount, cat)
+                    showEditCategoryDialog = false // Close the dialog
                 }
             )
         }
@@ -135,8 +135,6 @@ fun TransactionDetailSheetContent(
     }
 }
 
-
-// These helper composables can stay at the bottom of the file
 @Composable
 private fun TransactionDetailHeader(transaction: Transaction) {
     val creditColor = if (isSystemInDarkTheme()) Color(0xFF63DC94) else Color(0xFF006D3D)

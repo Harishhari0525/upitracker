@@ -14,6 +14,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.example.upitracker.R // Ensure this is imported
 import com.example.upitracker.util.PinStorage
 import kotlinx.coroutines.launch
@@ -31,15 +33,14 @@ fun PinSetupScreen(
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Strings resolved here for use in logic
     val pinMinDigitsError = stringResource(R.string.pin_setup_pin_must_be_4_digits)
     val pinsMismatchError = stringResource(R.string.pin_setup_pins_do_not_match)
 
     Column(
-        modifier = modifier
+        modifier = modifier.verticalScroll(rememberScrollState())
             .fillMaxWidth()
             .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 16.dp), // Padding for dialog
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Title is typically provided by the AlertDialog in SettingsScreen
         // If used standalone, a title could be added here:

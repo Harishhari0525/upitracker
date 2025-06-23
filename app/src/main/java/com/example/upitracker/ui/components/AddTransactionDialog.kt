@@ -1,5 +1,3 @@
-// In ui/components/AddTransactionDialog.kt
-
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.upitracker.ui.components
@@ -12,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 // We pass lambdas for the actions
 @Composable
@@ -33,7 +33,8 @@ fun AddTransactionDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Manual Transaction") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Amount Field
                 OutlinedTextField(
                     value = amount,

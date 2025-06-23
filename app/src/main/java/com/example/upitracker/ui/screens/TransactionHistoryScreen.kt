@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,9 @@ fun TransactionHistoryScreen(
     modifier: Modifier = Modifier
 ) {
     // State for the main view (tabs, detail sheet)
-    val pagerState = rememberPagerState { 2 }
+    val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
+    val pageCount = if (isUpiLiteEnabled) 2 else 1
+    val pagerState = rememberPagerState { pageCount }
     val coroutineScope = rememberCoroutineScope()
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDetailSheet by remember { mutableStateOf(false) }
@@ -44,7 +47,6 @@ fun TransactionHistoryScreen(
 
     // State for our new Filter Bottom Sheet
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
     val tabIcons = if (isUpiLiteEnabled) listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize) else listOf(Icons.Filled.AccountBalanceWallet)
 
     val tabTitles = if (isUpiLiteEnabled) {
@@ -76,7 +78,10 @@ fun TransactionHistoryScreen(
                 filters = filters,
                 onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
                 onClearAmountFilter = { mainViewModel.setAmountFilter(AmountFilterType.ALL, null, null) },
-                onClearUncategorizedFilter = { mainViewModel.toggleUncategorizedFilter(false) }
+                onClearUncategorizedFilter = { mainViewModel.toggleUncategorizedFilter(false) },
+                onDateFilterClick = { mainViewModel.onFilterClick() },
+                onAmountFilterClick = { mainViewModel.onFilterClick() },
+                onUncategorizedFilterClick = { mainViewModel.onFilterClick() }
             )
 
             // Tabs and Pager for content
@@ -115,14 +120,7 @@ fun TransactionHistoryScreen(
         ) {
             FilterSheetContent(
                 mainViewModel = mainViewModel,
-                filters = filters,
-                onCloseSheet = {
-                    coroutineScope.launch { filterSheetState.hide() }.invokeOnCompletion {
-                        if (!filterSheetState.isVisible) {
-                            mainViewModel.onFilterSheetDismiss()
-                        }
-                    }
-                }
+                filters = filters
             )
         }
     }
@@ -158,24 +156,49 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
 
+    val listState = rememberLazyListState()
+
+// And change it to this (just add the new key):
+    LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
+        listState.animateScrollToItem(index = 0)
+    }
+
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)
         ) {
-            UpiTransactionTypeFilter.entries.forEach { filterType ->
-                FilterChip(
-                    selected = selectedUpiFilterType == filterType,
-                    onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                    label = { Text(filterType.name.replace("_", " ").replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
-                    leadingIcon = if (selectedUpiFilterType == filterType) {
-                        { Icon(Icons.Filled.Check, contentDescription = null) }
-                    } else null
+            Row(
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                UpiTransactionTypeFilter.entries.forEach { filterType ->
+                    FilterChip(
+                        selected = selectedUpiFilterType == filterType,
+                        onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
+                        label = { Text(filterType.name.replace("_", " ").replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
+                        leadingIcon = if (selectedUpiFilterType == filterType) {
+                            { Icon(Icons.Filled.Check, contentDescription = null) }
+                        } else null
+                    )
+                }
+            }
+
+            // This IconButton is aligned to the end of the Box
+            IconButton(
+                onClick = { mainViewModel.onFilterClick() },
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Show Filters"
                 )
             }
         }
+
         SortControls(
             currentSortField = upiSortField,
             currentSortOrder = upiSortOrder,
@@ -186,6 +209,7 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
             EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -217,6 +241,13 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
 
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(upiLiteSortField, upiLiteSortOrder) {
+        // Scroll to the top of the list
+        listState.animateScrollToItem(index = 0)
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         UpiLiteSummarySortControls(
             currentSortField = upiLiteSortField,
@@ -228,6 +259,7 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
             EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(all = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -243,8 +275,7 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
 @Composable
 private fun FilterSheetContent(
     mainViewModel: MainViewModel,
-    filters: TransactionFilters,
-    onCloseSheet: () -> Unit
+    filters: TransactionFilters
 ) {
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
@@ -260,9 +291,6 @@ private fun FilterSheetContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Filters", style = MaterialTheme.typography.titleLarge)
-            IconButton(onClick = onCloseSheet) {
-                Icon(Icons.Default.Close, contentDescription = "Close Filters")
-            }
         }
         Spacer(Modifier.height(16.dp))
 
@@ -329,7 +357,10 @@ private fun ActiveFiltersRow(
     filters: TransactionFilters,
     onClearDateFilter: () -> Unit,
     onClearAmountFilter: () -> Unit,
-    onClearUncategorizedFilter: () -> Unit
+    onClearUncategorizedFilter: () -> Unit,
+    onDateFilterClick: () -> Unit,
+    onAmountFilterClick: () -> Unit,
+    onUncategorizedFilterClick: () -> Unit
 ) {
     val showRow = filters.startDate != null || filters.amountType != AmountFilterType.ALL || filters.showUncategorized
     if (showRow) {
@@ -345,7 +376,7 @@ private fun ActiveFiltersRow(
                 val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
                 FilterChip(
                     selected = false,
-                    onClick = {},
+                    onClick = onDateFilterClick,
                     label = { Text("$start - $end") },
                     trailingIcon = {
                         Icon(
@@ -361,7 +392,7 @@ private fun ActiveFiltersRow(
             if (filters.amountType != AmountFilterType.ALL) {
                 FilterChip(
                     selected = false,
-                    onClick = {},
+                    onClick = onAmountFilterClick,
                     label = { Text("Amount") },
                     trailingIcon = {
                         Icon(
@@ -377,7 +408,7 @@ private fun ActiveFiltersRow(
             if (filters.showUncategorized) {
                 FilterChip(
                     selected = false,
-                    onClick = {},
+                    onClick = onUncategorizedFilterClick,
                     label = { Text("Uncategorized") },
                     trailingIcon = {
                         Icon(

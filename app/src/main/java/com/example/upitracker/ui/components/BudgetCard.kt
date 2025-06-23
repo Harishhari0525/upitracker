@@ -37,7 +37,7 @@ fun BudgetCard(
                 Box {
                     IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Budget options") }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        // DropdownMenuItem(text = { Text("Edit") }, onClick = { onEdit(); showMenu = false }) // Edit disabled for now
+                        DropdownMenuItem(text = { Text("Edit") }, onClick = { onEdit(); showMenu = false }) // Edit disabled for now
                         DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(); showMenu = false })
                     }
                 }

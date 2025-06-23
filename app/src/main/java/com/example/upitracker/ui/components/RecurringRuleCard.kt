@@ -18,6 +18,7 @@ import java.util.*
 fun RecurringRuleCard(
     rule: RecurringRule,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
@@ -60,6 +61,13 @@ fun RecurringRuleCard(
                     Icon(Icons.Default.MoreVert, contentDescription = "More options")
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = {
+                            onEdit()
+                            showMenu = false
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         onClick = {

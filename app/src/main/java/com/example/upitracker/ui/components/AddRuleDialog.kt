@@ -10,6 +10,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleMatcher
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +32,8 @@ fun AddRuleDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add New Rule") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Dropdown for Field to Match
                 ExposedDropdownMenuBox(expanded = isFieldExpanded, onExpandedChange = { isFieldExpanded = it }) {
                     OutlinedTextField(

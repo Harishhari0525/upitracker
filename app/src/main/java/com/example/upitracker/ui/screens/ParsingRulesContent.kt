@@ -21,6 +21,8 @@ import com.example.upitracker.R
 import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun ParsingRulesContent(
@@ -31,6 +33,7 @@ fun ParsingRulesContent(
     val regexListState = remember { mutableStateListOf<String>() }
     var newRegex by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
+    val coroutineScope = rememberCoroutineScope()
 
     // --- State for Test Area ---
     var sampleSmsText by remember { mutableStateOf("") }
@@ -73,13 +76,25 @@ fun ParsingRulesContent(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     regexListState.forEach { regexPattern ->
                         ListItem(
-                            headlineContent = { Text(regexPattern, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)) },
+                            headlineContent = { Text(regexPattern,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)) },
                             trailingContent = {
-                                IconButton(onClick = { regexListState.remove(regexPattern) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.regex_editor_delete_pattern_desc), tint = MaterialTheme.colorScheme.error)
+
+                                IconButton(onClick = {
+                                    val patternToRemove = regexPattern
+                                    regexListState.remove(patternToRemove)
+                                    coroutineScope.launch {
+                                        RegexPreference.setRegexPatterns(context, regexListState.toSet())
+                                        mainViewModel.postPlainSnackbarMessage("Pattern removed.")
+                                    }
+                                }) {
+                                    Icon(Icons.Filled.Delete, contentDescription
+                                    = stringResource(R.string.regex_editor_delete_pattern_desc),
+                                        tint = MaterialTheme.colorScheme.error)
                                 }
                             },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+                            colors = ListItemDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
                         )
                         HorizontalDivider()
                     }
@@ -103,6 +118,10 @@ fun ParsingRulesContent(
                                 if (!regexListState.contains(trimmedRegex)) {
                                     regexListState.add(0, trimmedRegex)
                                     newRegex = ""
+                                    coroutineScope.launch {
+                                        RegexPreference.setRegexPatterns(context, regexListState.toSet())
+                                        mainViewModel.postPlainSnackbarMessage("Pattern saved!")
+                                    }
                                 } else {
                                     mainViewModel.postPlainSnackbarMessage(context.getString(R.string.regex_editor_pattern_exists_message))
                                 }
@@ -167,7 +186,8 @@ fun ParsingRulesContent(
                 )
                 Text(
                     text = result,
-                    color = if (isTestMatchFound == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color = if (isTestMatchFound == true) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier
                         .fillMaxWidth()
