@@ -1059,6 +1059,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showHistoryFilterSheet.value = false
     }
 
+    fun permanentlyDeleteTransaction(transaction: Transaction) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // This is a hard delete that completely removes the row from the database.
+            transactionDao.delete(transaction)
+        }
+    }
+
     fun updateTransactionDetails(
         transactionId: Int,
         newDescription: String,
@@ -1155,14 +1162,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
-
-    fun addUpiLiteSummary(summary: UpiLiteSummary) {
-        viewModelScope.launch {
-            upiLiteSummaryDao.insert(summary)
-        }
-    }
-
     fun setIsRefreshingSmsArchive(isRefreshing: Boolean) {
         _isRefreshingSmsArchive.value = isRefreshing
         if (isRefreshing) { // If ad-hoc refresh starts, general import is not also in progress separately
@@ -1173,12 +1172,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             ThemePreference.setDarkMode(getApplication(), enabled)
-        }
-    }
-
-    fun insertTransaction(transaction: Transaction) { // This is a general insert
-        viewModelScope.launch {
-            transactionDao.insert(transaction) // Default OnConflictStrategy.REPLACE will handle if ID exists
         }
     }
 

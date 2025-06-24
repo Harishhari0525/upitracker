@@ -64,7 +64,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import java.util.concurrent.TimeUnit
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.ui.res.stringResource
 
 class MainActivity : FragmentActivity() {
 
@@ -110,7 +109,7 @@ class MainActivity : FragmentActivity() {
         scheduleRecurringTransactionWorker()
 
         // ... (db, dao, smsReceiver setup remains the same)
-        val db = AppDatabase.getDatabase(this); val dao = db.transactionDao(); val liteDao = db.upiLiteSummaryDao()
+        val db = AppDatabase.getDatabase(this); val liteDao = db.upiLiteSummaryDao()
         smsReceiver = SmsReceiver(
             onTransactionParsed = { transaction -> mainViewModel.processAndInsertTransaction(transaction) },
             onUpiLiteSummaryReceived = { newSummary ->
@@ -129,7 +128,6 @@ class MainActivity : FragmentActivity() {
         ContextCompat.registerReceiver(this, smsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         setContent {
-            val isDarkMode by mainViewModel.isDarkMode.collectAsState()
             Theme(mainViewModel = mainViewModel) {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val coroutineScope = rememberCoroutineScope()
@@ -180,21 +178,17 @@ class MainActivity : FragmentActivity() {
                                 restartDialogMessage = event.message
                                 showRestartDialog = true
                             }
-                            // ✨ BEST PRACTICE: Add an else branch to make the 'when' exhaustive ✨
-                            else -> {
-                                // Do nothing for other potential events in the future
-                            }
                         }
                     }
                 }
 
-                LaunchedEffect(pinIsActuallySet, onboardingCompleted) {
-                    pinUnlocked = if (onboardingCompleted) {
-                        !pinIsActuallySet // If onboarding is done, unlock if no PIN is set
-                    } else {
-                        false // If onboarding not done, assume locked (will show onboarding first)
-                    }
-                }
+//                LaunchedEffect(pinIsActuallySet, onboardingCompleted) {
+//                    pinUnlocked = if (onboardingCompleted) {
+//                        !pinIsActuallySet // If onboarding is done, unlock if no PIN is set
+//                    } else {
+//                        false // If onboarding not done, assume locked (will show onboarding first)
+//                    }
+//                }
                 Scaffold(
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                     contentWindowInsets = WindowInsets(0)
@@ -389,7 +383,7 @@ class MainActivity : FragmentActivity() {
     private fun scheduleRecurringTransactionWorker() {
         // Run this check periodically (e.g., every 12 hours)
         val recurringRequest =
-            PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, java.util.concurrent.TimeUnit.HOURS)
+            PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, TimeUnit.HOURS)
                 .build()
 
         WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
@@ -558,11 +552,13 @@ private fun ForceRestartDialog(message: String, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = { /* This dialog cannot be dismissed */ },
         icon = { Icon(Icons.Filled.SyncProblem, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text(text = stringResource(R.string.dialog_restart_required_title)) },
-        text = { Text(text = message) },
+        title = { Text(text = "Restore Successful") }, // Change title
+        // Change the message to be more instructive
+        text = { Text(text = "Your data has been restored. Please manually close and reopen the app to see the changes.") },
         confirmButton = {
+            // Change the button to a simple "OK" that closes the app.
             Button(onClick = onConfirm) {
-                Text(text = stringResource(R.string.dialog_restart_button_restart))
+                Text(text = "OK, Close App")
             }
         }
     )

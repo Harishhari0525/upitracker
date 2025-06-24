@@ -15,9 +15,11 @@ fun DeleteTransactionConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.delete_transaction_dialog_title), tint = MaterialTheme.colorScheme.error) },
+        icon = { Icon(Icons.Filled.DeleteForever,
+            contentDescription = stringResource(R.string.delete_transaction_dialog_title), tint = MaterialTheme.colorScheme.error) },
         title = { Text(stringResource(R.string.delete_transaction_dialog_title)) },
-        text = { Text(stringResource(R.string.delete_transaction_dialog_message) + "\n\n\"${transactionDescription.take(50)}${if (transactionDescription.length > 50) "..." else ""}\"") },
+        text = { Text(stringResource(R.string.delete_transaction_dialog_message) +
+                "\n\n\"${transactionDescription.take(50)}${if (transactionDescription.length > 50) "..." else ""}\"") },
         confirmButton = {
             Button(
                 onClick = onConfirm,
