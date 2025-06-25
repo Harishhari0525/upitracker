@@ -5,7 +5,6 @@ package com.example.upitracker.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -18,20 +17,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.viewmodel.BankMessageCount
 import com.example.upitracker.viewmodel.MainViewModel
-import com.example.upitracker.viewmodel.SummaryHistoryItem
 import com.example.upitracker.viewmodel.TransactionHistoryItem
 import java.text.NumberFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CurrentMonthExpensesScreen(
     mainViewModel: MainViewModel,
     onViewAllClick: () -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Collect all the necessary state from the ViewModel
@@ -39,60 +42,92 @@ fun CurrentMonthExpensesScreen(
     val bankMessageCounts by mainViewModel.bankMessageCounts.collectAsState()
     val recentTransactions by mainViewModel.currentMonthExpenseItems.collectAsState()
     val recurringRules by mainViewModel.recurringRules.collectAsState() // State for our new section
+    val isImporting by mainViewModel.isImportingSms.collectAsState()
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-       //     .windowInsetsPadding(WindowInsets.systemBars)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp), // Increased spacing for a cleaner look
-        contentPadding = PaddingValues(bottom = 10.dp)
+    val pullRefreshState = rememberPullToRefreshState()
+
+    PullToRefreshBox(
+        modifier = Modifier.fillMaxSize(),
+        isRefreshing = isImporting,
+        onRefresh = onRefresh,
+        state = pullRefreshState,
+        indicator = {
+            PullToRefreshDefaults.LoadingIndicator(
+                modifier = Modifier.align(Alignment.TopCenter),
+                state = pullRefreshState,
+                isRefreshing = isImporting
+            )
+        }
     ) {
-        // --- Card 1: Total Expenses ---
-        item {
-            TotalExpensesHeroCard(total = currentMonthExpensesTotal)
-        }
 
-        // --- Card 2: Bank Activity (Can be removed if you want further simplification) ---
-        item {
-            SectionHeader(title = "Bank Activity")
-            Spacer(Modifier.height(8.dp))
-            BankActivityCard(counts = bankMessageCounts)
-        }
-
-        // --- Section 3: Upcoming Payments (The new feature) ---
-        item {
-            UpcomingPaymentsSection(rules = recurringRules)
-        }
-
-        // --- Section 4: Recent Transactions ---
-        item {
-            RecentTransactionsHeader(onViewAllClick = onViewAllClick)
-        }
-
-        if (recentTransactions.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No transactions this month yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                //     .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp), // Increased spacing for a cleaner look
+            contentPadding = PaddingValues(bottom = 10.dp)
+        ) {
+            stickyHeader {
+                Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
+                    TotalExpensesHeroCard(total = currentMonthExpensesTotal)
+                    // Add a spacer to separate the sticky header from the scrolling content
+                    Spacer(Modifier.height(20.dp))
                 }
             }
-        } else {
-            items(recentTransactions.take(3), key = { item ->
-                when (item) {
-                    is TransactionHistoryItem -> "txn-home-${item.transaction.id}-${item.transaction.date}"
-                    is SummaryHistoryItem -> "summary-home-${item.summary.id}-${item.summary.date}"
-                }
-            }) { item ->
-                if (item is TransactionHistoryItem) {
-                    TransactionCardWithMenu(
-                        transaction = item.transaction,
-                        onClick = { /* Detail view can be handled here if needed */ },
-                        onArchive = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
-                        onDelete = { mainViewModel.deleteTransaction(it) }
-                    )
+
+            // --- Card 2: Bank Activity (Can be removed if you want further simplification) ---
+            item {
+                SectionHeader(title = "Bank Activity")
+                Spacer(Modifier.height(8.dp))
+                BankActivityCard(counts = bankMessageCounts)
+            }
+
+            // --- Section 3: Upcoming Payments (The new feature) ---
+            item {
+                UpcomingPaymentsSection(rules = recurringRules)
+            }
+
+            // --- Section 4: Recent Transactions ---
+            item {
+                // We group the header and the list inside a single Column
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    RecentTransactionsHeader(onViewAllClick = onViewAllClick)
+
+                    // Use a smaller, explicit Spacer for a tighter look
+                    Spacer(Modifier.height(12.dp))
+
+                    if (recentTransactions.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "No transactions this month yet.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        // Since we are only ever showing 3 items, a simple Column is efficient
+                        // and allows us to control the spacing perfectly.
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            recentTransactions.take(3).forEach { item ->
+                                if (item is TransactionHistoryItem) {
+                                    TransactionCardWithMenu(
+                                        transaction = item.transaction,
+                                        onClick = { /* ... */ },
+                                        onArchive = {
+                                            mainViewModel.toggleTransactionArchiveStatus(
+                                                it,
+                                                true
+                                            )
+                                        },
+                                        onDelete = { mainViewModel.deleteTransaction(it) }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -195,7 +230,7 @@ private fun BankActivityCard(counts: List<BankMessageCount>) {
 }
 
 @Composable
-private fun SectionHeader(title: String) {
+internal fun SectionHeader(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleLarge,
@@ -214,7 +249,8 @@ private fun RecentTransactionsHeader(onViewAllClick: () -> Unit) {
         TextButton(onClick = onViewAllClick) {
             Text("View All")
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View All Transactions", modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "View All Transactions", modifier = Modifier.size(18.dp))
         }
     }
 }

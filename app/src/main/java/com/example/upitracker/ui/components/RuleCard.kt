@@ -7,7 +7,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.CategorySuggestionRule
 
@@ -22,35 +25,42 @@ fun RuleCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("IF", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                    Text(
-                        text = rule.fieldToMatch.name.replace("_", " "),
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(rule.matcher.name.lowercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                    Text(
-                        text = "'${rule.keyword}'",
-                        modifier = Modifier.padding(start = 4.dp),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("THEN Category is", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        text = rule.categoryName,
-                        modifier = Modifier.padding(start = 4.dp),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // This Text composable now handles the entire "IF" condition,
+                // allowing it to wrap correctly as one block.
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.secondary)) {
+                            append("IF ")
+                        }
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(rule.fieldToMatch.name.replace("_", " "))
+                        }
+                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.secondary)) {
+                            append(" ${rule.matcher.name.lowercase()} ")
+                        }
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append("'${rule.keyword}'")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodyLarge
+                )
+
+                // The "THEN" condition is also a single Text composable.
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                            append("THEN Category is ")
+                        }
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(rule.categoryName)
+                        }
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete Rule")

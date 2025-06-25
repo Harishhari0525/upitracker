@@ -269,7 +269,6 @@ class MainActivity : FragmentActivity() {
                 }
                 if (showRestartDialog) {
                     ForceRestartDialog(
-                        message = restartDialogMessage,
                         onConfirm = {
                             RestartUtil.restartApp(this@MainActivity)
                         }
@@ -548,7 +547,7 @@ class MainActivity : FragmentActivity() {
     }
 }
 @Composable
-private fun ForceRestartDialog(message: String, onConfirm: () -> Unit) {
+private fun ForceRestartDialog(onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = { /* This dialog cannot be dismissed */ },
         icon = { Icon(Icons.Filled.SyncProblem, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },

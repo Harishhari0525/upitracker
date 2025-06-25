@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -12,6 +13,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.Alignment
+import com.example.upitracker.util.IndianCurrencyVisualTransformation
 
 // We pass lambdas for the actions
 @Composable
@@ -28,6 +31,7 @@ fun AddTransactionDialog(
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("DEBIT") } // Debit by default
+    var isAmountError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -38,10 +42,29 @@ fun AddTransactionDialog(
                 // Amount Field
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { amount = it },
+                    onValueChange = { newValue ->
+                        isAmountError = false
+
+                        var filtered = newValue.filter { char -> char.isDigit() || char == '.' }
+                        if (filtered.count { it == '.' } > 1) {
+                            filtered = amount
+                        }
+                        amount = filtered
+                    },
                     label = { Text("Amount") },
                     prefix = { Text("₹") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = isAmountError,
+                    supportingText = {
+                        if (isAmountError) {
+                            Text(
+                                text = "Please enter a valid number",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    // The visual transformation remains the same
+                    visualTransformation = IndianCurrencyVisualTransformation()
                 )
 
                 // Description Field
@@ -61,14 +84,39 @@ fun AddTransactionDialog(
                 )
 
                 // Transaction Type Radio Buttons
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.weight(1f)) {
-                        RadioButton(selected = selectedType == "DEBIT", onClick = { selectedType = "DEBIT" })
-                        Text("Debit", modifier = Modifier.padding(start = 4.dp))
+                Row(modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f) // Takes up half of the available space
+                            .clickable { selectedType = "DEBIT" }, // Make the whole area clickable for better UX
+                        verticalAlignment = Alignment.CenterVertically // This aligns the button and text
+                    ) {
+                        RadioButton(
+                            selected = selectedType == "DEBIT",
+                            onClick = { selectedType = "DEBIT" }
+                        )
+                        Text(
+                            text = "Debit",
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
                     }
-                    Row(modifier = Modifier.weight(1f)) {
-                        RadioButton(selected = selectedType == "CREDIT", onClick = { selectedType = "CREDIT" })
-                        Text("Credit", modifier = Modifier.padding(start = 4.dp))
+
+                    // --- Credit Option ---
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedType = "CREDIT" }, // Make the whole area clickable
+                        verticalAlignment = Alignment.CenterVertically // This aligns the button and text
+                    ) {
+                        RadioButton(
+                            selected = selectedType == "CREDIT",
+                            onClick = { selectedType = "CREDIT" }
+                        )
+                        Text(
+                            text = "Credit",
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
                     }
                 }
             }
@@ -77,9 +125,11 @@ fun AddTransactionDialog(
             Button(
                 onClick = {
                     val amountDouble = amount.toDoubleOrNull()
-                    // Basic validation
                     if (amountDouble != null && description.isNotBlank() && category.isNotBlank()) {
+                        isAmountError = false
                         onConfirm(amountDouble, selectedType, description, category)
+                    } else {
+                        isAmountError = true
                     }
                 }
             ) {

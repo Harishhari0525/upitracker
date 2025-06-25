@@ -3,7 +3,6 @@ package com.example.upitracker.viewmodel
 import android.app.Application
 import android.content.ContentResolver
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
@@ -23,6 +22,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.util.Log
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -67,6 +67,12 @@ data class SummaryHistoryItem(val summary: UpiLiteSummary) : HistoryListItem {
     override val displayDate: Long get() = summary.date
     override val itemType: String get() = "UpiLiteSummary"
 }
+
+data class MonthlyDebitSummaryStats(
+    val totalAmount: Double = 0.0,
+    val averageAmount: Double = 0.0,
+    val highestMonth: MonthlyExpense? = null
+)
 
 data class SpendingTrend(
     val title: String,
@@ -125,6 +131,18 @@ enum class SortableUpiLiteSummaryField {
     TRANSACTION_COUNT,
     BANK
 }
+
+data class DailyTrendSummaryStats(
+    val totalAmount: Double = 0.0,
+    val dailyAverage: Double = 0.0,
+    val highestDay: DailyExpensePoint? = null
+)
+
+data class IncomeExpenseSummaryStats(
+    val totalIncome: Double = 0.0,
+    val totalExpense: Double = 0.0,
+    val netSavings: Double = 0.0
+)
 
 data class SnackbarMessage(
     val message: String,
@@ -724,6 +742,93 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val monthlyDebitSummaryStats: StateFlow<MonthlyDebitSummaryStats> = lastNMonthsExpenses
+        .map { monthlyExpenses ->
+            if (monthlyExpenses.isEmpty()) {
+                MonthlyDebitSummaryStats() // Return default empty stats if there's no data
+            } else {
+                val total = monthlyExpenses.sumOf { it.totalAmount }
+                val average = if (monthlyExpenses.isNotEmpty()) total / monthlyExpenses.size else 0.0
+                val highest = monthlyExpenses.maxByOrNull { it.totalAmount }
+
+                MonthlyDebitSummaryStats(
+                    totalAmount = total,
+                    averageAmount = average,
+                    highestMonth = highest
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, MonthlyDebitSummaryStats())
+
+    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _transactions
+        .map { allTransactions ->
+            val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
+            val relevantTransactions = allTransactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true) &&
+                        !it.category.equals(refundCategory, ignoreCase = true) &&
+                        it.date in rangeStart..rangeEnd
+            }
+            val expensesByDayTimestamp = relevantTransactions
+                .groupBy { transaction ->
+                    val cal = Calendar.getInstance(); cal.timeInMillis = transaction.date
+                    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(
+                    Calendar.MINUTE,
+                    0
+                ); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                    cal.timeInMillis
+                }.mapValues { entry -> entry.value.sumOf { it.amount } }
+            val trendData = mutableListOf<DailyExpensePoint>()
+            val dayLabelFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
+            val currentDayCal = Calendar.getInstance(); currentDayCal.timeInMillis = rangeStart
+            while (currentDayCal.timeInMillis <= rangeEnd) {
+                val dayTimestamp = currentDayCal.timeInMillis
+                trendData.add(
+                    DailyExpensePoint(
+                        dayTimestamp = dayTimestamp,
+                        totalAmount = expensesByDayTimestamp[dayTimestamp] ?: 0.0,
+                        dayLabel = dayLabelFormat.format(Date(dayTimestamp))
+                    )
+                )
+                currentDayCal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            trendData
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val dailyTrendSummaryStats: StateFlow<DailyTrendSummaryStats> = dailyExpensesTrend
+        .map { dailyPoints ->
+            if (dailyPoints.isEmpty()) {
+                DailyTrendSummaryStats()
+            } else {
+                val total = dailyPoints.sumOf { it.totalAmount }
+                val average = if (dailyPoints.isNotEmpty()) total / dailyPoints.size else 0.0
+                val highest = dailyPoints.maxByOrNull { it.totalAmount }
+
+                DailyTrendSummaryStats(
+                    totalAmount = total,
+                    dailyAverage = average,
+                    highestDay = highest
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, DailyTrendSummaryStats())
+
+    val incomeExpenseSummaryStats: StateFlow<IncomeExpenseSummaryStats> = incomeVsExpenseData
+        .map { incomeExpensePoints ->
+            if (incomeExpensePoints.isEmpty()) {
+                IncomeExpenseSummaryStats()
+            } else {
+                val totalIncome = incomeExpensePoints.sumOf { it.totalIncome }
+                val totalExpense = incomeExpensePoints.sumOf { it.totalExpense }
+
+                IncomeExpenseSummaryStats(
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    netSavings = totalIncome - totalExpense
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, IncomeExpenseSummaryStats())
+
     private fun calculateLastNMonthsExpenses(
         transactions: List<Transaction>,
         n: Int, categoryToExclude: String?
@@ -776,40 +881,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: END. Final data size: ${result.size}, Data: $result")
         return result
     }
-
-    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _transactions
-        .map { allTransactions ->
-            val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
-            val relevantTransactions = allTransactions.filter {
-                it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(refundCategory, ignoreCase = true) &&
-                        it.date in rangeStart..rangeEnd
-            }
-            val expensesByDayTimestamp = relevantTransactions
-                .groupBy { transaction ->
-                    val cal = Calendar.getInstance(); cal.timeInMillis = transaction.date
-                    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(
-                    Calendar.MINUTE,
-                    0
-                ); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                    cal.timeInMillis
-                }.mapValues { entry -> entry.value.sumOf { it.amount } }
-            val trendData = mutableListOf<DailyExpensePoint>()
-            val dayLabelFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
-            val currentDayCal = Calendar.getInstance(); currentDayCal.timeInMillis = rangeStart
-            while (currentDayCal.timeInMillis <= rangeEnd) {
-                val dayTimestamp = currentDayCal.timeInMillis
-                trendData.add(
-                    DailyExpensePoint(
-                        dayTimestamp = dayTimestamp,
-                        totalAmount = expensesByDayTimestamp[dayTimestamp] ?: 0.0,
-                        dayLabel = dayLabelFormat.format(Date(dayTimestamp))
-                    )
-                )
-                currentDayCal.add(Calendar.DAY_OF_YEAR, 1)
-            }
-            trendData
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private fun getDailyTrendDateRange(daysToShow: Int): Pair<Long, Long> {
         val calendar = Calendar.getInstance(); calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(
@@ -1181,13 +1252,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val transactionToMark = transaction.copy(
                 pendingDeletionTimestamp = System.currentTimeMillis()
             )
-            // This update hides the item from the UI because of our updated DAO query.
+
             transactionDao.update(transactionToMark)
 
-            // Show a snackbar with a reliable "Undo" action.
             _snackbarEvents.emit(
                 SnackbarMessage(
-                    message = "Transaction moved to trash", // TODO: Use string resource
+                    message = "Moved to Recycle Bin. Will be deleted in 24 hours.", // TODO: Use string resource
                     actionLabel = "Undo", // TODO: Use string resource
                     onAction = {
                         // The UNDO action simply sets the timestamp back to null, making it visible again.
@@ -1198,6 +1268,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 )
             )
+            Log.d("DeleteBug", "Snackbar event emitted successfully.")
         }
     }
 

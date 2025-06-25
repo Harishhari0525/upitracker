@@ -146,6 +146,7 @@ fun MainAppScreen(
                             restoreState = true
                         }
                     },
+                    onRefresh = onImportOldSms,
                     modifier = Modifier.fillMaxSize()
                 )
             }
