@@ -25,70 +25,6 @@ val AppShapes = Shapes(
     large = RoundedCornerShape(28.dp)      // Used by components like Modal sheets
 )
 
-private val AppLightColorScheme = lightColorScheme(
-    primary = Color(0xFF006A6A),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF70F7F7),
-    onPrimaryContainer = Color(0xFF002020),
-    secondary = Color(0xFFB95636),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFFFDBCF),
-    onSecondaryContainer = Color(0xFF4A1A0B),
-    tertiary = Color(0xFF7E52A0), // New Purple Tertiary
-    onTertiary = Color(0xFFFFFFFF), // Remains the same
-    tertiaryContainer = Color(0xFFFADDFF), // New Purple Tertiary Container
-    onTertiaryContainer = Color(0xFF31104A), // New Purple OnTertiaryContainer
-    error = Color(0xFFB3261E),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFF9DEDC),
-    onErrorContainer = Color(0xFF410E0B),
-    background = Color(0xFFFAFDFB),
-    onBackground = Color(0xFF191C1B),
-    surface = Color(0xFFF7FCFA),
-    onSurface = Color(0xFF191C1B),
-    surfaceVariant = Color(0xFFDAE5E3),
-    onSurfaceVariant = Color(0xFF3F4948),
-    outline = Color(0xFF6F7978),
-    outlineVariant = Color(0xFFBEC9C7),
-    inverseSurface = Color(0xFF2E3130),
-    inverseOnSurface = Color(0xFFF0F1EF),
-    inversePrimary = Color(0xFF4CDADA),
-    surfaceTint = Color(0xFF006A6A),
-    scrim = Color(0xFF000000)
-)
-
-private val AppDarkColorScheme = darkColorScheme(
-    primary = Color(0xFF50D7D7),
-    onPrimary = Color(0xFF003737),
-    primaryContainer = Color(0xFF004F4F),
-    onPrimaryContainer = Color(0xFF70F7F7),
-    secondary = Color(0xFFFFB59C),
-    onSecondary = Color(0xFF652916),
-    secondaryContainer = Color(0xFF86402A),
-    onSecondaryContainer = Color(0xFFFFDBCF),
-    tertiary = Color(0xFFF9C63A),
-    onTertiary = Color(0xFF402D00),
-    tertiaryContainer = Color(0xFF5C4300),
-    onTertiaryContainer = Color(0xFFFFDEA4),
-    error = Color(0xFFF2B8B5),
-    onError = Color(0xFF601410),
-    errorContainer = Color(0xFF8C1D18),
-    onErrorContainer = Color(0xFFF9DEDC),
-    background = Color(0xFF191C1B),
-    onBackground = Color(0xFFE1E3E1),
-    surface = Color(0xFF191C1B),
-    onSurface = Color(0xFFE1E3E1),
-    surfaceVariant = Color(0xFF3F4948),
-    onSurfaceVariant = Color(0xFFBEC9C7),
-    outline = Color(0xFF899391),
-    outlineVariant = Color(0xFF3F4948),
-    inverseSurface = Color(0xFFE1E3E1),
-    inverseOnSurface = Color(0xFF191C1B),
-    inversePrimary = Color(0xFF006A6A),
-    surfaceTint = Color(0xFF50D7D7),
-    scrim = Color(0xFF000000)
-)
-
 // Theme 2: Forest
 val ForestLightColorScheme = lightColorScheme(
     primary = Color(0xFF386A20),
@@ -157,11 +93,58 @@ val RoseDarkColorScheme = darkColorScheme(
     surface = Color(0xFF1F1A1C),
 )
 
+// Theme 5: Lavender
+val LavenderLightColorScheme = lightColorScheme(
+    primary = Color(0xFF6A4FA3),
+    secondary = Color(0xFF625B71),
+    tertiary = Color(0xFF7D5260),
+    background = Color(0xFFFEF7FF),
+    surface = Color(0xFFFEF7FF)
+)
+val LavenderDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFD3BBFF),
+    secondary = Color(0xFFCCC2DC),
+    tertiary = Color(0xFFEFB8C8),
+    background = Color(0xFF1D1B20),
+    surface = Color(0xFF1D1B20)
+)
+
+// Theme 6: Sunset
+val SunsetLightColorScheme = lightColorScheme(
+    primary = Color(0xFF8F4C00),
+    secondary = Color(0xFFBD5324),
+    tertiary = Color(0xFF666000),
+    background = Color(0xFFFFF7F4),
+    surface = Color(0xFFFFF7F4)
+)
+val SunsetDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFFFB786),
+    secondary = Color(0xFFE38E64),
+    tertiary = Color(0xFFD0C80B),
+    background = Color(0xFF201A17),
+    surface = Color(0xFF201A17)
+)
+
+// Theme 7: Mint
+val MintLightColorScheme = lightColorScheme(
+    primary = Color(0xFF006C4F),
+    secondary = Color(0xFF3F6555),
+    tertiary = Color(0xFF006874),
+    background = Color(0xFFF4FFFA),
+    surface = Color(0xFFF4FFFA)
+)
+val MintDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF76D9B4),
+    secondary = Color(0xFFA7CEC0),
+    tertiary = Color(0xFF4FD2E4),
+    background = Color(0xFF171D1A),
+    surface = Color(0xFF171D1A)
+)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun Theme(
     mainViewModel: MainViewModel,
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
 
@@ -174,6 +157,9 @@ fun Theme(
         AppTheme.FOREST -> if (isDarkMode) ForestDarkColorScheme else ForestLightColorScheme
         AppTheme.OCEAN -> if (isDarkMode) OceanDarkColorScheme else OceanLightColorScheme
         AppTheme.ROSE -> if (isDarkMode) RoseDarkColorScheme else RoseLightColorScheme
+        AppTheme.LAVENDER -> if (isDarkMode) LavenderDarkColorScheme else LavenderLightColorScheme
+        AppTheme.SUNSET -> if (isDarkMode) SunsetDarkColorScheme else SunsetLightColorScheme
+        AppTheme.MINT -> if (isDarkMode) MintDarkColorScheme else MintLightColorScheme
 
         // Only for the DEFAULT theme do we check for Dynamic Color.
         AppTheme.DEFAULT -> {
@@ -193,6 +179,9 @@ fun Theme(
                     AppTheme.FOREST -> isDarkMode
                     AppTheme.OCEAN -> isDarkMode
                     AppTheme.ROSE -> isDarkMode
+                    AppTheme.LAVENDER -> isDarkMode
+                    AppTheme.SUNSET -> isDarkMode
+                    AppTheme.MINT -> isDarkMode
                 }
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !finalSchemeIsDark
             }

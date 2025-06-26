@@ -19,7 +19,10 @@ enum class AppTheme(val displayName: String) {
     DEFAULT("Default"),
     FOREST("Forest"),
     OCEAN("Ocean"),
-    ROSE("Rose")
+    ROSE("Rose"),
+    LAVENDER("Lavender"),
+    SUNSET("Sunset"),
+    MINT("Mint")
 }
 
 object ThemePreference {
@@ -33,7 +36,7 @@ object ThemePreference {
      */
     fun isDarkModeFlow(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { prefs: Preferences ->
-            prefs[DARK_MODE_KEY] ?: false // Default to light mode (false)
+            prefs[DARK_MODE_KEY] == true // Default to light mode (false)
         }
             .catch { exception ->
                 // Handle potential exceptions during DataStore read
@@ -54,7 +57,7 @@ object ThemePreference {
     fun isUpiLiteEnabledFlow(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { prefs ->
             // Default to true, so existing users still see it.
-            prefs[UPI_LITE_ENABLED_KEY] ?: true
+            prefs[UPI_LITE_ENABLED_KEY] != false
         }
 
     suspend fun setUpiLiteEnabled(context: Context, enabled: Boolean) {

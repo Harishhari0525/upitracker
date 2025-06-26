@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
@@ -26,6 +27,7 @@ import com.example.upitracker.viewmodel.BudgetStatus
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BudgetScreen(mainViewModel: MainViewModel) {
     // --- STATE MANAGEMENT (HOISTED) ---
@@ -123,15 +125,14 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
                         onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(title)
-                                // Only show the icon on the "Recurring Payments" tab
+                                Text( text = title, style = MaterialTheme.typography.titleSmallEmphasized)
                                 if (index == 1) {
                                     Spacer(Modifier.width(8.dp))
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.HelpOutline,
                                         contentDescription = "Help about Recurring Payments",
                                         modifier = Modifier
-                                            .size(18.dp)
+                                            .size(12.dp)
                                             .clickable { showRecurringHelpDialog = true },
                                         tint = if (pagerState.currentPage == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )

@@ -270,7 +270,7 @@ private fun PageContent(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
-                        .padding(bottom = 16.dp)
+                        .padding(bottom = 12.dp)
                         .align(Alignment.CenterHorizontally)
                 )
                 SingleChoiceSegmentedButtonRow(
@@ -394,7 +394,7 @@ private fun PageContent(
                         Triple("Highest Month", summaryStats.highestMonth?.let { currencyFormatter.format(it.totalAmount) } ?: "N/A",
                             Icons.AutoMirrored.Filled.TrendingUp)
                     )
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(15.dp))
                     SectionHeader(title = "Stats :")
                     Spacer(Modifier.height(8.dp))
                     StatsCard(stats = statsList, currencyFormatter = currencyFormatter)

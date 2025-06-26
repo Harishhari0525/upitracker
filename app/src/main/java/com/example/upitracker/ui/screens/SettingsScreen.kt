@@ -537,14 +537,14 @@ private fun ThemeChooserDialog(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onThemeSelected(theme) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 8.dp, vertical = 8.dp), // Adjusted padding
+                        verticalAlignment = Alignment.CenterVertically // This is the key fix
                     ) {
                         RadioButton(
                             selected = theme == currentTheme,
                             onClick = { onThemeSelected(theme) }
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(16.dp)) // Use a Spacer for consistent padding
                         Text(theme.displayName)
                     }
                 }

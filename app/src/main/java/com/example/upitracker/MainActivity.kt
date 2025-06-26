@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.util.Log
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import android.content.Intent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat // ✨ Import WindowCompat ✨
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -73,12 +74,22 @@ class MainActivity : FragmentActivity() {
     private val backupDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             uri?.let {
+                // Persist write/read permission so this URI remains usable across reboots
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
                 mainViewModel.backupDatabase(it, contentResolver)
             }
         }
     private val restoreDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let {
+                // Persist read/write permission so we can open this URI again if needed
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
                 mainViewModel.restoreDatabase(it, contentResolver)
             }
         }
@@ -182,13 +193,6 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
-//                LaunchedEffect(pinIsActuallySet, onboardingCompleted) {
-//                    pinUnlocked = if (onboardingCompleted) {
-//                        !pinIsActuallySet // If onboarding is done, unlock if no PIN is set
-//                    } else {
-//                        false // If onboarding not done, assume locked (will show onboarding first)
-//                    }
-//                }
                 Scaffold(
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                     contentWindowInsets = WindowInsets(0)
@@ -450,7 +454,7 @@ class MainActivity : FragmentActivity() {
             var summariesProcessed = 0
             var smsArchived = 0
 
-            var customRegexPatterns: List<Regex> = emptyList()
+            var customRegexPatterns: List<Regex>
             RegexPreference.getRegexPatterns(this@MainActivity).firstOrNull()?.let { patternsSet ->
                 customRegexPatterns = patternsSet.mapNotNull { patternString ->
                     try {
