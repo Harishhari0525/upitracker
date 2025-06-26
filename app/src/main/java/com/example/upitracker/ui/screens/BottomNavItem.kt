@@ -15,7 +15,6 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet // For Budge
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.upitracker.R // Assuming string resources are in R
 
-// Sealed class to define each bottom navigation item
 sealed class BottomNavItem(
     val route: String,          // Route for navigation
     val labelResId: Int,        // String resource ID for the label

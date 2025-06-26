@@ -32,10 +32,6 @@ fun MainNavHost(
         startDestination = startDestination,
         modifier = modifier // Applies padding from MainActivity's Scaffold
     ) {
-        // composable("onboarding_route") {
-        //     OnboardingScreen(onFinish = onOnboardingComplete)
-        // }
-
         composable(
             "main_app_shell",
             enterTransition = {

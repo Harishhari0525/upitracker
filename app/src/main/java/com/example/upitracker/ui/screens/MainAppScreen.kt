@@ -58,7 +58,8 @@ fun MainAppScreen(
        // contentWindowInsets = WindowInsets(0),
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+                tonalElevation = 8.dp
             ) {
                 val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
