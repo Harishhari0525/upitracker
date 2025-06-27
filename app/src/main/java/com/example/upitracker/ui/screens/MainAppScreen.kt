@@ -27,17 +27,26 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.viewmodel.MainViewModel
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.vector.ImageVector
 
-@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class) // Can also be at function level
+
+@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class, ExperimentalAnimationGraphicsApi::class) // Can also be at function level
 @Composable
 fun MainAppScreen(
     mainViewModel: MainViewModel,
     rootNavController: NavController,
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
-    onBackupDatabase: () -> Unit, // ✨ ADD THIS
+    onBackupDatabase: () -> Unit,
     onRestoreDatabase: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -55,7 +64,6 @@ fun MainAppScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-       // contentWindowInsets = WindowInsets(0),
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
@@ -69,11 +77,24 @@ fun MainAppScreen(
                     val isSelected = currentDestination?.route == screen.route
 
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = stringResource(screen.labelResId)) },
+                        icon = {
+                            // --- THIS IS THE NEW LOGIC ---
+                            if (screen.animatedIconRes != null) {
+                                // If an animated icon is available, use it
+                                val painter = rememberAnimatedVectorPainter(
+                                    animatedImageVector = AnimatedImageVector.animatedVectorResource(id = screen.animatedIconRes),
+                                    atEnd = isSelected
+                                )
+                                Icon(painter, contentDescription = stringResource(screen.labelResId))
+                            } else {
+                                // Otherwise, use the default static icon
+                                Icon(screen.icon, contentDescription = stringResource(screen.labelResId))
+                            }
+                        },
                         label = { Text(stringResource(screen.labelResId), style = MaterialTheme.typography.labelSmall) },
                         selected = isSelected,
                         onClick = {
-                            if (currentDestination?.route != screen.route) { // Avoid re-navigating to the same screen
+                            if (currentDestination?.route != screen.route) {
                                 contentNavController.navigate(screen.route) {
                                     popUpTo(contentNavController.graph.findStartDestination().id) {
                                         saveState = true
@@ -95,7 +116,6 @@ fun MainAppScreen(
             }
         },
         floatingActionButton = {
-            // The FAB now only appears on the History screen to add a new transaction.
             if (currentRoute == BottomNavItem.History.route) {
                 FloatingActionButton(onClick = { showAddTransactionDialog = true }) {
                     Icon(Icons.Filled.Add, "Add new transaction")
@@ -275,4 +295,51 @@ fun MainAppScreen(
             }
         )
     }
+}
+@Composable
+private fun AnimatedNavIcon(
+    screen: BottomNavItem,
+    isSelected: Boolean,
+    iconVector: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    val animationSpec = tween<Float>(durationMillis = 300)
+
+    // Default scale animation for all icons
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.1f else 1.0f,
+        animationSpec = animationSpec,
+        label = "icon_scale"
+    )
+
+    // Unique rotation animations per icon
+    val rotation by animateFloatAsState(
+        targetValue = if (isSelected) 360f else 0f,
+        animationSpec = tween(durationMillis = 400),
+        label = "icon_rotation"
+    )
+
+    // A special wobble for the Graphs icon
+    val wobble by animateFloatAsState(
+        targetValue = if (isSelected) 15f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "icon_wobble"
+    )
+
+    Icon(
+        imageVector = iconVector,
+        contentDescription = stringResource(screen.labelResId),
+        modifier = modifier
+            .scale(scale)
+            // Apply a unique animation based on the screen
+            .then(
+                when (screen) {
+                    is BottomNavItem.AppSettings -> Modifier.rotate(rotation)
+                    is BottomNavItem.Graphs -> Modifier.rotate(if (isSelected) wobble else 0f)
+                    is BottomNavItem.Budget -> Modifier.rotate(if (isSelected) -10f else 0f)
+                    // You can add more unique animations for other icons here
+                    else -> Modifier // Default, no extra animation
+                }
+            )
+    )
 }

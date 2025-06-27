@@ -1,0 +1,6 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_home_static">
+    <target
+        android:name="home_group"
+        android:animation="@animator/home_grow_animator" />
+</animated-vector>

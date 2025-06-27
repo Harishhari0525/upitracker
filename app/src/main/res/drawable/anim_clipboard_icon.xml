@@ -1,0 +1,6 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_clipboard_static">
+    <target android:name="clip_line1" android:animation="@animator/clipboard_line1_animator" />
+    <target android:name="clip_line2" android:animation="@animator/clipboard_line2_animator" />
+    <target android:name="clip_line3" android:animation="@animator/clipboard_line3_animator" />
+</animated-vector>

@@ -1,0 +1,6 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_history_static">
+    <target
+        android:name="clock_group"
+        android:animation="@animator/history_clock_animator" />
+</animated-vector>

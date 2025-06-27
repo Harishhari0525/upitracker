@@ -1,0 +1,10 @@
+<objectAnimator
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="600"
+    android:propertyName="rotation"
+    android:valueFrom="0"
+    android:valueTo="120"
+    android:valueType="floatType"
+    android:repeatCount="1"
+    android:repeatMode="reverse"
+    android:targetName="gear_group" />

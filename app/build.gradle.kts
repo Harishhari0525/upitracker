@@ -37,6 +37,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs = listOf("-XXLanguage:+PropertyParamAnnotationDefaultTargetMode")
     }
 }
 
@@ -56,6 +57,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.core.animation)
+    implementation(libs.androidx.animation.graphics.android)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.biometric)
     implementation(libs.compose.m3) // Vico charts
