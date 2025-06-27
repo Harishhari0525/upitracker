@@ -205,6 +205,7 @@
     <string name="regex_editor_test_sms_label">Sample SMS Body</string>
     <string name="regex_editor_test_sms_placeholder">Paste a full SMS message here to test…</string>
     <string name="regex_editor_test_button">Test Pattern</string>
+    <string name="detail_label_amount">Amount</string>
     <string name="regex_editor_test_results_title">Test Results</string>
     <string name="regex_editor_test_result_no_match">No match found.</string>
     <string name="regex_editor_test_result_match_found">Match found!</string>

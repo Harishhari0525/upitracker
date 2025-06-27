@@ -4,12 +4,18 @@ import android.Manifest
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Telephony
 import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.biometric.BiometricPrompt
+import android.animation.AnimatorListenerAdapter
 import androidx.compose.foundation.layout.fillMaxSize
+import android.animation.Animator
+import android.animation.ObjectAnimator
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.WindowInsets
@@ -28,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import android.content.Intent
+import android.view.View
+import android.view.animation.AnticipateInterpolator
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat // ✨ Import WindowCompat ✨
 import androidx.fragment.app.FragmentActivity
@@ -113,6 +121,36 @@ class MainActivity : FragmentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        var keepSplashOnScreen = true
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
+
+        // Use a short delay to prevent the splash screen from disappearing too quickly.
+        // In a real app, you might wait for initial data to load here.
+        Handler(Looper.getMainLooper()).postDelayed({
+            keepSplashOnScreen = false
+        }, 500L) // A 500 millisecond delay
+
+        // The exit animation listener remains the same.
+        // It will now be triggered correctly after our condition becomes false.
+        splashScreen.setOnExitAnimationListener { splashScreenView ->
+            val fadeOut = ObjectAnimator.ofFloat(
+                splashScreenView.iconView,
+                View.ALPHA,
+                1f,
+                0f
+            )
+            fadeOut.interpolator = AnticipateInterpolator()
+            fadeOut.duration = 400L
+
+            fadeOut.addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    splashScreenView.remove()
+                }
+            })
+            fadeOut.start()
+        }
+
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         scheduleArchivedSmsCleanup()

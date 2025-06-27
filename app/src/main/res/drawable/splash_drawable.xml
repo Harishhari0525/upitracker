@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This layer-list places your logo on top of a solid background color. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Item 1: The background color, referencing the color we defined above. -->
+    <item android:drawable="@color/splash_background"/>
+
+    <!-- Item 2: Your logo image. -->
+    <!-- It's centered and given a fixed size for consistency across devices. -->
+    <item
+        android:drawable="@drawable/logo"
+        android:width="130dp"
+        android:height="130dp"
+        android:gravity="center" />
+
+</layer-list>

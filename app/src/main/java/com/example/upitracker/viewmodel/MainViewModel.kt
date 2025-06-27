@@ -1144,21 +1144,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         newCategory: String?
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            // First, get the original transaction from our current list of transactions
             val originalTransaction = _transactions.value.find { it.id == transactionId }
 
             originalTransaction?.let {
-                // Create a new transaction object by copying the original and applying changes
-                val updatedTransaction = it.copy(
-                    description = newDescription.trim(),
-                    amount = newAmount,
-                    category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
-                )
+                val isManualEntry = it.senderOrReceiver == "Manual Entry"
 
-                // Use the existing DAO function to update the database
+                // Create the updated transaction based on our new rule
+                val updatedTransaction = if (isManualEntry) {
+                    // If it's a manual entry, update everything.
+                    it.copy(
+                        description = newDescription.trim(),
+                        amount = newAmount,
+                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                    )
+                } else {
+                    // Otherwise, ONLY update the category.
+                    it.copy(
+                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                    )
+                }
                 transactionDao.update(updatedTransaction)
-
-                // Let the user know the update was successful
                 postPlainSnackbarMessage("Transaction updated successfully!")
             }
         }

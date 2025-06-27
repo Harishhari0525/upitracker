@@ -15,10 +15,7 @@ val Context.onboardingDataStore by preferencesDataStore(name = "onboarding_prefs
 object OnboardingPreference {
     private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
 
-    /**
-     * Retrieves a Flow indicating whether onboarding has been completed.
-     * Defaults to false (not completed).
-     */
+    private val TOUR_COMPLETED_KEY = booleanPreferencesKey("tour_completed")
     fun isOnboardingCompletedFlow(context: Context): Flow<Boolean> =
         context.onboardingDataStore.data
             .catch { exception ->
@@ -42,4 +39,16 @@ object OnboardingPreference {
             preferences[ONBOARDING_COMPLETED_KEY] = completed
         }
     }
+    fun isTourCompletedFlow(context: Context): Flow<Boolean> =
+        context.onboardingDataStore.data
+            .map { preferences ->
+                preferences[TOUR_COMPLETED_KEY] ?: false
+            }
+
+    suspend fun setTourCompleted(context: Context, completed: Boolean) {
+        context.onboardingDataStore.edit { preferences ->
+            preferences[TOUR_COMPLETED_KEY] = completed
+        }
+    }
+
 }

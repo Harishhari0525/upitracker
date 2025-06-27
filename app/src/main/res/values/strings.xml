@@ -169,6 +169,7 @@
     <string name="category_label">Category</string>
     <string name="category_textfield_placeholder">E.g., Food, Travel, Bills</string>
     <string name="button_save">Save</string>
+    <string name="detail_label_amount">Amount</string>
     <string name="category_edit_icon_desc">Edit Category</string>
     <string name="graph_tab_daily_trend">Daily</string>
     <string name="graph_tab_monthly_summary">Monthly</string>

@@ -14,20 +14,16 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:windowSoftInputMode="adjustResize"
         android:supportsRtl="true"
         android:label="@string/app_name"
-        android:theme="@style/Theme.Upitracker"
+        android:theme="@style/Theme.UpiTracker"
         android:enableOnBackInvokedCallback="true">
 
-        <!-- MAIN ACTIVITY BLOCK (required for launcher!) -->
-        <activity
-            android:name=".ui.ImportOldSmsActivity"
-            android:exported="true" />
+        <!-- This is now the ONLY activity registered -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Upitracker"
+            android:theme="@style/Theme.App.Starting"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode">
             <intent-filter>

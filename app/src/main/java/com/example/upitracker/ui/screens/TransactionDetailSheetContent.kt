@@ -55,6 +55,7 @@ fun TransactionDetailSheetContent(
         }
         return
     }
+    val isManualEntry = transaction!!.senderOrReceiver == "Manual Entry"
 
     Column(
         modifier = Modifier
@@ -63,8 +64,9 @@ fun TransactionDetailSheetContent(
             .verticalScroll(rememberScrollState())
     ) {
         if (isEditMode) {
-            // --- EDIT MODE UI ---
-            Text("Edit Transaction", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
+            val title = if (isManualEntry) "Edit Transaction Details" else "Edit Category Details"
+
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
 
             // Category field and suggestions are now first for better UX
             OutlinedTextField(
@@ -97,22 +99,28 @@ fun TransactionDetailSheetContent(
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            // Other fields
-            OutlinedTextField(
-                value = descriptionText,
-                onValueChange = { descriptionText = it },
-                label = { Text("Description") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = amountText,
-                onValueChange = { amountText = it },
-                label = { Text("Amount") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                prefix = { Text("₹") }
-            )
+            if (isManualEntry) {
+                // For manual entries, show editable TextFields
+                OutlinedTextField(
+                    value = descriptionText,
+                    onValueChange = { descriptionText = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    prefix = { Text("₹") }
+                )
+            } else {
+                // For SMS entries, show non-editable DetailRow
+                DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
+                DetailRow(label = stringResource(R.string.detail_label_amount), value = "₹${"%.2f".format(transaction!!.amount)}")
+            }
             Spacer(Modifier.height(24.dp))
 
             // Action buttons for Edit Mode
@@ -157,7 +165,8 @@ fun TransactionDetailSheetContent(
                 Button(onClick = { isEditMode = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Edit Transaction")
+                    val buttonText = if (isManualEntry) "Edit Transaction" else "Edit Category"
+                    Text(buttonText)
                 }
                 OutlinedButton(
                     onClick = {

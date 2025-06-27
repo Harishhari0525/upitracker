@@ -1,20 +1,24 @@
 [versions]
 # UPDATED: All core Compose libraries are now aligned to a new, compatible version
-animation = "1.9.0-alpha04"
-foundation = "1.9.0-alpha04"
-compose = "1.9.0-alpha04"
-runtime = "1.9.0-alpha04"
-materialVersion = "1.9.0-alpha04"
+animation = "1.9.0-beta01"
+coreSplashscreen = "1.0.1"
+foundation = "1.9.0-beta01"
+compose = "1.9.0-beta01"
+gradle = "8.11.0"
+introshowcaseview = "2.0.2"
+kotlinGradlePlugin = "2.0.21"
+runtime = "1.9.0-beta01"
+materialVersion = "1.9.0-beta01"
 
 # Your new Material 3 version is compatible with these
-material3 = "1.4.0-alpha15"
+material3 = "1.4.0-alpha16"
 
 # The rest of your versions remain the same
-kotlin = "2.0.21"
-agp = "8.3.2"
+kotlin = "2.2.0"
+agp = "8.11.0"
 datastorePreferences = "1.1.7"
 iconscompose = "1.7.8"
-room = "2.7.1"
+room = "2.7.2"
 lifecycle = "2.9.1"
 navigation = "2.9.0"
 activityCompose = "1.10.1"
@@ -26,8 +30,10 @@ junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 securityCrypto = "1.1.0-beta01"
-vico = "1.14.0"
-workRuntimeKtx = "2.10.1"
+symbolProcessingGradlePlugin = "2.2.0-2.0.2"
+vico = "2.1.3"
+workRuntimeKtx = "2.10.2"
+coreAnimation = "1.0.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -35,6 +41,7 @@ androidx-animation = { module = "androidx.compose.animation:animation", version.
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-compose-material-material = { module = "androidx.compose.material:material", version.ref = "materialVersion" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "foundation" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
@@ -54,11 +61,16 @@ androidx-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref =
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "iconscompose" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
 compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
+gradle = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
+introshowcaseview = { module = "com.canopas.intro-showcase-view:introshowcaseview", version.ref = "introshowcaseview" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+symbol-processing-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle-plugin", version.ref = "symbolProcessingGradlePlugin" }
+androidx-core-animation = { group = "androidx.core", name = "core-animation", version.ref = "coreAnimation" }
 
 
 [plugins]
