@@ -44,6 +44,6 @@ sealed class BottomNavItem(
         route = "budget",
         labelResId = R.string.bottom_nav_budget, // We will add this string
         icon = Icons.Rounded.AccountBalanceWallet, // Changed (assuming exists)
-        animatedIconRes = R.drawable.anim_clipboard_icon
+        animatedIconRes = R.drawable.anim_wallet_icon
     )
 }

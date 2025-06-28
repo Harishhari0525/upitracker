@@ -4,19 +4,18 @@ package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.Alignment
 import com.example.upitracker.util.IndianCurrencyVisualTransformation
 
-// We pass lambdas for the actions
 @Composable
 fun AddTransactionDialog(
     onDismiss: () -> Unit,
@@ -27,29 +26,31 @@ fun AddTransactionDialog(
         category: String
     ) -> Unit
 ) {
+    // --- STATE MANAGEMENT ---
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("DEBIT") } // Debit by default
+    var selectedType by remember { mutableStateOf("DEBIT") }
+
+    // --- NEW: SEPARATE ERROR STATES FOR EACH FIELD ---
     var isAmountError by remember { mutableStateOf(false) }
+    var isDescriptionError by remember { mutableStateOf(false) }
+    var isCategoryError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Manual Transaction") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Amount Field
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // --- AMOUNT FIELD ---
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { newValue ->
+                    onValueChange = {
                         isAmountError = false
-
-                        var filtered = newValue.filter { char -> char.isDigit() || char == '.' }
-                        if (filtered.count { it == '.' } > 1) {
-                            filtered = amount
-                        }
-                        amount = filtered
+                        amount = it.filter { char -> char.isDigit() }
                     },
                     label = { Text("Amount") },
                     prefix = { Text("₹") },
@@ -58,29 +59,52 @@ fun AddTransactionDialog(
                     supportingText = {
                         if (isAmountError) {
                             Text(
-                                text = "Please enter a valid number",
+                                text = "Please enter a valid amount",
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
                     },
-                    // The visual transformation remains the same
                     visualTransformation = IndianCurrencyVisualTransformation()
                 )
 
-                // Description Field
+                // --- DESCRIPTION FIELD ---
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = {
+                        description = it
+                        isDescriptionError = false
+                    },
                     label = { Text("Description") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    isError = isDescriptionError, // Use new error state
+                    supportingText = {
+                        if (isDescriptionError) {
+                            Text(
+                                text = "Description cannot be empty", // Specific message
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 )
 
-                // Category Field
+                // --- CATEGORY FIELD ---
                 OutlinedTextField(
                     value = category,
-                    onValueChange = { category = it },
+                    onValueChange = {
+                        category = it
+                        isCategoryError = false
+                    },
                     label = { Text("Category") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    isError = isCategoryError, // Use new error state
+                    supportingText = {
+                        if (isCategoryError) {
+                            Text(
+                                text = "Category cannot be empty", // Specific message
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 )
 
                 // Transaction Type Radio Buttons
@@ -124,12 +148,17 @@ fun AddTransactionDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    // --- NEW: INDIVIDUAL VALIDATION LOGIC ---
                     val amountDouble = amount.toDoubleOrNull()
-                    if (amountDouble != null && description.isNotBlank() && category.isNotBlank()) {
-                        isAmountError = false
-                        onConfirm(amountDouble, selectedType, description, category)
-                    } else {
-                        isAmountError = true
+
+                    // Check each condition separately
+                    isAmountError = amountDouble == null || amountDouble <= 0
+                    isDescriptionError = description.isBlank()
+                    isCategoryError = category.isBlank()
+
+                    // If all checks pass, confirm and dismiss
+                    if (!isAmountError && !isDescriptionError && !isCategoryError) {
+                        onConfirm(amountDouble!!, selectedType, description, category)
                     }
                 }
             ) {

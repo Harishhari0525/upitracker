@@ -1,0 +1,4 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_wallet_static">
+    <target android:name="wallet_note" android:animation="@animator/wallet_note_animator" />
+</animated-vector>

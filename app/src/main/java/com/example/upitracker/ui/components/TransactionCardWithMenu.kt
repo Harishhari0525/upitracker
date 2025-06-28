@@ -4,7 +4,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -12,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -24,8 +24,10 @@ fun TransactionCardWithMenu(
     modifier: Modifier = Modifier,
     transaction: Transaction,
     onClick: (Transaction) -> Unit,
-    onArchive: (Transaction) -> Unit,
-    onDelete: (Transaction) -> Unit
+    onArchiveAction: (Transaction) -> Unit,
+    onDelete: (Transaction) -> Unit,
+    archiveActionText: String,
+    archiveActionIcon: ImageVector
 ) {
     var showMenu by remember { mutableStateOf(false) }
     // ✨ 1. State to store the width of the card in pixels ✨
@@ -61,13 +63,14 @@ fun TransactionCardWithMenu(
             offset = DpOffset(x = with(density) { cardWidth.toDp() } - 127.dp, y = (-50).dp)
         ) {
             DropdownMenuItem(
-                text = { Text("Archive") },
+                text = { Text(archiveActionText) },
                 onClick = {
-                    onArchive(transaction)
+                    onArchiveAction(transaction)
                     showMenu = false
                 },
-                leadingIcon = { Icon(Icons.Default.Archive, contentDescription = "Archive") }
+                leadingIcon = { Icon(archiveActionIcon, contentDescription = archiveActionText) }
             )
+            // The Delete item remains the same
             DropdownMenuItem(
                 text = { Text("Delete") },
                 onClick = {

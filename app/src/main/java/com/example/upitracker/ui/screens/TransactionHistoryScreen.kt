@@ -222,12 +222,17 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
                             mainViewModel.selectTransaction(it.id)
                             onShowDetails()
                         },
-                        onArchive = {
-                            mainViewModel.toggleTransactionArchiveStatus(it, archive = true)
-                        },
                         onDelete = {
                             mainViewModel.deleteTransaction(it)
-                        }
+                        },
+                        onArchiveAction = {
+                            mainViewModel.toggleTransactionArchiveStatus(
+                                it,
+                                true
+                            )
+                        },
+                        archiveActionText = "Archive",
+                        archiveActionIcon = Icons.Default.Archive
                     )
                 }
             }

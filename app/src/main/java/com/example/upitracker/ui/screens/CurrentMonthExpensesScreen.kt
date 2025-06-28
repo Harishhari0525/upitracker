@@ -164,13 +164,16 @@ fun CurrentMonthExpensesScreen(
                                         TransactionCardWithMenu(
                                             transaction = item.transaction,
                                             onClick = { /* ... */ },
-                                            onArchive = {
+                                            onDelete = { mainViewModel.deleteTransaction(it) },
+                                            onArchiveAction = {
                                                 mainViewModel.toggleTransactionArchiveStatus(
                                                     it,
                                                     true
                                                 )
                                             },
-                                            onDelete = { mainViewModel.deleteTransaction(it) }
+                                            // Add the missing parameters
+                                            archiveActionText = "Archive",
+                                            archiveActionIcon = Icons.Default.Archive
                                         )
                                     }
                                 }

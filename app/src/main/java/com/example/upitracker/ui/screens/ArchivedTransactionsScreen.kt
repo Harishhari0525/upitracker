@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,10 +72,12 @@ fun ArchivedTransactionsScreen(
                         TransactionCardWithMenu(
                             transaction = transaction,
                             onClick = { /* No action on simple click */ },
-                            // 'onArchive' is now used for the 'Restore' action.
-                            onArchive = { mainViewModel.toggleTransactionArchiveStatus(it, archive = false) },
-                            // 'onDelete' now triggers our confirmation dialog.
-                            onDelete = { transactionToDelete = transaction }
+                            onDelete = { transactionToDelete = transaction },
+                            // Pass the restore action
+                            onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, archive = false) },
+                            // Pass the correct text and icon
+                            archiveActionText = "Restore",
+                            archiveActionIcon = Icons.Default.Restore
                         )
                     }
                 }
