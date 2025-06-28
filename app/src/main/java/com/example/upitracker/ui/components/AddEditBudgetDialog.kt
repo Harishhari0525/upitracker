@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import com.example.upitracker.R
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.viewmodel.BudgetStatus
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -78,39 +79,64 @@ fun AddEditBudgetDialog(
                         }
                     }
 
-                }
-                OutlinedTextField(value = category, onValueChange = { category = it; isCategoryError = false }, label = { Text(stringResource(R.string.budget_category_label)) }, singleLine = true, isError = isCategoryError)
-                OutlinedTextField(value = amount, onValueChange = { amount = it; isAmountError = false }, label = { Text(stringResource(R.string.budget_amount_label)) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = isAmountError, prefix = { Text("₹") })
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp) // Add some padding if needed
-                ) {
-                    Text("Enable Rollover", modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it; isCategoryError = false },
+                        label = { Text(stringResource(R.string.budget_category_label)) },
+                        singleLine = true,
+                        isError = isCategoryError,
+                        supportingText = { if (isCategoryError) Text("Category cannot be empty") }
+                    )
 
-                    // This is the correct way to implement a tooltip with composable content
-                    val tooltipState = rememberTooltipState()
-                    val scope = rememberCoroutineScope()
-
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
-                        tooltip = {
-                            PlainTooltip {
-                                Text("If enabled, any amount leftover (or overspent) from the previous period will be added / deducted to this period's budget.")
+                    OutlinedTextField(
+                        value = amount,
+                        // Filter out non-digit characters to prevent commas
+                        onValueChange = {
+                            if (it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                                amount = it
                             }
+                            isAmountError = false
                         },
-                        state = tooltipState
+                        label = { Text(stringResource(R.string.budget_amount_label)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = isAmountError,
+                        prefix = { Text("₹") },
+                        // Add a specific error message
+                        supportingText = { if (isAmountError) Text("Please enter a valid amount") },
+                        visualTransformation = DecimalInputVisualTransformation()
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp) // Add some padding if needed
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                            contentDescription = "Help about rollover budgets",
-                            // You can optionally make the icon clickable to show the tooltip
-                            modifier = Modifier.clickable { scope.launch { tooltipState.show() } },
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                        Text("Enable Rollover", modifier = Modifier.weight(1f))
 
-                    Spacer(Modifier.width(8.dp))
-                    Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
+                        // This is the correct way to implement a tooltip with composable content
+                        val tooltipState = rememberTooltipState()
+                        val scope = rememberCoroutineScope()
+
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text("If enabled, any amount leftover (or overspent) from the previous period will be added / deducted to this period's budget.")
+                                }
+                            },
+                            state = tooltipState
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                                contentDescription = "Help about rollover budgets",
+                                // You can optionally make the icon clickable to show the tooltip
+                                modifier = Modifier.clickable { scope.launch { tooltipState.show() } },
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+                        Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
+                    }
                 }
 
             }

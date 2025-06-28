@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.RecurringRule
+import com.example.upitracker.util.DecimalInputVisualTransformation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,39 +28,68 @@ fun AddEditRecurringRuleDialog(
     var dayOfMonth by remember { mutableStateOf(ruleToEdit?.dayOfPeriod?.toString() ?: "") }
     val selectedPeriod by remember { mutableStateOf(ruleToEdit?.periodType ?: BudgetPeriod.MONTHLY) }
 
+    // Error states for validation
+    var isAmountError by remember { mutableStateOf(false) }
+    var isDayOfMonthError by remember { mutableStateOf(false) }
+    var isCategoryError by remember { mutableStateOf(false) }
+    var isDescriptionError by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (ruleToEdit == null) "Add Recurring Transaction" else "Edit Recurring Transaction") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description (e.g. Netflix)") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    prefix = { Text("₹") },
-                    singleLine = true
-                )
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
-                    label = { Text("Category") },
+                    label = { Text("Category (e.g., Insurance)") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    singleLine = true
+                    singleLine = true,
+                    isError = isCategoryError,
+                    supportingText = { if (isCategoryError) Text("Please enter a category") }
+                )
+                // --- CORRECTED AMOUNT FIELD ---
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = {
+                        // Allows digits and one optional decimal point with up to 2 decimal places
+                        if (it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            amount = it
+                        }
+                        isAmountError = false
+                    },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = isAmountError,
+                    supportingText = { if (isAmountError) Text("Please enter a valid amount") },
+                    prefix = { Text("₹") },
+                    singleLine = true,
+                    visualTransformation = DecimalInputVisualTransformation()
                 )
                 OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    singleLine = true,
+                    isError = isDescriptionError,
+                    supportingText = { if (isDescriptionError) Text("Please enter a description") }
+                )
+                // --- CORRECTED DAY OF MONTH FIELD ---
+                OutlinedTextField(
                     value = dayOfMonth,
-                    onValueChange = { dayOfMonth = it },
+                    onValueChange = {
+                        // Limits input to 2 characters and only digits
+                        if (it.length <= 2) {
+                            dayOfMonth = it.filter { c -> c.isDigit() }
+                        }
+                        isDayOfMonthError = false
+                    },
                     label = { Text("Day of Month (1-31)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = isDayOfMonthError,
+                    supportingText = { if (isDayOfMonthError) Text("Must be between 1-31") },
                     singleLine = true
                 )
             }
@@ -69,8 +99,13 @@ fun AddEditRecurringRuleDialog(
                 onClick = {
                     val amountDouble = amount.toDoubleOrNull()
                     val dayInt = dayOfMonth.toIntOrNull()
-                    if (amountDouble != null && dayInt != null && description.isNotBlank() && category.isNotBlank()) {
-                        onConfirm(description, amountDouble, category, selectedPeriod, dayInt)
+
+                    // Individual validation checks
+                    isAmountError = amountDouble == null || amountDouble <= 0
+                    isDayOfMonthError = dayInt == null || dayInt !in 1..31
+
+                    if (description.isNotBlank() && category.isNotBlank() && !isAmountError && !isDayOfMonthError) {
+                        onConfirm(description, amountDouble!!, category, selectedPeriod, dayInt!!)
                     }
                 }
             ) {

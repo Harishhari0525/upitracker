@@ -415,9 +415,11 @@ private fun PageContent(
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { // Ensure content is centered
                         if (targetData != null) {
                             val totalAllCategories = categoryData.sumOf { it.totalAmount } // Recalculate here or pass as part of targetData if complex
-                            val percentage = if (totalAllCategories > 0) (targetData.totalAmount / totalAllCategories * 100).roundToInt() else 0
+                            val percentage = if (totalAllCategories > 0)
+                                    (targetData.totalAmount / totalAllCategories * 100).roundToInt() else 0
                             Text(
-                                text = stringResource(R.string.graph_selected_pie_slice_details, targetData.categoryName, currencyFormatter.format(targetData.totalAmount), percentage),
+                                text = stringResource(R.string.graph_selected_pie_slice_details, targetData.categoryName,
+                                    currencyFormatter.format(targetData.totalAmount), percentage),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.Center
@@ -449,8 +451,10 @@ private fun PageContent(
                             modifier = Modifier.padding(top = 16.dp).align(Alignment.Start),
                             selectedCategoryName = currentlySelectedCategoryNameForPie,
                             onLegendItemClick = { categoryName ->
-                                currentlySelectedCategoryNameForPie = if (currentlySelectedCategoryNameForPie == categoryName) null else categoryName
-                                selectedPieSliceData = categoryData.find { it.categoryName == currentlySelectedCategoryNameForPie }
+                                currentlySelectedCategoryNameForPie =
+                                    if (currentlySelectedCategoryNameForPie == categoryName) null else categoryName
+                                selectedPieSliceData = categoryData.find {
+                                    it.categoryName == currentlySelectedCategoryNameForPie }
                             }
                         )
                     }

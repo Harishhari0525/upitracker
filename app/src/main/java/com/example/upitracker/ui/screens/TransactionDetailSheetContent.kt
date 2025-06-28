@@ -71,9 +71,12 @@ fun TransactionDetailSheetContent(
             // Category field and suggestions are now first for better UX
             OutlinedTextField(
                 value = categoryText,
-                onValueChange = { categoryText = it },
+                onValueChange = { categoryText = it.filter { char ->
+                    char.isLetterOrDigit() || char.isWhitespace()
+                } },
                 label = { Text("Category") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
             Spacer(Modifier.height(8.dp))
 

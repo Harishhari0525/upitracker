@@ -60,7 +60,7 @@
     <string name="settings_about_app">About UPI Tracker</string>
     <string name="settings_app_version_summary">Version %1$s</string>
     <string name="settings_about_app_coming_soon">About section coming soon!</string>
-    <string name="settings_app_version_placeholder">1.4</string>
+    <string name="settings_app_version_placeholder">1.5</string>
     <string name="dialog_confirm_deletion_title">Confirm Deletion</string>
     <string name="dialog_confirm_deletion_message">Are you sure you want to permanently delete all transactions and UPI Lite summaries? This action cannot be undone.</string>
     <string name="dialog_button_delete_all">Delete All</string>
@@ -215,7 +215,7 @@
     <string name="settings_view_archived_transactions">Archived Transactions</string>
     <string name="settings_view_archived_summary">View your Archived Transactions</string>
     <string name="archived_transactions_title">Archived Transaction</string>
-    <string name="archived_empty_state">No Deleted/Archived Transactions found</string>
+    <string name="archived_empty_state">No Archived Transactions found</string>
     <string name="swipe_action_restore">Restore</string>
     <string name="bottom_nav_budget">Budgets</string>
     <string name="budget_empty_state">No budgets set yet. Tap the + button to add your first budget and track your spending!</string>

@@ -32,8 +32,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
@@ -230,7 +228,7 @@ private fun DrawScope.drawPie(
             val labelRadius = outerRadius * 0.65f
             val xPos = currentCenter.x + (cos(angleMiddleRad) * labelRadius).toFloat()
             val yPos = currentCenter.y + (sin(angleMiddleRad) * labelRadius).toFloat()
-            val percentage = (expense.totalAmount / totalAmount * 100).toInt()
+            val percentage = (expense.totalAmount / totalAmount * 100).roundToInt()
             val textBounds = Rect()
             val label = "$percentage%"
             labelTextPaint.getTextBounds(label, 0, label.length, textBounds)
