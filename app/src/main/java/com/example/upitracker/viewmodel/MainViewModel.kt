@@ -234,6 +234,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "Refund") // Default to "Refund"
+
+    // 2. Add this function to allow the Settings screen to save the keyword.
+    fun setRefundKeyword(keyword: String) {
+        viewModelScope.launch {
+            ThemePreference.setRefundKeyword(getApplication(), keyword)
+        }
+    }
+
+    private val _nonRefundDebits: StateFlow<List<Transaction>> =
+        combine(_transactions, refundKeyword) { transactions, keyword ->
+            transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true) &&
+                        !it.category.equals(keyword, ignoreCase = true)
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
         if (id == null) {
@@ -425,62 +443,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val incomeVsExpenseData: StateFlow<List<IncomeExpensePoint>> =
-        combine(_transactions, _upiLiteSummaries, _selectedGraphPeriod) { transactions, summaries, period ->
-            if (transactions.isEmpty()) {
-                return@combine emptyList()
-            }
+        combine(_transactions, _upiLiteSummaries, _nonRefundDebits, _selectedGraphPeriod) { allTrans, summaries, nonRefundDebits, period ->
+            if (allTrans.isEmpty()) return@combine emptyList()
+
             val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
             val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
 
-            val summariesByMonth = summaries.groupBy { summary ->
-                yearMonthKeyFormat.format(Date(summary.date))
-            }
-            // Group all transactions by month key ("yyyy-MM")
-            val transactionsByMonth = transactions.groupBy { transaction ->
-                yearMonthKeyFormat.format(Date(transaction.date))
-            }
+            val incomeByMonth = allTrans.filter { it.type.equals("CREDIT", ignoreCase = true) }.groupBy { yearMonthKeyFormat.format(Date(it.date)) }
+            val expenseByMonth = nonRefundDebits.groupBy { yearMonthKeyFormat.format(Date(it.date)) }
+            val summariesByMonth = summaries.groupBy { yearMonthKeyFormat.format(Date(it.date)) }
 
             val reportData = mutableListOf<IncomeExpensePoint>()
             val calendar = Calendar.getInstance()
 
-            // Iterate through the last N months based on the selected period
             for (i in 0 until period.months) {
-                val targetCalendar =
-                    Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
+                val targetCalendar = Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
                 val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
                 val displayLabel = monthDisplayFormat.format(targetCalendar.time)
-
                 targetCalendar.set(Calendar.DAY_OF_MONTH, 1)
-                targetCalendar.set(Calendar.HOUR_OF_DAY, 0); targetCalendar.set(Calendar.MINUTE, 0)
-                targetCalendar.set(Calendar.SECOND, 0); targetCalendar.set(Calendar.MILLISECOND, 0)
+                targetCalendar.set(Calendar.HOUR_OF_DAY, 0); targetCalendar.set(Calendar.MINUTE, 0); targetCalendar.set(Calendar.SECOND, 0); targetCalendar.set(Calendar.MILLISECOND, 0)
                 val monthStartTimestamp = targetCalendar.timeInMillis
 
-                // Get transactions for the current month key, or an empty list if none
-                val monthTransactions = transactionsByMonth[yearMonthKey] ?: emptyList()
-                val monthSummaries = summariesByMonth[yearMonthKey] ?: emptyList()
-
-                // Calculate totals for this month
-                val income = monthTransactions.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amount }
-
-                val regularExpense = monthTransactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
-                val liteExpense = monthSummaries.sumOf { it.totalAmount }
-                val totalExpense = regularExpense + liteExpense
+                val income = incomeByMonth[yearMonthKey]?.sumOf { it.amount } ?: 0.0
+                val regularExpense = expenseByMonth[yearMonthKey]?.sumOf { it.amount } ?: 0.0
+                val liteExpense = summariesByMonth[yearMonthKey]?.sumOf { it.totalAmount } ?: 0.0
 
                 reportData.add(
                     IncomeExpensePoint(
                         yearMonth = displayLabel,
                         totalIncome = income,
-                        totalExpense = totalExpense,
+                        totalExpense = regularExpense + liteExpense,
                         timestamp = monthStartTimestamp
                     )
                 )
             }
-            // Return the list reversed to have the oldest month first for the chart
             reportData.reversed()
         }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val budgetStatuses: StateFlow<List<BudgetStatus>> =
-        combine(_transactions, _budgets) { transactions, budgets ->
+        combine(_nonRefundDebits, _budgets) { transactions, budgets ->
             if (budgets.isEmpty()) return@combine emptyList()
 
             val debitTransactions = transactions.filter {
@@ -682,7 +683,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val currentMonthExpenseItems: StateFlow<List<HistoryListItem>> =
-        combine(_transactions, _upiLiteSummaries,  isUpiLiteEnabled) { transactions, summaries, upiLiteEnabled ->
+        combine(_nonRefundDebits, _upiLiteSummaries,  isUpiLiteEnabled) { transactions, summaries, upiLiteEnabled ->
             val (monthStart, monthEnd) = getCurrentMonthDateRange()
             val combinedItems = mutableListOf<HistoryListItem>()
 
@@ -734,10 +735,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Graph Data (Public) ---
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
-        combine(_transactions, _selectedGraphPeriod) { allTransactions, period ->
-            // Log.d("ViewModelDebug", "Recalculating lastNMonthsExpenses. Input transactions: ${allTransactions.size}, Period: ${period.displayName} (${period.months} months)")
-            val result = calculateLastNMonthsExpenses(allTransactions, period.months, refundCategory)
-            // Log.d("ViewModelDebug", "Resulting monthly expenses for graph: ${result.size} items")
+        combine(_nonRefundDebits, _selectedGraphPeriod) { allTransactions, period ->
+            val result = calculateLastNMonthsExpenses(allTransactions, period.months)
             result
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -760,7 +759,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, MonthlyDebitSummaryStats())
 
-    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _transactions
+    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _nonRefundDebits
         .map { allTransactions ->
             val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
             val relevantTransactions = allTransactions.filter {
@@ -829,10 +828,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, IncomeExpenseSummaryStats())
 
-    private fun calculateLastNMonthsExpenses(
-        transactions: List<Transaction>,
-        n: Int, categoryToExclude: String?
-    ): List<MonthlyExpense> {
+    private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, n: Int): List<MonthlyExpense> {
         if (transactions.isEmpty() || n <= 0) {
             return emptyList()
         }
@@ -840,8 +836,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
 
         val debitTransactions = transactions.filter {
-            it.type.equals("DEBIT", ignoreCase = true) &&
-            !it.category.equals(categoryToExclude, ignoreCase = true)
+            it.type.equals("DEBIT", ignoreCase = true)
         }
         // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Filtered DEBIT transactions count: ${debitTransactions.size}")
         if (debitTransactions.isEmpty()) {
@@ -902,34 +897,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val categoryExpensesData: StateFlow<List<CategoryExpense>> =
         combine(
-            _transactions, // Using all transactions as base for category expenses
+            _nonRefundDebits, // Use the pre-filtered list of expenses
             _selectedDateRangeStart,
             _selectedDateRangeEnd
-        ) { transactions, startDate, endDate ->
-            // Log.d("MainViewModel", "Calculating category expenses. Transactions: ${transactions.size}, Start: $startDate, End: $endDate")
-            var filteredForDate = transactions
-            if (startDate != null && endDate != null) {
-                filteredForDate = transactions.filter { it.date in startDate..endDate }
-            } else if (startDate != null) {
-                filteredForDate = transactions.filter { it.date >= startDate }
-            } else if (endDate != null) {
-                val endOfDay = Calendar.getInstance().apply {
-                    timeInMillis = endDate
-                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(
-                    Calendar.SECOND,
-                    59
-                ); set(Calendar.MILLISECOND, 999)
-                }.timeInMillis
-                filteredForDate = transactions.filter { it.date <= endOfDay }
+        ) { nonRefundDebits, startDate, endDate ->
+
+            // 1. Apply the date filter to our clean list of expenses
+            val filteredForDate = when {
+                startDate != null && endDate != null -> nonRefundDebits.filter { it.date in startDate..endDate }
+                startDate != null -> nonRefundDebits.filter { it.date >= startDate }
+                endDate != null -> {
+                    val endOfDay = Calendar.getInstance().apply {
+                        timeInMillis = endDate
+                        set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+                    }.timeInMillis
+                    nonRefundDebits.filter { it.date <= endOfDay }
+                }
+                else -> nonRefundDebits
             }
 
-            val result = filteredForDate
-                .filter {
-                    it.type.equals(
-                        "DEBIT",
-                        ignoreCase = true
-                    ) && !it.category.isNullOrBlank() && !it.category.equals(refundCategory, ignoreCase = true)
-                }
+            // 2. Group the remaining transactions by category
+            filteredForDate
+                .filter { !it.category.isNullOrBlank() }
                 .groupBy { it.category!! }
                 .map { (categoryName, transactionsInCategory) ->
                     CategoryExpense(
@@ -938,8 +927,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 .sortedByDescending { it.totalAmount }
-            // Log.d("MainViewModel", "Category expenses calculated: $result")
-            result
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -1326,6 +1313,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             transactionDao.insert(newTransaction)
             // Post a confirmation message to the user
             postPlainSnackbarMessage("Transaction saved successfully!")
+            _uiEvents.emit(UiEvent.ScrollToTop)
         }
     }
 
@@ -1438,6 +1426,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()
+        object ScrollToTop : UiEvent()
     }
 
     // Initialize base flows collection

@@ -4,6 +4,7 @@ package com.example.upitracker.ui.screens
 
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,12 @@ import com.example.upitracker.viewmodel.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -158,9 +166,29 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
 
     val listState = rememberLazyListState()
 
+    val groupedTransactions = remember(filteredUpiTransactions) {
+        // This formatter is thread-safe and more reliable
+        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+
+        filteredUpiTransactions.groupBy { transaction ->
+            // Convert the Long timestamp to a modern date object and format it
+            Instant.ofEpochMilli(transaction.date)
+                .atZone(ZoneId.systemDefault())
+                .format(formatter)
+        }
+    }
+
 // And change it to this (just add the new key):
     LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
         listState.animateScrollToItem(index = 0)
+    }
+
+    LaunchedEffect(Unit) {
+        mainViewModel.uiEvents.collect { event ->
+            if (event is MainViewModel.UiEvent.ScrollToTop) {
+                listState.animateScrollToItem(index = 0)
+            }
+        }
     }
 
 
@@ -179,7 +207,11 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
                     FilterChip(
                         selected = selectedUpiFilterType == filterType,
                         onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                        label = { Text(filterType.name.replace("_", " ").replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
+                        label = {
+                            Text(
+                                filterType.name.replace("_", " ")
+                                    .replaceFirstChar { it.titlecase(Locale.getDefault()) })
+                        },
                         leadingIcon = if (selectedUpiFilterType == filterType) {
                             { Icon(Icons.Filled.Check, contentDescription = null) }
                         } else null
@@ -205,35 +237,76 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
             onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
         )
 
-        if (filteredUpiTransactions.isEmpty()) {
+        if (filteredUpiTransactions.isEmpty() && groupedTransactions.isEmpty()) {
             EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
         } else {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = 16.dp,
+                    top = 8.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(filteredUpiTransactions, key = { "txn-${it.id}" }) { transaction ->
-                    TransactionCardWithMenu(
-                        modifier = Modifier.animateItem(tween(300)),
-                        transaction = transaction,
-                        onClick = {
-                            mainViewModel.selectTransaction(it.id)
-                            onShowDetails()
-                        },
-                        onDelete = {
-                            mainViewModel.deleteTransaction(it)
-                        },
-                        onArchiveAction = {
-                            mainViewModel.toggleTransactionArchiveStatus(
-                                it,
-                                true
+
+                // Step 2: Check for empty state.
+                if (groupedTransactions.isEmpty()) {
+                    item {
+                        EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
+                    }
+                } else {
+                    // Step 3: Display sticky headers and items as before.
+                    groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
+                        stickyHeader(key = monthYear) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 0.dp) // Give it space from the items above/below
+                                    .background(MaterialTheme.colorScheme.surface), // Match screen background
+                                contentAlignment = Alignment.Center // Center the pill
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    tonalElevation = 3.dp // Give it a subtle lift
+                                ) {
+                                    Text(
+                                        text = monthYear,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 100.dp),
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
+
+                        items(
+                            items = transactionsInMonth,
+                            key = { "txn-${it.id}" }
+                        ) { transaction ->
+                            TransactionCardWithMenu(
+                                modifier = Modifier.animateItem(tween(300))
+                                    .padding(bottom = 4.dp),
+                                transaction = transaction,
+                                onClick = {
+                                    mainViewModel.selectTransaction(it.id)
+                                    onShowDetails()
+                                },
+                                onDelete = { mainViewModel.deleteTransaction(it) },
+                                onArchiveAction = {
+                                    mainViewModel.toggleTransactionArchiveStatus(
+                                        it,
+                                        true
+                                    )
+                                },
+                                archiveActionText = "Archive",
+                                archiveActionIcon = Icons.Default.Archive
                             )
-                        },
-                        archiveActionText = "Archive",
-                        archiveActionIcon = Icons.Default.Archive
-                    )
+                        }
+                    }
                 }
             }
         }
@@ -486,22 +559,6 @@ fun DateFilterControls(
 }
 
 @Composable
-fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-@Composable
 fun SortButton(
     text: String,
     isSelected: Boolean,
@@ -697,6 +754,40 @@ fun AdvancedFilterControls(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+@Composable
+fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
+    // Determine which icon to show based on the message
+    val iconResId = if (message.contains("filter", ignoreCase = true)) {
+        R.drawable.ic_search_off
+    } else {
+        R.drawable.ic_empty_box
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = iconResId),
+                contentDescription = "Empty State",
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

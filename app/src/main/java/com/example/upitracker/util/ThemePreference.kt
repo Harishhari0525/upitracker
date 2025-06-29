@@ -30,6 +30,8 @@ object ThemePreference {
     private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
     private val APP_THEME_KEY = stringPreferencesKey("app_theme")
 
+    private val REFUND_KEYWORD_KEY = stringPreferencesKey("refund_keyword")
+
     /**
      * Retrieves the Flow for the dark mode preference.
      * Emits false (light mode) if not set or if there's an error.
@@ -75,6 +77,18 @@ object ThemePreference {
     suspend fun setAppTheme(context: Context, theme: AppTheme) {
         context.settingsDataStore.edit { prefs ->
             prefs[APP_THEME_KEY] = theme.name
+        }
+    }
+
+    fun getRefundKeywordFlow(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { prefs ->
+            // Default to "Refund" if the user hasn't set anything
+            prefs[REFUND_KEYWORD_KEY] ?: "Refund"
+        }
+
+    suspend fun setRefundKeyword(context: Context, keyword: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[REFUND_KEYWORD_KEY] = keyword
         }
     }
 

@@ -227,6 +227,9 @@ class MainActivity : FragmentActivity() {
                                 restartDialogMessage = event.message
                                 showRestartDialog = true
                             }
+                            is MainViewModel.UiEvent.ScrollToTop -> {
+                                // Do nothing here
+                            }
                         }
                     }
                 }
@@ -311,6 +314,7 @@ class MainActivity : FragmentActivity() {
                 }
                 if (showRestartDialog) {
                     ForceRestartDialog(
+                        message = restartDialogMessage,
                         onConfirm = {
                             RestartUtil.restartApp(this@MainActivity)
                         }
@@ -404,7 +408,6 @@ class MainActivity : FragmentActivity() {
                         backupTimestamp = System.currentTimeMillis()
                     )
                     archivedSmsDao.insertArchivedSms(archivedSms)
-                    // Log.d("MainActivityImport", "SMS from $sender backed up during old import.") // Optional log
                 }
             }
             withContext(Dispatchers.Main) {
@@ -589,13 +592,14 @@ class MainActivity : FragmentActivity() {
     }
 }
 @Composable
-private fun ForceRestartDialog(onConfirm: () -> Unit) {
+private fun ForceRestartDialog(message: String, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = { /* This dialog cannot be dismissed */ },
         icon = { Icon(Icons.Filled.SyncProblem, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         title = { Text(text = "Restore Successful") }, // Change title
         // Change the message to be more instructive
-        text = { Text(text = "Your data has been restored. Please manually close and reopen the app to see the changes.") },
+        // text = { Text(text = "Your data has been restored. Please manually close and reopen the app to see the changes.") },
+        text = { Text(text = message) },
         confirmButton = {
             // Change the button to a simple "OK" that closes the app.
             Button(onClick = onConfirm) {

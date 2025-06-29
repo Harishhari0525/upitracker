@@ -18,9 +18,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult // ✨
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -86,6 +88,9 @@ fun SettingsScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
 
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var showRefundKeywordDialog by remember { mutableStateOf(false) }
+
+    var showPrivacyDialog by remember { mutableStateOf(false) }
 
     // Re-compute isPinSet when no dialog is active
     LaunchedEffect(Unit, currentPinChangeStep) {
@@ -177,6 +182,16 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_view_archived_transactions), // Create this string resource
                 summary = stringResource(R.string.settings_view_archived_summary),    // Create this string resource
                 onClick = onNavigateToArchive
+            )
+        }
+
+        item {
+            val refundKeyword by mainViewModel.refundKeyword.collectAsState() // We will add this to the ViewModel next
+            SettingItemRow(
+                icon = Icons.AutoMirrored.Filled.Undo, // Example icon
+                title = "Set Refund Keyword",
+                summary = "Current keyword: \"$refundKeyword\"",
+                onClick = { showRefundKeywordDialog = true }
             )
         }
 
@@ -285,6 +300,15 @@ fun SettingsScreen(
             }
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.PrivacyTip,
+                title = "Privacy & Permissions",
+                summary = "How your SMS data is used",
+                onClick = { showPrivacyDialog = true }
+            )
+        }
 
         // Danger Zone Section
         item {
@@ -428,6 +452,41 @@ fun SettingsScreen(
         AboutDialog(
             onDismiss = { showAboutDialog = false }
         )
+    }
+    if (showRefundKeywordDialog) {
+        val refundKeyword by mainViewModel.refundKeyword.collectAsState()
+        var tempKeyword by remember { mutableStateOf(refundKeyword) }
+
+        AlertDialog(
+            onDismissRequest = { showRefundKeywordDialog = false },
+            title = { Text("Set Refund Keyword") },
+            text = {
+                Column {
+                    Text("Transactions categorized with this keyword will be excluded from spending totals.", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = tempKeyword,
+                        onValueChange = { tempKeyword = it },
+                        label = { Text("Keyword") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    mainViewModel.setRefundKeyword(tempKeyword)
+                    showRefundKeywordDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRefundKeywordDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+    if (showPrivacyDialog) {
+        PrivacyPolicyDialog(onDismiss = { showPrivacyDialog = false })
     }
 }
 
@@ -590,6 +649,43 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        }
+    )
+}
+@Composable
+private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
+    val policyText = buildAnnotatedString {
+        append("This app is designed with your privacy as the top priority. Here’s how we handle your data:\n\n")
+
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+            append("SMS Permission (READ_SMS)\n")
+        }
+        append("The app requests permission to read your SMS messages for one reason only: to automatically detect and parse UPI payment and expense messages. This allows the app to build your transaction history without any manual entry.\n\n")
+
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+            append("Data Storage and Security\n")
+        }
+        append("All data processed from your SMS, including the transactions created, is stored exclusively on your device. This data is never uploaded, shared, or sent to any external server. Your financial information does not leave your phone.\n\n")
+
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+            append("Your Control\n")
+        }
+        append("You are in complete control of your data. You can delete any individual transaction or use the 'Delete All Data' option in the settings to permanently erase all stored information from the app at any time.")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.PrivacyTip, contentDescription = "Privacy Policy") },
+        title = { Text("Privacy & Data Policy") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(text = policyText, style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
             }
         }
     )

@@ -6,6 +6,9 @@ import androidx.room.RoomDatabase
 import android.content.Context
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Database(
     entities = [
@@ -14,9 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArchivedSmsMessage::class, // ✨ Add new entity ✨
         Budget::class,
         CategorySuggestionRule::class,
-        RecurringRule::class
+        RecurringRule::class,
+        Category::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun categorySuggestionRuleDao(): CategorySuggestionRuleDao
     abstract fun recurringRuleDao(): RecurringRuleDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -188,6 +193,49 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private class AppDatabaseCallback(
+            private val scope: CoroutineScope
+        ) : Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                INSTANCE?.let { database ->
+                    scope.launch {
+                        populateDefaultCategories(database.categoryDao())
+                    }
+                }
+            }
+
+            suspend fun populateDefaultCategories(categoryDao: CategoryDao) {
+                val defaultCategories = listOf(
+                    Category(name = "Food",         iconName = "Fast-food",      colorHex = "#FFC107"),
+                    Category(name = "Shopping",     iconName = "ShoppingBag",   colorHex = "#4CAF50"),
+                    Category(name = "Transport",    iconName = "DirectionsCar", colorHex = "#2196F3"),
+                    Category(name = "Bills",        iconName = "ReceiptLong",   colorHex = "#9C27B0"),
+                    Category(name = "Entertainment",iconName = "Theaters",      colorHex = "#E91E63"),
+                    Category(name = "Groceries",    iconName = "LocalGroceryStore", colorHex = "#FF5722"),
+                    Category(name = "Health",       iconName = "Favorite",      colorHex = "#F44336"),
+                    Category(name = "Rent",         iconName = "HomeWork",      colorHex = "#795548"),
+                    Category(name = "Other",        iconName = "MoreHoriz",     colorHex = "#607D8B")
+                )
+                categoryDao.insertAll(defaultCategories)
+            }
+        }
+
+        val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Re-create the table with the new columns
+                db.execSQL("DROP TABLE IF EXISTS `categories`") // Drop if it exists from a previous bad state
+                db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `categories` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `iconName` TEXT NOT NULL,
+                    `colorHex` TEXT NOT NULL
+                )
+            """)
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -198,8 +246,9 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
                         ,
-                        MIGRATION_11_12, MIGRATION_12_13) // ✨ Add new migration ✨
+                        MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14) // ✨ Add new migration ✨
                     .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
+                    .addCallback(AppDatabaseCallback(CoroutineScope(Dispatchers.IO)))
                     .build()
                 INSTANCE = instance
                 instance
