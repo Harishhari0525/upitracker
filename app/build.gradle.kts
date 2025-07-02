@@ -1,8 +1,11 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.0"
+    id("com.google.protobuf") version "0.9.5"
 }
 
 android {
@@ -35,10 +38,34 @@ android {
     buildFeatures {
         compose = true
     }
-    kotlinOptions {
-        jvmTarget = "17"
+
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+            javaParameters.set(true)
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.srcDir("build/generated/source/proto/main/java")
+        }
     }
 }
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.31.1"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                create("java") { }
+            }
+        }
+    }
+}
+
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -64,7 +91,6 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.lifecycle.viewmodel) // Use the latest version
     implementation(libs.androidx.runtime)
     implementation(libs.androidx.foundation)
@@ -75,5 +101,10 @@ dependencies {
     implementation(libs.androidx.animation)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.introshowcaseview)
-
+    implementation(libs.tink.android)
+    implementation(libs.androidx.datastore.core)
+    implementation(libs.google.protobuf.java)
+    {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    }
 }

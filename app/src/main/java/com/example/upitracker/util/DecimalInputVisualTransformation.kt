@@ -23,13 +23,21 @@ class DecimalInputVisualTransformation : VisualTransformation {
 
         val offsetMapping = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
-                // This logic is complex, for simplicity we can just move cursor to the end
-                return formattedText.length
+                // Calculate the number of commas that appear before the original cursor position
+                val originalStr = text.text
+                if (offset >= originalStr.length) {
+                    return formattedText.length
+                }
+                val subString = originalStr.substring(0, offset)
+                val number = subString.toLongOrNull() ?: 0L
+                val formattedSubString = formatter.format(number)
+                return formattedSubString.length
             }
 
             override fun transformedToOriginal(offset: Int): Int {
-                // This logic is complex, for simplicity we can just use the original length
-                return originalText.length
+                // Calculate how many characters to remove (the commas) to get the original position
+                val commas = formattedText.substring(0, offset).count { it == ',' }
+                return (offset - commas).coerceIn(0, text.text.length)
             }
         }
 

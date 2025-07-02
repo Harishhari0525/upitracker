@@ -73,6 +73,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import java.util.concurrent.TimeUnit
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import com.example.upitracker.util.CryptoManager
 
 class MainActivity : FragmentActivity() {
 
@@ -121,6 +122,9 @@ class MainActivity : FragmentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+        CryptoManager.initialize(this)
+
         var keepSplashOnScreen = true
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }

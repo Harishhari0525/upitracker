@@ -1,28 +1,31 @@
 package com.example.upitracker.util
 
 import android.content.Context
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.example.upitracker.data.UserPreferences
+import androidx.datastore.core.CorruptionException
+import androidx.datastore.core.Serializer
+import androidx.datastore.dataStore
+import com.google.protobuf.InvalidProtocolBufferException
+import java.io.InputStream
+import java.io.OutputStream
+import com.google.crypto.tink.Aead
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import androidx.datastore.core.DataStore
 
-// Define the DataStore instance at the top level, associated with the Context
-val Context.pinDataStore by preferencesDataStore(name = "pin_store")
+// Define the DataStore using the dataStore delegate
+private val Context.pinDataStore: DataStore<UserPreferences> by dataStore( // ✨ ADD THIS TYPE DEFINITION
+    fileName = "secure_user_prefs.pb", // Using .pb for protobuf
+    serializer = SecureUserPreferencesSerializer(CryptoManager.getAead())
+)
 
 object PinStorage {
-    // Define the key for the PIN preference
-    private val PIN_KEY = stringPreferencesKey("user_pin")
 
     /**
-     * Saves the user's PIN securely.
-     * Consider encrypting the PIN before saving for enhanced security,
-     * though DataStore itself is stored in app-private storage.
+     * Saves the user's PIN securely. This is a suspend function.
      */
     suspend fun savePin(context: Context, pin: String) {
-        // Basic validation could be added here if not handled elsewhere (e.g., pin length, format)
-        context.pinDataStore.edit { prefs ->
-            prefs[PIN_KEY] = pin // Store the PIN
+        context.pinDataStore.updateData { preferences ->
+            preferences.toBuilder().setPin(pin).build()
         }
     }
 
@@ -30,16 +33,9 @@ object PinStorage {
      * Retrieves the saved PIN. Returns null if no PIN is set.
      */
     suspend fun getPin(context: Context): String? {
-        return try {
-            context.pinDataStore.data
-                .map { preferences ->
-                    preferences[PIN_KEY]
-                }
-                .first() // Get the first emitted value (current state)
-        } catch (e: Exception) {
-            // Handle potential exceptions during DataStore read (e.g., IOException)
-            // Log the error or return null
-            // android.util.Log.e("PinStorage", "Error reading PIN from DataStore", e)
+        val preferences = context.pinDataStore.data.first()
+        // For proto3, we check if the string is not empty instead of using hasPin()
+        return preferences.pin.ifEmpty {
             null
         }
     }
@@ -63,8 +59,33 @@ object PinStorage {
      * Clears the stored PIN.
      */
     suspend fun clearPin(context: Context) {
-        context.pinDataStore.edit { prefs ->
-            prefs.remove(PIN_KEY)
+        context.pinDataStore.updateData { preferences ->
+            preferences.toBuilder().clearPin().build()
         }
+    }
+}
+
+// Serializer for the UserPreferences protobuf with encryption
+private class SecureUserPreferencesSerializer(private val aead: Aead) : Serializer<UserPreferences> {
+    override val defaultValue: UserPreferences = UserPreferences.getDefaultInstance()
+
+    override suspend fun readFrom(input: InputStream): UserPreferences {
+        try {
+            val encryptedInput = input.readBytes()
+            val decryptedInput = if (encryptedInput.isNotEmpty()) {
+                aead.decrypt(encryptedInput, null)
+            } else {
+                ByteArray(0)
+            }
+            return UserPreferences.parseFrom(decryptedInput)
+        } catch (e: InvalidProtocolBufferException) {
+            throw CorruptionException("Cannot read proto.", e)
+        }
+    }
+
+    override suspend fun writeTo(t: UserPreferences, output: OutputStream) {
+        val byteArray = t.toByteArray()
+        val encryptedBytes = aead.encrypt(byteArray, null)
+        output.write(encryptedBytes)
     }
 }

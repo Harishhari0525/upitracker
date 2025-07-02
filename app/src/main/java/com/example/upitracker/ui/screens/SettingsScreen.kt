@@ -50,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.window.Dialog
 import com.example.upitracker.util.AppTheme
 
 private enum class PinChangeStep {
@@ -359,60 +360,63 @@ fun SettingsScreen(
         item { Spacer(Modifier.height(16.dp)) }
     }
 
-    // PIN-change dialogs
     if (currentPinChangeStep != PinChangeStep.NONE) {
-        AlertDialog(
-            onDismissRequest = { currentPinChangeStep = PinChangeStep.NONE },
-            title = {
-                Text(
-                    when (currentPinChangeStep) {
-                        PinChangeStep.VERIFY_OLD ->
-                            stringResource(R.string.pin_change_enter_current_pin_title)
-                        PinChangeStep.SET_NEW ->
-                            if (isPinSet && oldPinVerifiedSuccessfully)
+        Dialog(onDismissRequest = { currentPinChangeStep = PinChangeStep.NONE }) {
+            Surface(
+                shape = MaterialTheme.shapes.large, // Use a modern dialog shape
+                tonalElevation = 6.dp,
+                modifier = Modifier.wrapContentHeight() // Let the dialog size itself to its content
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    // We add our own title since Dialog is a blank slate
+                    Text(
+                        text = when (currentPinChangeStep) {
+                            PinChangeStep.VERIFY_OLD -> stringResource(R.string.pin_change_enter_current_pin_title)
+                            PinChangeStep.SET_NEW -> if (isPinSet && oldPinVerifiedSuccessfully)
                                 stringResource(R.string.dialog_set_pin_title_change)
                             else
                                 stringResource(R.string.dialog_set_pin_title_new)
-                        else -> ""
-                    }
-                )
-            },
-            text = {
-                when (currentPinChangeStep) {
-                    PinChangeStep.VERIFY_OLD -> {
-                        OldPinVerificationComponent(
-                            onOldPinVerified = {
-                                oldPinVerifiedSuccessfully = true
-                                currentPinChangeStep = PinChangeStep.SET_NEW
-                            },
-                            onCancel = { currentPinChangeStep = PinChangeStep.NONE }
-                        )
-                    }
-                    PinChangeStep.SET_NEW -> {
-                        PinSetupScreen(
-                            onPinSet = {
-                                coroutineScope.launch {
-                                    isPinSet = PinStorage.isPinSet(context)
-                                    mainViewModel.postSnackbarMessage(
-                                        context.getString(
-                                            if (oldPinVerifiedSuccessfully)
-                                                R.string.pin_change_success_pin_changed
-                                            else
-                                                R.string.pin_setup_pin_set_success
+                            else -> ""
+                        },
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    // The PinSetupScreen composable itself doesn't need to change
+                    when (currentPinChangeStep) {
+                        PinChangeStep.VERIFY_OLD -> {
+                            OldPinVerificationComponent(
+                                onOldPinVerified = {
+                                    oldPinVerifiedSuccessfully = true
+                                    currentPinChangeStep = PinChangeStep.SET_NEW
+                                },
+                                onCancel = { currentPinChangeStep = PinChangeStep.NONE }
+                            )
+                        }
+                        PinChangeStep.SET_NEW -> {
+                            PinSetupScreen(
+                                onPinSet = {
+                                    coroutineScope.launch {
+                                        isPinSet = PinStorage.isPinSet(context)
+                                        mainViewModel.postSnackbarMessage(
+                                            context.getString(
+                                                if (oldPinVerifiedSuccessfully)
+                                                    R.string.pin_change_success_pin_changed
+                                                else
+                                                    R.string.pin_setup_pin_set_success
+                                            )
                                         )
-                                    )
-                                }
-                                currentPinChangeStep = PinChangeStep.NONE
-                            },
-                            onCancel = { currentPinChangeStep = PinChangeStep.NONE }
-                        )
+                                    }
+                                    currentPinChangeStep = PinChangeStep.NONE
+                                },
+                                onCancel = { currentPinChangeStep = PinChangeStep.NONE }
+                            )
+                        }
+                        else -> {}
                     }
-                    else -> {}
                 }
-            },
-            confirmButton = {},
-            dismissButton = {}
-        )
+            }
+        }
     }
     if (showRestoreConfirmDialog) {
         AlertDialog(
