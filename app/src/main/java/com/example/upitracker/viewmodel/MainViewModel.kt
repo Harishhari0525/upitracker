@@ -159,7 +159,8 @@ data class TransactionFilters(
     val showUncategorized: Boolean = false,
     val amountType: AmountFilterType,
     val amountValue1: Double?,
-    val amountValue2: Double?
+    val amountValue2: Double?,
+    val showOnlyLinked: Boolean = false
 )
 
 data class BankMessageCount(val bankName: String, val count: Int)
@@ -179,8 +180,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _budgets = budgetDao.getAllActiveBudgets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-   // private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
-   private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
+    private val _selectedUpiTransactionType = MutableStateFlow(UpiTransactionTypeFilter.ALL)
+
+    private val _refundKeywordUpdateInfo = MutableStateFlow<Pair<String, String>?>(null)
+    val refundKeywordUpdateInfo: StateFlow<Pair<String, String>?> = _refundKeywordUpdateInfo.asStateFlow()
     val selectedUpiTransactionType: StateFlow<UpiTransactionTypeFilter> =
         _selectedUpiTransactionType.asStateFlow()
 
@@ -204,6 +207,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedDateRangeEnd   = MutableStateFlow<Long?>(null)
 
     private val _selectedTransactionId = MutableStateFlow<Int?>(null)
+    private val _showOnlyLinked = MutableStateFlow(false)
 
     private val _amountFilterType = MutableStateFlow(AmountFilterType.ALL)
     private val _amountFilterValue1 = MutableStateFlow<Double?>(null)
@@ -237,10 +241,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
         .stateIn(viewModelScope, SharingStarted.Eagerly, "Refund") // Default to "Refund"
 
-    // 2. Add this function to allow the Settings screen to save the keyword.
-    fun setRefundKeyword(keyword: String) {
+
+    fun confirmRefundKeywordUpdate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _refundKeywordUpdateInfo.value?.let { (oldKeyword, newKeyword) ->
+                // Save the new keyword to settings
+                ThemePreference.setRefundKeyword(getApplication(), newKeyword)
+                // Update the categories in the database
+                transactionDao.updateCategoryName(oldKeyword, newKeyword)
+                // Hide the dialog
+                _refundKeywordUpdateInfo.value = null
+                postPlainSnackbarMessage("Refund keyword and existing transactions updated.")
+            }
+        }
+    }
+
+    // 3. ADD this new function to dismiss the dialog
+    fun dismissRefundKeywordUpdate() {
         viewModelScope.launch {
-            ThemePreference.setRefundKeyword(getApplication(), keyword)
+            // We still need to save the new keyword even if the user declines to update old transactions
+            _refundKeywordUpdateInfo.value?.let { (_, newKeyword) ->
+                ThemePreference.setRefundKeyword(getApplication(), newKeyword)
+            }
+            _refundKeywordUpdateInfo.value = null
+        }
+    }
+
+
+    fun setRefundKeyword(newKeyword: String) {
+        viewModelScope.launch {
+            val oldKeyword = refundKeyword.first()
+            // Only show the dialog if the keyword has actually changed to something new
+            if (newKeyword.isNotBlank() && !newKeyword.equals(oldKeyword, ignoreCase = true)) {
+                _refundKeywordUpdateInfo.value = Pair(oldKeyword, newKeyword)
+            }
         }
     }
 
@@ -248,7 +282,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         combine(_transactions, refundKeyword) { transactions, keyword ->
             transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(keyword, ignoreCase = true)
+                        !it.category.equals(keyword, ignoreCase = true) && it.linkedTransactionId == null
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -263,16 +297,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val categorySuggestionRules: StateFlow<List<CategorySuggestionRule>> =
         categorySuggestionRuleDao.getAllRules()
-            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _searchQuery = MutableStateFlow("")
-
-    private val _dateAndSearch = combine(
-        _selectedDateRangeStart,
-        _selectedDateRangeEnd,
-        _searchQuery
-    ) { start, end, query -> Triple(start, end, query) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Triple(null, null, ""))
 
     private val archivedSmsDao = db.archivedSmsMessageDao()
 
@@ -308,23 +335,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _filters = combine(
+    val filters: StateFlow<TransactionFilters> = combine(
         _selectedUpiTransactionType,
-        _dateAndSearch,
-        _showUncategorized,
-        _amountFilterType,
-        _amountFilterValue1
-    ) { type, dateAndSearchTriple, uncategorized, amountType, amount1 ->
-        quintuple(type, dateAndSearchTriple, uncategorized, amountType, amount1)
-    }.combine(_amountFilterValue2) { quint, amount2 ->
-        val (type, dateAndSearchTriple, uncategorized, amountType, amount1) = quint
-        val (startDate, endDate, query) = dateAndSearchTriple
-        TransactionFilters(type, startDate, endDate, query, uncategorized, amountType, amount1, amount2)
-    }.stateIn(viewModelScope, SharingStarted.Lazily, TransactionFilters(UpiTransactionTypeFilter.ALL, null, null, "", false, AmountFilterType.ALL, null, null))
-
-    // Helper function and data class
-    private fun <A, B, C, D, E> quintuple(a: A, b: B, c: C, d: D, e: E): Quint<A, B, C, D, E> = Quint(a, b, c, d, e)
-    private data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+        _selectedDateRangeStart,
+        _selectedDateRangeEnd,
+        _searchQuery,
+        _showUncategorized
+    ) { type, startDate, endDate, query, uncategorized ->
+        // The first combine handles 5 flows and creates a base object
+        TransactionFilters(
+            type = type,
+            startDate = startDate,
+            endDate = endDate,
+            searchQuery = query,
+            showUncategorized = uncategorized,
+            // Default values for the rest, which we will add below
+            amountType = AmountFilterType.ALL,
+            amountValue1 = null,
+            amountValue2 = null,
+            showOnlyLinked = false
+        )
+    }.combine(_amountFilterType) { currentFilters, amountType ->
+        // Chain the next flow and update the object
+        currentFilters.copy(amountType = amountType)
+    }.combine(_amountFilterValue1) { currentFilters, amountVal1 ->
+        // Chain the next flow...
+        currentFilters.copy(amountValue1 = amountVal1)
+    }.combine(_amountFilterValue2) { currentFilters, amountVal2 ->
+        // and the next...
+        currentFilters.copy(amountValue2 = amountVal2)
+    }.combine(_showOnlyLinked) { currentFilters, showLinked ->
+        // And finally, our new filter
+        currentFilters.copy(showOnlyLinked = showLinked)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Lazily,
+        initialValue = TransactionFilters(
+            UpiTransactionTypeFilter.ALL, null, null, "",
+            false, AmountFilterType.ALL, null, null, false
+        )
+    )
 
     val userCategories: StateFlow<List<String>> = _transactions
         .map { allTransactions ->
@@ -432,7 +482,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, AppTheme.DEFAULT)
 
-    val filters: StateFlow<TransactionFilters> = _filters
+   // val filters: StateFlow<TransactionFilters> = _filters
 
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
@@ -558,18 +608,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val filteredUpiTransactions: StateFlow<List<Transaction>> =
         combine(
             _transactions,
-            _filters, // ✨ USE the new combined filters flow
+            filters, // ✨ Use our new, public 'filters' StateFlow
             _upiTransactionSortField,
             _upiTransactionSortOrder
         ) { transactions, filters, sortField, sortOrder ->
-            // 1) Type filter
-            val byType = when (filters.type) {
-                UpiTransactionTypeFilter.ALL -> transactions
-                UpiTransactionTypeFilter.DEBIT -> transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
-                UpiTransactionTypeFilter.CREDIT -> transactions.filter { it.type.equals("CREDIT", ignoreCase = true) }
+            // This 'filters' object is now the complete, up-to-date TransactionFilters object
+
+            // 1) Linked Status Filter
+            val byLinkedStatus = if (filters.showOnlyLinked) {
+                transactions.filter { it.linkedTransactionId != null }
+            } else {
+                transactions
             }
 
-            // 2) Date filter
+            // 2) Type filter
+            val byType = when (filters.type) {
+                UpiTransactionTypeFilter.ALL -> byLinkedStatus
+                UpiTransactionTypeFilter.DEBIT -> byLinkedStatus.filter { it.type.equals("DEBIT", ignoreCase = true) }
+                UpiTransactionTypeFilter.CREDIT -> byLinkedStatus.filter { it.type.equals("CREDIT", ignoreCase = true) }
+            }
+
+            // 3) Date filter
             val byDate = when {
                 filters.startDate != null && filters.endDate != null -> byType.filter { it.date in filters.startDate..filters.endDate }
                 filters.startDate != null -> byType.filter { it.date >= filters.startDate }
@@ -577,21 +636,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else -> byType
             }
 
-            // 3) Search filter
+            // 4) Search filter
             val bySearch = if (filters.searchQuery.isBlank()) byDate else byDate.filter { tx ->
                 tx.description.contains(filters.searchQuery, ignoreCase = true) ||
                         tx.senderOrReceiver.contains(filters.searchQuery, ignoreCase = true) ||
                         (tx.category?.contains(filters.searchQuery, ignoreCase = true) == true)
             }
 
-            // 4) Uncategorized Filter
+            // 5) Uncategorized Filter
             val byUncategorized = if (filters.showUncategorized) {
                 bySearch.filter { it.category.isNullOrBlank() }
             } else {
                 bySearch
             }
 
-            // 5) Amount Filter
+            // 6) Amount Filter
             val byAmount = when (filters.amountType) {
                 AmountFilterType.GREATER_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount > limit } } ?: byUncategorized
                 AmountFilterType.LESS_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount < limit } } ?: byUncategorized
@@ -601,7 +660,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AmountFilterType.ALL -> byUncategorized
             }
 
-            // 6) Sort
+            // 7) Sort
             when (sortField) {
                 SortableTransactionField.DATE ->
                     if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.date }
@@ -617,6 +676,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun toggleShowOnlyLinked(isEnabled: Boolean) {
+        _showOnlyLinked.value = isEnabled
+    }
 
     // 3) You can do the same two-into-one trick for summaries if you like:
     val filteredUpiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
@@ -1124,6 +1187,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private suspend fun findAndLinkRefund(refund: Transaction) {
+        val potentialMatches = transactionDao.findPotentialDebitsForRefund(refund.senderOrReceiver)
+
+        // Find the best match (same amount, closest in time before the refund)
+        val bestMatch = potentialMatches.filter { it.amount == refund.amount && it.date <= refund.date }.minByOrNull { refund.date - it.date }
+
+        if (bestMatch != null) {
+            // Link them together
+            val linkedRefund = refund.copy(linkedTransactionId = bestMatch.id)
+            val linkedDebit = bestMatch.copy(linkedTransactionId = refund.id)
+
+            transactionDao.update(linkedRefund)
+            transactionDao.update(linkedDebit)
+
+            postPlainSnackbarMessage("Successfully linked refund to a previous purchase.")
+        } else {
+            postPlainSnackbarMessage("Refund categorized, but no matching purchase was found to link.")
+        }
+    }
+
+
     fun updateTransactionDetails(
         transactionId: Int,
         newDescription: String,
@@ -1145,12 +1229,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
                     )
                 } else {
-                    // Otherwise, ONLY update the category.
                     it.copy(
                         category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
                     )
                 }
                 transactionDao.update(updatedTransaction)
+
+                val refundKeywordValue = refundKeyword.first()
+                // If the category was just changed TO the refund keyword...
+                if (updatedTransaction.type == "CREDIT" &&
+                    newCategory?.equals(refundKeywordValue, ignoreCase = true) == true &&
+                    !originalTransaction.category.equals(refundKeywordValue, ignoreCase = true)
+                ) {
+                    findAndLinkRefund(updatedTransaction)
+                }
+                // If the category was just changed AWAY FROM the refund keyword...
+                else if (originalTransaction.category.equals(refundKeywordValue, ignoreCase = true) &&
+                    !newCategory.equals(refundKeywordValue, ignoreCase = true) &&
+                    originalTransaction.linkedTransactionId != null)
+                {
+                    // Unlink the pair
+                    transactionDao.unlinkTransaction(originalTransaction.id)
+                    transactionDao.unlinkTransaction(originalTransaction.linkedTransactionId)
+                    postPlainSnackbarMessage("Unlinked refund from purchase.")
+                }
+
                 postPlainSnackbarMessage("Transaction updated successfully!")
             }
         }
@@ -1158,11 +1261,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processAndInsertTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
-            // Only try to categorize if it doesn't already have a category
             if (transaction.category.isNullOrBlank()) {
-                val rules = categorySuggestionRules.first() // Get the current list of rules
-                var categorizedTransaction = transaction // Start with the original
+                Log.d("AutoCategorize", "Processing new uncategorized transaction: '${transaction.description}'")
 
+                val rules = categorySuggestionRules.first()
+                Log.d("AutoCategorize", "Found ${rules.size} rules to check against.")
+
+                var bestMatch: CategorySuggestionRule? = null
+
+                // ✨ NEW, SMARTER LOGIC ✨
+                // We now loop through all rules to find the best possible match.
                 for (rule in rules) {
                     val textToMatch = when (rule.fieldToMatch) {
                         RuleField.DESCRIPTION -> transaction.description
@@ -1179,30 +1287,90 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     if (isMatch) {
-                        // Rule matched! Apply the category and stop checking other rules.
-                        categorizedTransaction = transaction.copy(category = rule.categoryName)
-                        Log.d("AutoCategorize", "Rule matched: '${rule.keyword}' in ${rule.fieldToMatch}. Applying category '${rule.categoryName}'.")
-                        break
+                        // Check if this match is better than what we've already found.
+                        if (bestMatch == null) {
+                            // It's the first match, so it's the best so far.
+                            bestMatch = rule
+                        } else if (rule.priority > bestMatch.priority) {
+                            // This rule has a higher priority, so it's better.
+                            bestMatch = rule
+                        } else if (rule.priority == bestMatch.priority && rule.keyword.length > bestMatch.keyword.length) {
+                            // Priorities are the same, so choose the one with the longer, more specific keyword.
+                            bestMatch = rule
+                        }
                     }
                 }
-                // Insert the transaction, which is either the original or the newly categorized version
-                transactionDao.insert(categorizedTransaction)
+
+                val finalTransaction = if (bestMatch != null) {
+                    Log.i("AutoCategorize", "SUCCESS: Best rule found! Keyword='${bestMatch.keyword}', Category='${bestMatch.categoryName}'. Applying to transaction.")
+                    transaction.copy(category = bestMatch.categoryName)
+                } else {
+                    Log.d("AutoCategorize", "No matching rule found for this transaction.")
+                    transaction
+                }
+
+                transactionDao.insert(finalTransaction)
 
             } else {
-                // Transaction already has a category, just insert it.
+                Log.d("AutoCategorize", "Transaction already has category '${transaction.category}', skipping rule check.")
                 transactionDao.insert(transaction)
             }
         }
     }
 
 
-    // ✨ 4. ADD these functions at the bottom of your ViewModel for managing the rules ✨
+    // Add this new function to your MainViewModel
+    fun reapplyRulesToTransaction(transaction: Transaction) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (transaction.category.isNullOrBlank()) {
+                val rules = categorySuggestionRules.first()
+                var bestMatch: CategorySuggestionRule? = null
+
+                for (rule in rules) {
+                    val textToMatch = when (rule.fieldToMatch) {
+                        RuleField.DESCRIPTION -> transaction.description
+                        RuleField.SENDER_OR_RECEIVER -> transaction.senderOrReceiver
+                    }.lowercase()
+                    val keyword = rule.keyword.lowercase()
+                    val isMatch = when (rule.matcher) {
+                        RuleMatcher.CONTAINS -> textToMatch.contains(keyword)
+                        RuleMatcher.EQUALS -> textToMatch == keyword
+                        RuleMatcher.STARTS_WITH -> textToMatch.startsWith(keyword)
+                        RuleMatcher.ENDS_WITH -> textToMatch.endsWith(keyword)
+                    }
+
+                    if (isMatch) {
+                        if (bestMatch == null || (rule.priority > bestMatch.priority) ||
+                            (rule.priority == bestMatch.priority && rule.keyword.length > bestMatch.keyword.length)) {
+                            bestMatch = rule
+                        }
+                    }
+                }
+
+                if (bestMatch != null) {
+                    val updatedTransaction = transaction.copy(category = bestMatch.categoryName)
+                    transactionDao.update(updatedTransaction) // Update the transaction with the new category
+
+                    postPlainSnackbarMessage("Transaction categorized as '${bestMatch.categoryName}'!")
+
+                    val refundKeywordValue = refundKeyword.first()
+                    if (updatedTransaction.type == "CREDIT" && updatedTransaction.category.equals(refundKeywordValue, ignoreCase = true)) {
+                        // This will now correctly find a match and show the "Successfully linked..." snackbar.
+                        findAndLinkRefund(updatedTransaction)
+                    }
+                } else {
+                    postPlainSnackbarMessage("No matching rule found.")
+                }
+            }
+        }
+    }
 
     fun addCategoryRule(
         field: RuleField,
         matcher: RuleMatcher,
         keyword: String,
-        category: String
+        category: String,
+        priority: Int
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             if (keyword.isNotBlank() && category.isNotBlank()) {
@@ -1210,7 +1378,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     fieldToMatch = field,
                     matcher = matcher,
                     keyword = keyword,
-                    categoryName = category
+                    categoryName = category,
+                    priority = priority
                 )
                 categorySuggestionRuleDao.insert(newRule)
                 postPlainSnackbarMessage("New categorization rule saved.")
@@ -1304,13 +1473,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 amount = amount,
                 type = type,
                 description = description.trim(),
-                category = category.trim(),
+                category = category.trim().takeIf { it.isNotEmpty() },
                 date = System.currentTimeMillis(), // Use the current date and time
                 senderOrReceiver = "Manual Entry", // A placeholder for the party
                 isArchived = false,
                 note = ""
             )
-            transactionDao.insert(newTransaction)
+
+            processAndInsertTransaction(newTransaction)
+
             // Post a confirmation message to the user
             postPlainSnackbarMessage("Transaction saved successfully!")
             _uiEvents.emit(UiEvent.ScrollToTop)

@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.util.IndianCurrencyVisualTransformation
+import com.example.upitracker.util.DecimalInputVisualTransformation
 
 @Composable
 fun AddTransactionDialog(
@@ -49,12 +49,14 @@ fun AddTransactionDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = {
+                        if (it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            amount = it
+                        }
                         isAmountError = false
-                        amount = it.filter { char -> char.isDigit() }
                     },
                     label = { Text("Amount") },
                     prefix = { Text("₹") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = isAmountError,
                     supportingText = {
                         if (isAmountError) {
@@ -64,7 +66,7 @@ fun AddTransactionDialog(
                             )
                         }
                     },
-                    visualTransformation = IndianCurrencyVisualTransformation()
+                    visualTransformation = DecimalInputVisualTransformation()
                 )
 
                 // --- DESCRIPTION FIELD ---
@@ -92,19 +94,19 @@ fun AddTransactionDialog(
                     value = category,
                     onValueChange = {
                         category = it
-                        isCategoryError = false
+                       // isCategoryError = false
                     },
                     label = { Text("Category") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    isError = isCategoryError, // Use new error state
-                    supportingText = {
-                        if (isCategoryError) {
-                            Text(
-                                text = "Category cannot be empty", // Specific message
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
+//                    isError = isCategoryError, // Use new error state
+//                    supportingText = {
+//                        if (isCategoryError) {
+//                            Text(
+//                                text = "Category cannot be empty", // Specific message
+//                                color = MaterialTheme.colorScheme.error
+//                            )
+//                        }
+//                    }
                 )
 
                 // Transaction Type Radio Buttons
@@ -154,10 +156,10 @@ fun AddTransactionDialog(
                     // Check each condition separately
                     isAmountError = amountDouble == null || amountDouble <= 0
                     isDescriptionError = description.isBlank()
-                    isCategoryError = category.isBlank()
+                  //  isCategoryError = category.isBlank()
 
                     // If all checks pass, confirm and dismiss
-                    if (!isAmountError && !isDescriptionError && !isCategoryError) {
+                    if (!isAmountError && !isDescriptionError) {
                         onConfirm(amountDouble!!, selectedType, description, category)
                     }
                 }

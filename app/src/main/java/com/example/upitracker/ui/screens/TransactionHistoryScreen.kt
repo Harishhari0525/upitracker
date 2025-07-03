@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -36,6 +37,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import com.example.upitracker.util.DecimalInputVisualTransformation
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -379,6 +381,21 @@ private fun FilterSheetContent(
             onEndDateClick = { showEndDatePicker = true },
             onClearDates = { mainViewModel.clearDateRangeFilter() }
         )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Show only linked transactions", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = filters.showOnlyLinked,
+                onCheckedChange = { mainViewModel.toggleShowOnlyLinked(it) }
+            )
+        }
+
         AdvancedFilterControls(
             filters = filters,
             onToggleUncategorized = { mainViewModel.toggleUncategorizedFilter(it) },
@@ -440,20 +457,20 @@ private fun ActiveFiltersRow(
     onAmountFilterClick: () -> Unit,
     onUncategorizedFilterClick: () -> Unit
 ) {
-    val showRow = filters.startDate != null || filters.amountType != AmountFilterType.ALL || filters.showUncategorized
-    if (showRow) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (filters.startDate != null) {
+    // This LazyRow scrolls if there are too many active filter chips
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (filters.startDate != null) {
+            item {
                 val formatter = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
                 val start = formatter.format(Date(filters.startDate))
                 val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
                 FilterChip(
-                    selected = false,
+                    selected = true, // Make active filters look selected
                     onClick = onDateFilterClick,
                     label = { Text("$start - $end") },
                     trailingIcon = {
@@ -467,11 +484,28 @@ private fun ActiveFiltersRow(
                     }
                 )
             }
-            if (filters.amountType != AmountFilterType.ALL) {
+        }
+
+        if (filters.amountType != AmountFilterType.ALL) {
+            item {
+                // ✨ START OF THE FIX ✨
+                val amountFilterText = remember(filters.amountType, filters.amountValue1, filters.amountValue2) {
+                    // Using the elvis operator `?: ""` replaces a null value with an empty string
+                    val val1 = filters.amountValue1?.toInt()
+                    val val2 = filters.amountValue2?.toInt()
+                    when (filters.amountType) {
+                        AmountFilterType.GREATER_THAN -> "> ₹${val1 ?: ""}"
+                        AmountFilterType.LESS_THAN -> "< ₹${val1 ?: ""}"
+                        AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
+                        else -> "Amount"
+                    }
+                }
+                // ✨ END OF THE FIX ✨
+
                 FilterChip(
-                    selected = false,
+                    selected = true, // Make active filters look selected
                     onClick = onAmountFilterClick,
-                    label = { Text("Amount") },
+                    label = { Text(amountFilterText) },
                     trailingIcon = {
                         Icon(
                             Icons.Default.Cancel,
@@ -483,9 +517,12 @@ private fun ActiveFiltersRow(
                     }
                 )
             }
-            if (filters.showUncategorized) {
+        }
+
+        if (filters.showUncategorized) {
+            item {
                 FilterChip(
-                    selected = false,
+                    selected = true, // Make active filters look selected
                     onClick = onUncategorizedFilterClick,
                     label = { Text("Uncategorized") },
                     trailingIcon = {
@@ -650,17 +687,14 @@ fun UpiLiteSummarySortControls(
 // In TransactionHistoryScreen.kt
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-// In TransactionHistoryScreen.kt, replace the old AdvancedFilterControls with this:
-
 @Composable
 fun AdvancedFilterControls(
-    filters: TransactionFilters, // Pass the data object directly
-    onToggleUncategorized: (Boolean) -> Unit, // Pass the specific lambda
-    onSetAmountFilter: (AmountFilterType, Double?, Double?) -> Unit // Pass the specific lambda
+    filters: TransactionFilters,
+    onToggleUncategorized: (Boolean) -> Unit,
+    onSetAmountFilter: (AmountFilterType, Double?, Double?) -> Unit
 ) {
-    // Local states for the TextFields remain the same
-    var amountValue1 by remember { mutableStateOf("") }
-    var amountValue2 by remember { mutableStateOf("") }
+    var amountValue1 by remember { mutableStateOf(filters.amountValue1?.toString() ?: "") }
+    var amountValue2 by remember { mutableStateOf(filters.amountValue2?.toString() ?: "") }
     var showAmountDropdown by remember { mutableStateOf(false) }
 
     Row(
@@ -670,23 +704,20 @@ fun AdvancedFilterControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // --- Uncategorized Filter Chip ---
         FilterChip(
             selected = filters.showUncategorized,
-            onClick = { onToggleUncategorized(!filters.showUncategorized) }, // Use the lambda
+            onClick = { onToggleUncategorized(!filters.showUncategorized) },
             label = { Text("Uncategorized") },
             leadingIcon = if (filters.showUncategorized) {
                 { Icon(Icons.Filled.Check, contentDescription = "Uncategorized filter selected") }
             } else null
         )
 
-        // --- Amount Filter Dropdown ---
         Box {
             OutlinedButton(onClick = { showAmountDropdown = true }) {
                 Text(filters.amountType.name.replace('_', ' '))
                 Icon(Icons.Default.ArrowDropDown, contentDescription = "Open amount filter options")
             }
-
             DropdownMenu(
                 expanded = showAmountDropdown,
                 onDismissRequest = { showAmountDropdown = false }
@@ -695,7 +726,7 @@ fun AdvancedFilterControls(
                     DropdownMenuItem(
                         text = { Text(type.name.replace('_', ' ')) },
                         onClick = {
-                            onSetAmountFilter(type, null, null) // Use the lambda
+                            onSetAmountFilter(type, null, null)
                             amountValue1 = ""
                             amountValue2 = ""
                             showAmountDropdown = false
@@ -706,7 +737,6 @@ fun AdvancedFilterControls(
         }
     }
 
-    // --- Conditionally display TextFields for Amount Filter ---
     if (filters.amountType != AmountFilterType.ALL) {
         Row(
             modifier = Modifier
@@ -717,13 +747,17 @@ fun AdvancedFilterControls(
         ) {
             OutlinedTextField(
                 value = amountValue1,
-                onValueChange = {
-                    amountValue1 = it
-                    onSetAmountFilter( // Use the lambda
-                        filters.amountType,
-                        it.toDoubleOrNull(),
-                        amountValue2.toDoubleOrNull()
-                    )
+                onValueChange = { newValue ->
+                    // ✨ FIX 1: Correctly handle decimal input ✨
+                    val cleaned = newValue.filter { it.isDigit() || it == '.' }
+                    if (cleaned.count { it == '.' } <= 1) {
+                        amountValue1 = cleaned
+                        onSetAmountFilter(
+                            filters.amountType,
+                            cleaned.toDoubleOrNull(),
+                            amountValue2.toDoubleOrNull()
+                        )
+                    }
                 },
                 label = {
                     val label = when (filters.amountType) {
@@ -735,28 +769,39 @@ fun AdvancedFilterControls(
                     Text(label)
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                prefix = { Text("₹") }, // ✨ Add Rupee symbol prefix ✨
+                visualTransformation = DecimalInputVisualTransformation(), // ✨ Use our currency formatter ✨
                 modifier = Modifier.weight(1f)
             )
 
             if (filters.amountType == AmountFilterType.RANGE) {
                 OutlinedTextField(
                     value = amountValue2,
-                    onValueChange = {
-                        amountValue2 = it
-                        onSetAmountFilter( // Use the lambda
-                            filters.amountType,
-                            amountValue1.toDoubleOrNull(),
-                            it.toDoubleOrNull()
-                        )
+                    onValueChange = { newValue ->
+                        // ✨ FIX 2: Apply same logic to the second field ✨
+                        val cleaned = newValue.filter { it.isDigit() || it == '.' }
+                        if (cleaned.count { it == '.' } <= 1) {
+                            amountValue2 = cleaned
+                            onSetAmountFilter(
+                                filters.amountType,
+                                amountValue1.toDoubleOrNull(),
+                                cleaned.toDoubleOrNull()
+                            )
+                        }
                     },
                     label = { Text("Max Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    prefix = { Text("₹") }, // ✨ Add Rupee symbol prefix ✨
+                    visualTransformation = DecimalInputVisualTransformation(), // ✨ Use our currency formatter ✨
                     modifier = Modifier.weight(1f)
                 )
             }
         }
     }
 }
+
 @Composable
 fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
     // Determine which icon to show based on the message

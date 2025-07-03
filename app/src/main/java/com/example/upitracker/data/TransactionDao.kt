@@ -49,4 +49,14 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp")
     suspend fun permanentlyDeletePending(cutoffTimestamp: Long)
 
+    @Query("SELECT * FROM transactions WHERE type = 'DEBIT' AND senderOrReceiver = :sender AND isArchived = 0 AND linkedTransactionId IS NULL ORDER BY date DESC")
+    suspend fun findPotentialDebitsForRefund(sender: String): List<Transaction>
+
+    // Unlinks a transaction
+    @Query("UPDATE transactions SET linkedTransactionId = NULL WHERE id = :transactionId")
+    suspend fun unlinkTransaction(transactionId: Int)
+
+    @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
+    suspend fun updateCategoryName(oldCategory: String, newCategory: String)
+
 }

@@ -104,8 +104,8 @@ private fun CategorizationRulesContent(mainViewModel: MainViewModel) {
     if (showAddRuleDialog) {
         AddRuleDialog(
             onDismiss = { showAddRuleDialog = false },
-            onConfirm = { field, matcher, keyword, category ->
-                mainViewModel.addCategoryRule(field, matcher, keyword, category)
+            onConfirm = { field, matcher, keyword, category , priority ->
+                mainViewModel.addCategoryRule(field, matcher, keyword, category, priority)
                 showAddRuleDialog = false
             }
         )

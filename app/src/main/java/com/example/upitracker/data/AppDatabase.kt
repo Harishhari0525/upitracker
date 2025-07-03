@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
         RecurringRule::class,
         Category::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,6 +36,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile private var INSTANCE: AppDatabase? = null
 
         // Migration from version 1 to version 2 (UpiLiteSummary.date String to Long)
+// WARNING: This is a destructive migration that drops user data.
+// This was likely a shortcut during early development and should NOT be
+// used as an example for future migrations in a production app.
+// The safe way is to use "ALTER TABLE" to add columns.
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DROP TABLE IF EXISTS upi_lite_summaries")
@@ -236,6 +240,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN linkedTransactionId INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -244,9 +254,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "upi_tracker_db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
-                        ,
-                        MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14) // ✨ Add new migration ✨
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                        MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14, MIGRATION_14_15) // ✨ Add new migration ✨
                     .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
                     .addCallback(AppDatabaseCallback(CoroutineScope(Dispatchers.IO)))
                     .build()

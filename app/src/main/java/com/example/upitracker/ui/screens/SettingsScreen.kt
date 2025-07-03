@@ -93,6 +93,8 @@ fun SettingsScreen(
 
     var showPrivacyDialog by remember { mutableStateOf(false) }
 
+    val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
+
     // Re-compute isPinSet when no dialog is active
     LaunchedEffect(Unit, currentPinChangeStep) {
         if (currentPinChangeStep == PinChangeStep.NONE) {
@@ -203,9 +205,6 @@ fun SettingsScreen(
                 summary = if (isRefreshingSmsArchive) stringResource(R.string.settings_sync_sms_backup_in_progress) else stringResource(R.string.settings_sync_sms_backup_summary), // ✨ New String
                 onClick = {
                     if (!isRefreshingSmsArchive && !isImportingSms) { // Ensure no other SMS operation is running
-                        // ✨ Call the new function/lambda ✨
-                        // This should handle its own permission check if needed or assume it's granted
-                        // For now, assuming MainActivity's requestSmsPermissionAndRefreshArchive handles permissions.
                         onRefreshSmsArchive() // This lambda needs to be passed down
                     }
                 },
@@ -489,6 +488,25 @@ fun SettingsScreen(
             }
         )
     }
+
+    refundKeywordUpdateInfo?.let { (oldKeyword, newKeyword) ->
+        AlertDialog(
+            onDismissRequest = { mainViewModel.dismissRefundKeywordUpdate() },
+            title = { Text("Update Existing Transactions?") },
+            text = { Text("Would you like to rename all transactions currently categorized as '$oldKeyword' to '$newKeyword'?") },
+            confirmButton = {
+                Button(onClick = { mainViewModel.confirmRefundKeywordUpdate() }) {
+                    Text("Yes, Update All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mainViewModel.dismissRefundKeywordUpdate() }) {
+                    Text("No, Just Save")
+                }
+            }
+        )
+    }
+
     if (showPrivacyDialog) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyDialog = false })
     }

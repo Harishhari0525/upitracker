@@ -12,12 +12,13 @@ import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleMatcher
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRuleDialog(
     onDismiss: () -> Unit,
-    onConfirm: (field: RuleField, matcher: RuleMatcher, keyword: String, category: String) -> Unit
+    onConfirm: (field: RuleField, matcher: RuleMatcher, keyword: String, category: String, priority: Int) -> Unit
 ) {
     var keyword by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -26,6 +27,7 @@ fun AddRuleDialog(
 
     var isFieldExpanded by remember { mutableStateOf(false) }
     var isMatcherExpanded by remember { mutableStateOf(false) }
+    var priorityText by remember { mutableStateOf("0") }
 
 
     AlertDialog(
@@ -82,13 +84,21 @@ fun AddRuleDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true
                 )
+                OutlinedTextField(
+                    value = priorityText,
+                    onValueChange = { priorityText = it.filter(Char::isDigit) },
+                    label = { Text("Priority (higher number wins)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (keyword.isNotBlank() && category.isNotBlank()) {
-                        onConfirm(selectedField, selectedMatcher, keyword, category)
+                        onConfirm(selectedField, selectedMatcher, keyword, category, priorityText.toIntOrNull() ?: 0)
                     }
                 }
             ) { Text("Save Rule") }
