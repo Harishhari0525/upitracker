@@ -17,7 +17,7 @@ android {
         minSdk = 31
         targetSdk = 36
         versionCode = 1
-        versionName = "1.5"
+        versionName = "1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -34,6 +34,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -103,6 +104,7 @@ dependencies {
     implementation(libs.introshowcaseview)
     implementation(libs.tink.android)
     implementation(libs.androidx.datastore.core)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.google.protobuf.java)
     {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")

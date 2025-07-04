@@ -30,13 +30,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.viewmodel.MainViewModel
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.ImageVector
 
 
 @OptIn(androidx.compose.animation.ExperimentalAnimationApi::class, ExperimentalAnimationGraphicsApi::class) // Can also be at function level
@@ -269,14 +265,6 @@ fun MainAppScreen(
                     onRefreshSmsArchive = onRefreshSmsArchive,
                     onNavigateToRules = { rootNavController.navigate("rule_management") },
                     onNavigateToArchive = { rootNavController.navigate("archived_transactions")},
-                        onBack = {
-                        if (contentNavController.previousBackStackEntry != null) {
-                            contentNavController.popBackStack()
-                        } else {
-                            // Optionally, navigate to home if there's no backstack within bottom nav
-                            // This depends on desired UX
-                        }
-                    },
                     onBackupDatabase = onBackupDatabase, // ✨ PASS IT DOWN
                     onRestoreDatabase = onRestoreDatabase,
                     modifier = Modifier.fillMaxSize()
@@ -295,51 +283,4 @@ fun MainAppScreen(
             }
         )
     }
-}
-@Composable
-private fun AnimatedNavIcon(
-    screen: BottomNavItem,
-    isSelected: Boolean,
-    iconVector: ImageVector,
-    modifier: Modifier = Modifier
-) {
-    val animationSpec = tween<Float>(durationMillis = 300)
-
-    // Default scale animation for all icons
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1.0f,
-        animationSpec = animationSpec,
-        label = "icon_scale"
-    )
-
-    // Unique rotation animations per icon
-    val rotation by animateFloatAsState(
-        targetValue = if (isSelected) 360f else 0f,
-        animationSpec = tween(durationMillis = 400),
-        label = "icon_rotation"
-    )
-
-    // A special wobble for the Graphs icon
-    val wobble by animateFloatAsState(
-        targetValue = if (isSelected) 15f else 0f,
-        animationSpec = tween(durationMillis = 300),
-        label = "icon_wobble"
-    )
-
-    Icon(
-        imageVector = iconVector,
-        contentDescription = stringResource(screen.labelResId),
-        modifier = modifier
-            .scale(scale)
-            // Apply a unique animation based on the screen
-            .then(
-                when (screen) {
-                    is BottomNavItem.AppSettings -> Modifier.rotate(rotation)
-                    is BottomNavItem.Graphs -> Modifier.rotate(if (isSelected) wobble else 0f)
-                    is BottomNavItem.Budget -> Modifier.rotate(if (isSelected) -10f else 0f)
-                    // You can add more unique animations for other icons here
-                    else -> Modifier // Default, no extra animation
-                }
-            )
-    )
 }

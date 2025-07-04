@@ -16,8 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
@@ -26,6 +26,11 @@ import com.example.upitracker.ui.components.RecurringRuleCard
 import com.example.upitracker.viewmodel.BudgetStatus
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import com.example.upitracker.data.BudgetPeriod
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -42,6 +47,8 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
     var showAddRecurringDialog by remember { mutableStateOf(false) }
     var ruleToEdit by remember { mutableStateOf<RecurringRule?>(null) }
     var showRecurringHelpDialog by remember { mutableStateOf(false) }
+
+    var ruleForForecast by remember { mutableStateOf<RecurringRule?>(null) }
 
 
     if (showAddBudgetDialog) {
@@ -99,7 +106,13 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
         )
     }
 
-    // --- END DIALOGS ---
+    if (ruleForForecast != null) {
+        ForecastDialog(
+            rule = ruleForForecast!!,
+            onDismiss = { ruleForForecast = null }
+        )
+    }
+
 
 
     // --- UI LAYOUT ---
@@ -147,7 +160,9 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
                 when (page) {
                     // KEY FIX: We pass a lambda down to each child, so they can tell the parent to change the state.
                     0 -> BudgetList(mainViewModel = mainViewModel, onEditBudget = { budgetToEdit = it })
-                    1 -> RecurringList(mainViewModel = mainViewModel, onEditRule = { ruleToEdit = it })
+                    1 -> RecurringList(mainViewModel = mainViewModel,
+                        onEditRule = { ruleToEdit = it },
+                        onViewForecast = { ruleForForecast = it })
                 }
             }
         }
@@ -186,11 +201,17 @@ private fun BudgetList(mainViewModel: MainViewModel, onEditBudget: (BudgetStatus
  * It does NOT own any dialog state.
  */
 @Composable
-private fun RecurringList(mainViewModel: MainViewModel, onEditRule: (RecurringRule) -> Unit) {
+private fun RecurringList(
+    mainViewModel: MainViewModel,
+    onEditRule: (RecurringRule) -> Unit,
+    onViewForecast: (RecurringRule) -> Unit
+) {
     val recurringRules by mainViewModel.recurringRules.collectAsState()
 
     if (recurringRules.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { /*...*/ }
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            Text("You have no recurring transactions.\nTap the '+' button to add subscriptions, rent, or other regular payments.", textAlign = TextAlign.Center)
+        }
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -201,9 +222,65 @@ private fun RecurringList(mainViewModel: MainViewModel, onEditRule: (RecurringRu
                 RecurringRuleCard(
                     rule = rule,
                     onDelete = { mainViewModel.deleteRecurringRule(rule) },
-                    onEdit = { onEditRule(rule) } // This calls the lambda passed from the parent.
+                    onEdit = { onEditRule(rule) },
+                    onViewForecast = { onViewForecast(rule) } // Use the new clickable card
                 )
             }
         }
     }
+}
+
+@Composable
+private fun ForecastDialog(rule: RecurringRule, onDismiss: () -> Unit) {
+    val dateFormat = remember { SimpleDateFormat("EEEE, MMMM dd, yyyy", Locale.getDefault()) }
+
+    val upcomingDates = remember(rule) {
+        List(6) { i ->
+            val calendar = Calendar.getInstance()
+            calendar.timeInMillis = if (i == 0) {
+                rule.nextDueDate
+            } else {
+                // To get the next date, we must start from the *previous* date in the list
+                val previousDateCalendar = Calendar.getInstance().apply { timeInMillis = rule.nextDueDate }
+                repeat(i - 1) {
+                    when (rule.periodType) {
+                        BudgetPeriod.MONTHLY -> previousDateCalendar.add(Calendar.MONTH, 1)
+                        BudgetPeriod.WEEKLY -> previousDateCalendar.add(Calendar.WEEK_OF_YEAR, 1)
+                        BudgetPeriod.YEARLY -> previousDateCalendar.add(Calendar.YEAR, 1)
+                    }
+                }
+                // Now calculate the next one
+                when (rule.periodType) {
+                    BudgetPeriod.MONTHLY -> previousDateCalendar.add(Calendar.MONTH, 1)
+                    BudgetPeriod.WEEKLY -> previousDateCalendar.add(Calendar.WEEK_OF_YEAR, 1)
+                    BudgetPeriod.YEARLY -> previousDateCalendar.add(Calendar.YEAR, 1)
+                }
+                previousDateCalendar.timeInMillis
+            }
+
+            // Correct for month-end dates
+            val finalCalendar = Calendar.getInstance().apply { timeInMillis = calendar.timeInMillis }
+            val maxDayInMonth = finalCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+            finalCalendar.set(Calendar.DAY_OF_MONTH, rule.dayOfPeriod.coerceAtMost(maxDayInMonth))
+
+            dateFormat.format(Date(finalCalendar.timeInMillis))
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Upcoming Payments for \"${rule.description}\"") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                upcomingDates.forEach { dateString ->
+                    Text("• $dateString", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }

@@ -2,6 +2,7 @@
 # UPDATED: All core Compose libraries are now aligned to a new, compatible version
 animation = "1.9.0-beta01"
 coreSplashscreen = "1.0.1"
+desugar_jdk_libs = "2.1.5"
 foundation = "1.9.0-beta01"
 compose = "1.9.0-beta01"
 gradle = "8.11.0"
@@ -64,6 +65,7 @@ androidx-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref =
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "iconscompose" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
 compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
+desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 google-protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobufJava" }
 gradle = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
 introshowcaseview = { module = "com.canopas.intro-showcase-view:introshowcaseview", version.ref = "introshowcaseview" }

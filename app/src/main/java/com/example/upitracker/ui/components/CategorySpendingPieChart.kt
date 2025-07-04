@@ -73,6 +73,18 @@ fun CategorySpendingPieChart(
     val canvasDrawScope = remember { CanvasDrawScope() }
     val layoutDirection = LocalLayoutDirection.current
 
+    // ✨ START OF THE FIX ✨
+    // Create the Paint object here, only once, and remember it.
+    val labelTextPaint = remember(density) {
+        Paint().apply {
+            color = android.graphics.Color.WHITE
+            textAlign = Paint.Align.CENTER
+            textSize = with(density) { 12.sp.toPx() }
+            isAntiAlias = true
+        }
+    }
+    // ✨ END OF THE FIX ✨
+
     LaunchedEffect(initiallySelectedCategoryName, categoryExpenses) {
         selectedSliceIndex = initiallySelectedCategoryName?.let { name ->
             categoryExpenses.indexOfFirst { it.categoryName == name }.takeIf { it != -1 }
@@ -110,16 +122,16 @@ fun CategorySpendingPieChart(
                         hitTestBitmap?.let { bmp ->
                             val hitTestCanvas = androidx.compose.ui.graphics.Canvas(bmp)
 
-                            // ✨ FIX: Correctly call draw() with proper types ✨
                             canvasDrawScope.draw(density, layoutDirection, hitTestCanvas, currentSize.toSize()) {
                                 drawPie(
-                                    density = density, // Pass density down
                                     expenses = categoryExpenses,
                                     totalAmount = totalAmount,
                                     forHitTest = true,
                                     selectedIndex = selectedSliceIndex,
                                     sweepAnimations = sweepAnimations.map { it.value },
                                     idToCategoryMap = idToCategoryMap,
+                                    density = density,
+                                    textPaint = labelTextPaint // Pass the paint object
                                 )
                             }
 
@@ -144,26 +156,28 @@ fun CategorySpendingPieChart(
     ) {
         // This is the visible chart
         drawPie(
-            density = density, // Pass density down
             expenses = categoryExpenses,
             totalAmount = totalAmount,
             forHitTest = false,
             selectedIndex = selectedSliceIndex,
             sweepAnimations = sweepAnimations.map { it.value },
-            sliceColors = sliceColors
+            sliceColors = sliceColors,
+            density = density,
+            textPaint = labelTextPaint // Pass the paint object
         )
     }
 }
 
 private fun DrawScope.drawPie(
-    density: Density, // ✨ Accept density as a parameter
     expenses: List<CategoryExpense>,
     totalAmount: Double,
     forHitTest: Boolean,
     selectedIndex: Int?,
     sweepAnimations: List<Float>,
     sliceColors: List<Color> = pieChartColorsDefaults,
-    idToCategoryMap: Map<Int, CategoryExpense> = emptyMap()
+    idToCategoryMap: Map<Int, CategoryExpense> = emptyMap(),
+    density: Density,
+    textPaint: Paint
 ) {
     val outerDiameter = min(size.width, size.height) * 0.8f
     val outerRadius = outerDiameter / 2f
@@ -172,13 +186,8 @@ private fun DrawScope.drawPie(
 
     val themedOutlineColor = Color.Black
 
-    // ✨ FIX: Do not use `remember` inside a non-composable function ✨
-    val labelTextPaint = Paint().apply {
-        color = android.graphics.Color.WHITE
-        textAlign = Paint.Align.CENTER
-        textSize = with(density) { 12.sp.toPx() } // Use density to convert sp to px
-        isAntiAlias = true
-    }
+    // ✨ The Paint object is now received as a parameter, not created here ✨
+    // val labelTextPaint = Paint().apply { ... } // This is removed
 
     expenses.forEachIndexed { index, expense ->
         val sweepAngle = sweepAnimations.getOrElse(index) { 0f }
@@ -231,13 +240,12 @@ private fun DrawScope.drawPie(
             val percentage = (expense.totalAmount / totalAmount * 100).roundToInt()
             val textBounds = Rect()
             val label = "$percentage%"
-            labelTextPaint.getTextBounds(label, 0, label.length, textBounds)
-            drawContext.canvas.nativeCanvas.drawText(label, xPos, yPos + textBounds.height() / 2f, labelTextPaint)
+            textPaint.getTextBounds(label, 0, label.length, textBounds)
+            drawContext.canvas.nativeCanvas.drawText(label, xPos, yPos + textBounds.height() / 2f, textPaint)
         }
         startAngle += sweepAngle
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

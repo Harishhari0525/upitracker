@@ -41,7 +41,6 @@ import androidx.core.view.WindowCompat // ✨ Import WindowCompat ✨
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.upitracker.data.AppDatabase
-import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.sms.SmsReceiver
 import com.example.upitracker.sms.parseUpiLiteSummarySms
 import com.example.upitracker.sms.parseUpiSms
@@ -56,15 +55,11 @@ import com.example.upitracker.util.RestartUtil
 import kotlinx.coroutines.Dispatchers
 import com.example.upitracker.data.ArchivedSmsMessage
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.work.PeriodicWorkRequestBuilder
 import com.example.upitracker.util.PermanentDeleteWorker // ✨ Import the new worker
 import com.example.upitracker.util.RecurringTransactionWorker
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import com.example.upitracker.util.BiometricHelper // ✨ Import BiometricHelper
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.WorkManager
@@ -359,52 +354,58 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun importOldUpiSms() {
-        val db = AppDatabase.getDatabase(this)
-        val dao = db.transactionDao()
-        val liteDao = db.upiLiteSummaryDao()
-        val archivedSmsDao = db.archivedSmsMessageDao()
-
-        mainViewModel.setSmsImportingState(true)
+    // Add this new private function inside your MainActivity
+    private fun processSmsInbox(
+        setLoadingState: (Boolean) -> Unit,
+        onComplete: (newTxnCount: Int, processedSummaries: Int, archivedCount: Int) -> Unit
+    ) {
+        setLoadingState(true)
         lifecycleScope.launch(Dispatchers.IO) {
-            val smsList = getAllSms()
-            var txnCount = 0; var liteSummaryCount = 0
-            var lastLiteSummaryForSnackbar: UpiLiteSummary? = null
-            var customRegexPatterns: List<Regex> = emptyList()
-            RegexPreference.getRegexPatterns(this@MainActivity).first().let { patternsSet ->
-                customRegexPatterns = patternsSet.mapNotNull { patternString ->
-                    try { Regex(patternString, RegexOption.IGNORE_CASE) }
-                    catch (e: Exception) { Log.w("MainActivityImport",
-                        "Skipping invalid regex pattern: '$patternString'", e); null }
-                }
-            }
-            for ((sender, body, smsDate) in smsList) {
-                var isUpiRelatedForBackup = false // Flag for backup
+            val db = AppDatabase.getDatabase(this@MainActivity)
+            val dao = db.transactionDao()
+            val liteDao = db.upiLiteSummaryDao()
+            val archivedSmsDao = db.archivedSmsMessageDao()
 
-                val liteSummary = parseUpiLiteSummarySms(body)
-                if (liteSummary != null) {
-                    isUpiRelatedForBackup = true // Mark as UPI related for backup
-                    val existingSummary = liteDao.getSummaryByDateAndBank(liteSummary.date, liteSummary.bank)
-                    if (existingSummary == null) {
-                        liteDao.insert(liteSummary); liteSummaryCount++; lastLiteSummaryForSnackbar = liteSummary
-                    } else {
-                        if (existingSummary.transactionCount != liteSummary.transactionCount ||
-                            existingSummary.totalAmount != liteSummary.totalAmount) {
-                            val updatedSummary = existingSummary.copy(transactionCount
-                            = liteSummary.transactionCount, totalAmount = liteSummary.totalAmount)
-                            liteDao.update(updatedSummary); lastLiteSummaryForSnackbar = updatedSummary
-                        }
+            val smsList = getAllSms()
+            var newTxnCount = 0
+            var processedSummaries = 0
+            var archivedCount = 0
+
+            val customRegexPatterns = RegexPreference.getRegexPatterns(this@MainActivity).firstOrNull()
+                ?.mapNotNull { patternString ->
+                    try {
+                        Regex(patternString, RegexOption.IGNORE_CASE)
+                    } catch (e: Exception) {
+                        Log.w("MainActivityImport", "Skipping invalid regex: '$patternString'", e)
+                        null
                     }
-                    continue
+                } ?: emptyList()
+
+            for ((sender, body, smsDate) in smsList) {
+                var isUpiRelated = false
+
+                parseUpiLiteSummarySms(body)?.let { summary ->
+                    isUpiRelated = true
+                    val existing = liteDao.getSummaryByDateAndBank(summary.date, summary.bank)
+                    if (existing == null) {
+                        liteDao.insert(summary)
+                        processedSummaries++
+                    } else if (existing.transactionCount != summary.transactionCount || existing.totalAmount != summary.totalAmount) {
+                        liteDao.update(existing.copy(transactionCount = summary.transactionCount, totalAmount = summary.totalAmount))
+                        processedSummaries++
+                    }
                 }
-                val transaction = parseUpiSms(body, sender, smsDate, customRegexPatterns)
-                if (transaction != null) {
-                    isUpiRelatedForBackup = true // Mark as UPI related for backup
-                    val exists = dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description)
-                    if (exists == null) { mainViewModel.processAndInsertTransaction(transaction)
-                        txnCount++ }
+
+                parseUpiSms(body, sender, smsDate, customRegexPatterns)?.let { transaction ->
+                    isUpiRelated = true
+                    // Check if a transaction with the same core details already exists
+                    if (dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description) == null) {
+                        mainViewModel.processAndInsertTransaction(transaction)
+                        newTxnCount++
+                    }
                 }
-                if (isUpiRelatedForBackup) {
+
+                if (isUpiRelated) {
                     val archivedSms = ArchivedSmsMessage(
                         originalSender = sender,
                         originalBody = body,
@@ -412,20 +413,29 @@ class MainActivity : FragmentActivity() {
                         backupTimestamp = System.currentTimeMillis()
                     )
                     archivedSmsDao.insertArchivedSms(archivedSms)
+                    archivedCount++
                 }
             }
+
             withContext(Dispatchers.Main) {
-                mainViewModel.setSmsImportingState(false)
-                val snackbarDateFormat = SimpleDateFormat("dd MMM yy", Locale.getDefault())
-                val liteMsgPart = lastLiteSummaryForSnackbar?.let {
-                    val formattedDate = try { snackbarDateFormat.format(Date(it.date)) } catch (_:Exception) {"N/A"}
-                    "\nLast UPI Lite: ${it.transactionCount} txns, ₹${"%.2f".format(it.totalAmount)} on $formattedDate"
-                } ?: ""
-                val mainMessage = if (txnCount > 0 || liteSummaryCount > 0) "Imported $txnCount new UPI SMS. Processed $liteSummaryCount UPI Lite summaries.$liteMsgPart"
-                else "No new UPI transactions or Lite summaries found/updated in old SMS."
-                mainViewModel.postSnackbarMessage(mainMessage)
+                setLoadingState(false)
+                onComplete(newTxnCount, processedSummaries, archivedCount)
             }
         }
+    }
+
+    private fun importOldUpiSms() {
+        processSmsInbox(
+            setLoadingState = { mainViewModel.setSmsImportingState(it) },
+            onComplete = { txnCount, summaryCount, _ ->
+                val message = if (txnCount > 0 || summaryCount > 0) {
+                    "Imported $txnCount new transactions and processed $summaryCount UPI Lite summaries."
+                } else {
+                    "No new UPI transactions or Lite summaries found in old SMS."
+                }
+                mainViewModel.postSnackbarMessage(message)
+            }
+        )
     }
 
     private fun scheduleRecurringTransactionWorker() {
@@ -483,100 +493,23 @@ class MainActivity : FragmentActivity() {
             }
         }
     }
-    private fun performSmsArchiveRefresh() { // ✨ New function ✨
-        // This function is essentially importOldUpiSms, but uses a different loading flag
-        // and potentially different snackbar messages.
-        val db = AppDatabase.getDatabase(this)
-        val dao = db.transactionDao()
-        val liteDao = db.upiLiteSummaryDao()
-        val archivedSmsDao = db.archivedSmsMessageDao()
-
-        mainViewModel.setIsRefreshingSmsArchive(true) // ✨ Use new loading state ✨
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val smsList = getAllSms() // getAllSms remains the same
-            var transactionsProcessed = 0
-            var summariesProcessed = 0
-            var smsArchived = 0
-
-            var customRegexPatterns: List<Regex>
-            RegexPreference.getRegexPatterns(this@MainActivity).firstOrNull()?.let { patternsSet ->
-                customRegexPatterns = patternsSet.mapNotNull { patternString ->
-                    try {
-                        Regex(patternString, RegexOption.IGNORE_CASE)
-                    } catch (e: Exception) {
-                        Log.w(
-                            "MainActivityImport",
-                            "Skipping invalid regex pattern: '$patternString'",
-                            e
-                        ); null
-                    }
-                }
-
-                for ((sender, body, smsDate) in smsList) {
-                    var needsArchiving = false
-                    val liteSummary = parseUpiLiteSummarySms(body)
-                    if (liteSummary != null) {
-                        needsArchiving = true
-                        val existingSummary =
-                            liteDao.getSummaryByDateAndBank(liteSummary.date, liteSummary.bank)
-                        if (existingSummary == null) {
-                            liteDao.insert(liteSummary); summariesProcessed++
-                        } else {
-                            if (existingSummary.transactionCount != liteSummary.transactionCount || existingSummary.totalAmount != liteSummary.totalAmount) {
-                                liteDao.update(
-                                    existingSummary.copy(
-                                        transactionCount = liteSummary.transactionCount,
-                                        totalAmount = liteSummary.totalAmount
-                                    )
-                                )
-                                summariesProcessed++ // Count updates as processed
-                            }
-                        }
-                    }
-
-                    val transaction = parseUpiSms(body, sender, smsDate, customRegexPatterns)
-                    if (transaction != null) {
-                        needsArchiving = true
-                        val exists = dao.getTransactionByDetails(
-                            transaction.amount,
-                            transaction.date,
-                            transaction.description
-                        )
-                        if (exists == null) {
-                            dao.insert(transaction); transactionsProcessed++
-                        }
-                    }
-
-                    if (needsArchiving) {
-                        val archivedSms = ArchivedSmsMessage(
-                            originalSender = sender,
-                            originalBody = body,
-                            originalTimestamp = smsDate,
-                            backupTimestamp = System.currentTimeMillis()
-                        )
-                        // insertArchivedSms is suspend, ensure it's called within a coroutine or made non-suspend
-                        // For now, assuming it's suspend and this IO scope is fine.
-                        archivedSmsDao.insertArchivedSms(archivedSms)
-                        smsArchived++
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    mainViewModel.setIsRefreshingSmsArchive(false) // ✨ Use new loading state ✨
-                    // ✨ Different Snackbar message for archive refresh ✨
-                    mainViewModel.postSnackbarMessage(
-                        getString(
-                            R.string.sms_archive_refreshed_message,
-                            smsArchived,
-                            transactionsProcessed,
-                            summariesProcessed
-                        ) // ✨ New String Resource
+    private fun performSmsArchiveRefresh() {
+        processSmsInbox(
+            setLoadingState = { mainViewModel.setIsRefreshingSmsArchive(it) },
+            onComplete = { newTxns, newSummaries, totalArchived ->
+                mainViewModel.postSnackbarMessage(
+                    getString(
+                        R.string.sms_archive_refreshed_message,
+                        totalArchived,
+                        newTxns,
+                        newSummaries
                     )
-                }
+                )
             }
-        }
+        )
     }
+
+
     private fun schedulePermanentDeleteWorker() {
         val deleteRequest =
             PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS)

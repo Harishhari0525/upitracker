@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.util.PinStorage
@@ -28,14 +29,16 @@ fun OldPinVerificationComponent(
     val scope = rememberCoroutineScope()
 
     Column(
-        modifier = modifier.fillMaxWidth().padding(16.dp), // Padding for dialog content
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp) // ✨ Consistent spacing
     ) {
         Text(
             text = stringResource(R.string.pin_change_enter_current_pin_subtitle),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
+            textAlign = TextAlign.Center
         )
+
         OutlinedTextField(
             value = currentPinInput,
             onValueChange = {
@@ -49,18 +52,22 @@ fun OldPinVerificationComponent(
             isError = errorText != null,
             modifier = Modifier.fillMaxWidth()
         )
-        errorText?.let {
+
+        if (errorText != null) {
             Text(
-                text = it, // Already a resolved string
+                text = errorText!!,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
+        } else {
+            Spacer(Modifier.height(2.dp)) // Maintain space when no error
         }
-        Spacer(Modifier.height(24.dp))
+
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
                 onClick = onCancel,
@@ -69,7 +76,6 @@ fun OldPinVerificationComponent(
             ) {
                 Text(stringResource(R.string.dialog_button_cancel))
             }
-            Spacer(Modifier.width(12.dp))
             Button(
                 onClick = {
                     isLoading = true
@@ -79,8 +85,8 @@ fun OldPinVerificationComponent(
                             onOldPinVerified()
                         } else {
                             errorText = context.getString(R.string.pin_change_error_incorrect_current_pin)
+                            isLoading = false
                         }
-                        isLoading = false
                     }
                 },
                 enabled = !isLoading && currentPinInput.isNotBlank() && currentPinInput.length >= 4,

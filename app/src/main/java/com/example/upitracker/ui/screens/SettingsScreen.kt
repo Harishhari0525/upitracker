@@ -2,29 +2,18 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.BrightnessMedium
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Lock
-import androidx.activity.compose.rememberLauncherForActivityResult // ✨
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,25 +22,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import com.example.upitracker.R
-import com.example.upitracker.ui.components.OldPinVerificationComponent
-import com.example.upitracker.ui.components.PinSetupScreen
-import com.example.upitracker.viewmodel.MainViewModel
-import com.example.upitracker.util.PinStorage
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.SyncProblem
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.upitracker.R
+import com.example.upitracker.ui.components.OldPinVerificationComponent
+import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.PinStorage
+import com.example.upitracker.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 private enum class PinChangeStep {
     NONE,
@@ -59,43 +45,43 @@ private enum class PinChangeStep {
     SET_NEW
 }
 
+private sealed interface SettingsDialog {
+    data object None : SettingsDialog
+    data object ThemeChooser : SettingsDialog
+    data object RefundKeyword : SettingsDialog
+    data object RestoreConfirm : SettingsDialog
+    data object DeleteAllConfirm : SettingsDialog
+    data object Privacy : SettingsDialog
+    data object About : SettingsDialog
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
     onNavigateToRules: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
     modifier: Modifier = Modifier,
-    onBackupDatabase: () -> Unit, // ✨ ADD THIS
+    onBackupDatabase: () -> Unit,
     onRestoreDatabase: () -> Unit,
     onNavigateToArchive: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var activeDialog by remember { mutableStateOf<SettingsDialog>(SettingsDialog.None) }
     var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
     var isPinSet by remember { mutableStateOf(false) }
     var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) }
-
-    var showThemeDialog by remember { mutableStateOf(false) }
-    val currentTheme by mainViewModel.appTheme.collectAsState()
-
-    val coroutineScope = rememberCoroutineScope()
-    val isImportingSms by mainViewModel.isImportingSms.collectAsState()
-    val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
-    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState() // ✨ Collect new state
-    val isBackingUp by mainViewModel.isBackingUp.collectAsState() // ✨ ADD THIS
-    val isRestoring by mainViewModel.isRestoring.collectAsState() // ✨ ADD THIS
-    var showAboutDialog by remember { mutableStateOf(false) }
-
-    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
-    var showRefundKeywordDialog by remember { mutableStateOf(false) }
-
-    var showPrivacyDialog by remember { mutableStateOf(false) }
-
     val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
 
-    // Re-compute isPinSet when no dialog is active
+    // Collect states
+    val isImportingSms by mainViewModel.isImportingSms.collectAsState()
+    val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
+    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState()
+    val isBackingUp by mainViewModel.isBackingUp.collectAsState()
+    val isRestoring by mainViewModel.isRestoring.collectAsState()
+
     LaunchedEffect(Unit, currentPinChangeStep) {
         if (currentPinChangeStep == PinChangeStep.NONE) {
             isPinSet = PinStorage.isPinSet(context)
@@ -106,282 +92,260 @@ fun SettingsScreen(
     val createCsvFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
-        uri?.let {
-            mainViewModel.exportTransactionsToCsv(it, context.contentResolver)
-        } ?: run {
-            mainViewModel.postSnackbarMessage("CSV export cancelled.")
-            mainViewModel.setSmsImportingState(false)
-        }
+        uri?.let { mainViewModel.exportTransactionsToCsv(it, context.contentResolver) }
+            ?: run { mainViewModel.postSnackbarMessage("CSV export cancelled.") }
     }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
-        // Appearance Section
-        item { SettingsSectionTitle(stringResource(R.string.settings_section_appearance)) }
+        item { SettingsSectionTitle("Appearance") }
         item {
             val isDarkMode by mainViewModel.isDarkMode.collectAsState()
             SettingItemRow(
                 icon = Icons.Filled.BrightnessMedium,
-                title = stringResource(R.string.settings_dark_mode),
-                summary = if (isDarkMode) stringResource(R.string.settings_dark_mode_enabled)
-                else stringResource(R.string.settings_dark_mode_disabled),
+                title = "Dark Mode",
+                summary = if (isDarkMode) "Enabled" else "Disabled",
                 onClick = { mainViewModel.toggleDarkMode(!isDarkMode) }
             ) {
                 Switch(
                     checked = isDarkMode,
-                    onCheckedChange = { mainViewModel.toggleDarkMode(it) }
-                )
+                    onCheckedChange = { mainViewModel.toggleDarkMode(it) })
             }
         }
-
         item {
+            val currentTheme by mainViewModel.appTheme.collectAsState()
             SettingItemRow(
-                icon = Icons.Filled.Palette, // Example Icon
+                icon = Icons.Filled.Palette,
                 title = "App Theme",
                 summary = "Current: ${currentTheme.displayName}",
-                onClick = { showThemeDialog = true }
+                onClick = { activeDialog = SettingsDialog.ThemeChooser }
             )
         }
-
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-
-        // Security Section
-        item { SettingsSectionTitle(stringResource(R.string.settings_section_security)) }
+        item { SettingsSectionTitle("Security") }
         item {
             SettingItemRow(
                 icon = Icons.Filled.Lock,
-                title = if (isPinSet)
-                    stringResource(R.string.settings_change_pin)
-                else
-                    stringResource(R.string.settings_set_pin),
-                summary = if (isPinSet)
-                    stringResource(R.string.settings_pin_protected_summary)
-                else
-                    stringResource(R.string.settings_set_pin_summary),
+                title = if (isPinSet) "Change PIN" else "Set PIN",
+                summary = if (isPinSet) "PIN protection is active" else "Secure the app with a PIN",
                 onClick = {
-                    currentPinChangeStep = if (isPinSet) PinChangeStep.VERIFY_OLD
-                    else PinChangeStep.SET_NEW
+                    currentPinChangeStep =
+                        if (isPinSet) PinChangeStep.VERIFY_OLD else PinChangeStep.SET_NEW
                 }
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-
-        // Data Management Section
-        item { SettingsSectionTitle(stringResource(R.string.settings_section_data_management)) }
+        item { SettingsSectionTitle("Data Management") }
         item {
             SettingItemRow(
                 icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                title = stringResource(R.string.settings_manage_rules_title),
-                summary = stringResource(R.string.settings_manage_rules_summary),
+                title = "Manage Rules",
+                summary = "Customize auto-categorization and parsing",
                 onClick = onNavigateToRules
             )
         }
-
         item {
             SettingItemRow(
                 icon = Icons.Filled.Archive,
-                title = stringResource(R.string.settings_view_archived_transactions), // Create this string resource
-                summary = stringResource(R.string.settings_view_archived_summary),    // Create this string resource
+                title = "View Archived Transactions",
+                summary = "View and restore archived items",
                 onClick = onNavigateToArchive
             )
         }
-
         item {
-            val refundKeyword by mainViewModel.refundKeyword.collectAsState() // We will add this to the ViewModel next
+            val refundKeyword by mainViewModel.refundKeyword.collectAsState()
             SettingItemRow(
-                icon = Icons.AutoMirrored.Filled.Undo, // Example icon
+                icon = Icons.AutoMirrored.Filled.Undo,
                 title = "Set Refund Keyword",
                 summary = "Current keyword: \"$refundKeyword\"",
-                onClick = { showRefundKeywordDialog = true }
+                onClick = { activeDialog = SettingsDialog.RefundKeyword }
             )
         }
-
         item {
             SettingItemRow(
-                icon = if (isRefreshingSmsArchive) Icons.Filled.SyncProblem else Icons.Filled.Sync, // Example icons
-                title = stringResource(R.string.settings_sync_sms_backup),
-                summary = if (isRefreshingSmsArchive) stringResource(R.string.settings_sync_sms_backup_in_progress) else stringResource(R.string.settings_sync_sms_backup_summary), // ✨ New String
-                onClick = {
-                    if (!isRefreshingSmsArchive && !isImportingSms) { // Ensure no other SMS operation is running
-                        onRefreshSmsArchive() // This lambda needs to be passed down
-                    }
-                },
-                titleColor = if (isRefreshingSmsArchive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                iconTint = if (isRefreshingSmsArchive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-            ) {
-                if (isRefreshingSmsArchive) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
-            }
+                icon = if (isRefreshingSmsArchive) Icons.Filled.SyncProblem else Icons.Filled.Sync,
+                title = "Sync SMS Archive",
+                summary = if (isRefreshingSmsArchive) "Sync in progress..." else "Find new transactions from all SMS",
+                onClick = { if (!isRefreshingSmsArchive && !isImportingSms) onRefreshSmsArchive() }
+            ) { if (isRefreshingSmsArchive) CircularProgressIndicator(Modifier.size(24.dp)) }
         }
-
         item {
-            // CSV Export row
             SettingItemRow(
                 icon = Icons.Filled.Download,
-                title = stringResource(R.string.settings_export_csv),
-                summary = if (isExportingCsv) "Exporting in progress..."
-                else stringResource(R.string.settings_export_csv_summary),
+                title = "Export to CSV",
+                summary = if (isExportingCsv) "Exporting..." else "Save all transactions to a CSV file",
                 onClick = {
                     if (!isExportingCsv) {
-                        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-                            .format(Date())
-                        val fileName = "upi_tracker_export_$timestamp.csv"
-                        createCsvFileLauncher.launch(fileName)
+                        val timestamp =
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        createCsvFileLauncher.launch("upi_tracker_export_$timestamp.csv")
                     }
-                },
-                titleColor = if (isExportingCsv) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
-                iconTint = if (isExportingCsv) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.secondary
-            ) {
-                if (isExportingCsv) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
-                    )
                 }
-            }
+            ) { if (isExportingCsv) CircularProgressIndicator(Modifier.size(24.dp)) }
         }
-
         item {
             SettingItemRow(
                 icon = Icons.Filled.Save,
-                title = "Backup Database", // TODO: Add to strings.xml
-                summary = "Save all data (transactions, budgets) to a file",
-                onClick = { if (!isBackingUp) onBackupDatabase() },
-                titleColor = if (isBackingUp) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                iconTint = if (isBackingUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-            ) {
-                if (isBackingUp) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
-            }
+                title = "Backup Database",
+                summary = "Save all data to a single file",
+                onClick = { if (!isBackingUp) onBackupDatabase() }
+            ) { if (isBackingUp) CircularProgressIndicator(Modifier.size(24.dp)) }
         }
-
         item {
             SettingItemRow(
                 icon = Icons.Filled.Restore,
-                title = "Restore Database", // TODO: Add to strings.xml
-                summary = "Replace all current data from a backup file",
-                onClick = { if (!isRestoring) showRestoreConfirmDialog = true },
-                titleColor = if (isRestoring) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                iconTint = if (isRestoring) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-            ) {
-                if (isRestoring) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
-            }
+                title = "Restore Database",
+                summary = "Replace all data from a backup file",
+                onClick = { if (!isRestoring) activeDialog = SettingsDialog.RestoreConfirm }
+            ) { if (isRestoring) CircularProgressIndicator(Modifier.size(24.dp)) }
         }
 
         item {
             SettingItemRow(
                 icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
-                title = stringResource(R.string.settings_import_old_sms),
-                summary = if (isImportingSms)
-                    stringResource(R.string.settings_import_old_sms_in_progress)
-                else stringResource(R.string.settings_import_old_sms_summary),
-                onClick = {
-                    if (!isImportingSms) onImportOldSms()
-                },
-                titleColor = if (isImportingSms) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
-                iconTint = if (isImportingSms) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.secondary
+                title = "Import from All SMS",
+                summary = if (isImportingSms) "Import in progress..." else "One-time import from entire SMS inbox",
+                onClick = { if (!isImportingSms) onImportOldSms() } // The onImportOldSms lambda is now used here
             ) {
                 if (isImportingSms) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 }
             }
         }
-        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
 
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+        item { SettingsSectionTitle("About & Privacy") }
         item {
             SettingItemRow(
                 icon = Icons.Filled.PrivacyTip,
                 title = "Privacy & Permissions",
                 summary = "How your SMS data is used",
-                onClick = { showPrivacyDialog = true }
+                onClick = { activeDialog = SettingsDialog.Privacy }
             )
         }
-
-        // Danger Zone Section
-        item {
-            SettingsSectionTitle(
-                stringResource(R.string.settings_section_danger_zone),
-                titleColor = MaterialTheme.colorScheme.error
-            )
-        }
-        item {
-            var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
-            SettingItemRow(
-                icon = Icons.Filled.DeleteForever,
-                title = stringResource(R.string.settings_delete_all_data),
-                summary = stringResource(R.string.settings_delete_all_data_summary),
-                onClick = { showDeleteConfirmationDialog = true },
-                titleColor = MaterialTheme.colorScheme.error,
-                iconTint = MaterialTheme.colorScheme.error
-            )
-            if (showDeleteConfirmationDialog) {
-                DeleteConfirmationDialog(
-                    onConfirm = {
-                        coroutineScope.launch {
-                            mainViewModel.deleteAllTransactions()
-                            mainViewModel.deleteAllUpiLiteSummaries()
-                            mainViewModel.postSnackbarMessage(
-                                context.getString(R.string.settings_delete_all_data_success)
-                            )
-                        }
-                        showDeleteConfirmationDialog = false
-                    },
-                    onDismiss = { showDeleteConfirmationDialog = false }
-                )
-            }
-        }
-        item { Spacer(Modifier.height(20.dp)) }
-
-        // About Section
-        item { SettingsSectionTitle(stringResource(R.string.settings_section_about)) }
         item {
             val versionName = stringResource(R.string.settings_app_version_placeholder)
             SettingItemRow(
                 icon = Icons.AutoMirrored.Filled.HelpOutline,
-                title = stringResource(R.string.settings_about_app),
-                summary = stringResource(R.string.settings_app_version_summary, versionName),
-                onClick = { showAboutDialog = true }
+                title = "About App",
+                summary = "Version $versionName",
+                onClick = { activeDialog = SettingsDialog.About }
             )
         }
-        item { Spacer(Modifier.height(16.dp)) }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+        item { SettingsSectionTitle("Danger Zone", titleColor = MaterialTheme.colorScheme.error) }
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.DeleteForever,
+                title = "Delete All Data",
+                summary = "Permanently erase all app data",
+                onClick = { activeDialog = SettingsDialog.DeleteAllConfirm },
+                titleColor = MaterialTheme.colorScheme.error,
+                iconTint = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+
+    // --- DIALOG MANAGEMENT ---
+    when (activeDialog) {
+        is SettingsDialog.ThemeChooser -> {
+            val currentTheme by mainViewModel.appTheme.collectAsState()
+            ThemeChooserDialog(
+                currentTheme = currentTheme,
+                onDismiss = { activeDialog = SettingsDialog.None },
+                onThemeSelected = {
+                    mainViewModel.setAppTheme(it); activeDialog = SettingsDialog.None
+                }
+            )
+        }
+
+        is SettingsDialog.RefundKeyword -> {
+            val refundKeyword by mainViewModel.refundKeyword.collectAsState()
+            var tempKeyword by remember { mutableStateOf(refundKeyword) }
+            RefundKeywordDialog(
+                tempKeyword = tempKeyword,
+                onTempKeywordChange = { tempKeyword = it },
+                onDismiss = { activeDialog = SettingsDialog.None },
+                onConfirm = {
+                    mainViewModel.setRefundKeyword(tempKeyword); activeDialog = SettingsDialog.None
+                }
+            )
+        }
+
+        is SettingsDialog.RestoreConfirm -> {
+            RestoreConfirmDialog(
+                onDismiss = { activeDialog = SettingsDialog.None },
+                onConfirm = { activeDialog = SettingsDialog.None; onRestoreDatabase() }
+            )
+        }
+
+        is SettingsDialog.DeleteAllConfirm -> {
+            DeleteConfirmationDialog(
+                onDismiss = { activeDialog = SettingsDialog.None },
+                onConfirm = {
+                    mainViewModel.deleteAllTransactions(); mainViewModel.deleteAllUpiLiteSummaries()
+                    mainViewModel.postSnackbarMessage("All data has been deleted.")
+                    activeDialog = SettingsDialog.None
+                }
+            )
+        }
+
+        is SettingsDialog.Privacy -> PrivacyPolicyDialog(onDismiss = {
+            activeDialog = SettingsDialog.None
+        })
+
+        is SettingsDialog.About -> AboutDialog(onDismiss = { activeDialog = SettingsDialog.None })
+        is SettingsDialog.None -> { /* Do nothing */
+        }
+    }
+
+    refundKeywordUpdateInfo?.let { (oldKeyword, newKeyword) ->
+        AlertDialog(
+            onDismissRequest = { mainViewModel.dismissRefundKeywordUpdate() },
+            title = { Text("Update Existing Transactions?") },
+            text = { Text("Would you like to rename all transactions currently categorized as '$oldKeyword' to '$newKeyword'?") },
+            confirmButton = {
+                Button(onClick = { mainViewModel.confirmRefundKeywordUpdate() }) {
+                    Text(
+                        "Yes, Update All"
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mainViewModel.dismissRefundKeywordUpdate() }) {
+                    Text(
+                        "No, Just Save"
+                    )
+                }
+            }
+        )
     }
 
     if (currentPinChangeStep != PinChangeStep.NONE) {
         Dialog(onDismissRequest = { currentPinChangeStep = PinChangeStep.NONE }) {
             Surface(
-                shape = MaterialTheme.shapes.large, // Use a modern dialog shape
+                shape = MaterialTheme.shapes.large,
                 tonalElevation = 6.dp,
-                modifier = Modifier.wrapContentHeight() // Let the dialog size itself to its content
+                modifier = Modifier.wrapContentHeight()
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    // We add our own title since Dialog is a blank slate
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = when (currentPinChangeStep) {
                             PinChangeStep.VERIFY_OLD -> stringResource(R.string.pin_change_enter_current_pin_title)
-                            PinChangeStep.SET_NEW -> if (isPinSet && oldPinVerifiedSuccessfully)
-                                stringResource(R.string.dialog_set_pin_title_change)
-                            else
-                                stringResource(R.string.dialog_set_pin_title_new)
-                            else -> ""
+                            PinChangeStep.SET_NEW -> if (isPinSet) stringResource(R.string.dialog_set_pin_title_change) else stringResource(R.string.dialog_set_pin_title_new)
+                            PinChangeStep.NONE -> ""
                         },
-                        style = MaterialTheme.typography.headlineSmall
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(16.dp))
 
-                    // The PinSetupScreen composable itself doesn't need to change
                     when (currentPinChangeStep) {
                         PinChangeStep.VERIFY_OLD -> {
                             OldPinVerificationComponent(
@@ -399,10 +363,8 @@ fun SettingsScreen(
                                         isPinSet = PinStorage.isPinSet(context)
                                         mainViewModel.postSnackbarMessage(
                                             context.getString(
-                                                if (oldPinVerifiedSuccessfully)
-                                                    R.string.pin_change_success_pin_changed
-                                                else
-                                                    R.string.pin_setup_pin_set_success
+                                                if (oldPinVerifiedSuccessfully) R.string.pin_change_success_pin_changed
+                                                else R.string.pin_setup_pin_set_success
                                             )
                                         )
                                     }
@@ -411,229 +373,136 @@ fun SettingsScreen(
                                 onCancel = { currentPinChangeStep = PinChangeStep.NONE }
                             )
                         }
-                        else -> {}
+                        PinChangeStep.NONE -> {}
                     }
                 }
             }
         }
     }
-    if (showRestoreConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showRestoreConfirmDialog = false },
-            icon = { Icon(Icons.Filled.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Confirm Restore") },
-            text = { Text("This will permanently overwrite all current app data with the contents of the backup file. This action cannot be undone. Are you sure you want to proceed?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showRestoreConfirmDialog = false
-                        onRestoreDatabase()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Restore")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-    if (showThemeDialog) {
-        ThemeChooserDialog(
-            currentTheme = currentTheme,
-            onDismiss = { showThemeDialog = false },
-            onThemeSelected = { theme ->
-                mainViewModel.setAppTheme(theme)
-                showThemeDialog = false
-            }
-        )
-    }
-    if (showAboutDialog) {
-        AboutDialog(
-            onDismiss = { showAboutDialog = false }
-        )
-    }
-    if (showRefundKeywordDialog) {
-        val refundKeyword by mainViewModel.refundKeyword.collectAsState()
-        var tempKeyword by remember { mutableStateOf(refundKeyword) }
-
-        AlertDialog(
-            onDismissRequest = { showRefundKeywordDialog = false },
-            title = { Text("Set Refund Keyword") },
-            text = {
-                Column {
-                    Text("Transactions categorized with this keyword will be excluded from spending totals.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = tempKeyword,
-                        onValueChange = { tempKeyword = it },
-                        label = { Text("Keyword") },
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    mainViewModel.setRefundKeyword(tempKeyword)
-                    showRefundKeywordDialog = false
-                }) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRefundKeywordDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    refundKeywordUpdateInfo?.let { (oldKeyword, newKeyword) ->
-        AlertDialog(
-            onDismissRequest = { mainViewModel.dismissRefundKeywordUpdate() },
-            title = { Text("Update Existing Transactions?") },
-            text = { Text("Would you like to rename all transactions currently categorized as '$oldKeyword' to '$newKeyword'?") },
-            confirmButton = {
-                Button(onClick = { mainViewModel.confirmRefundKeywordUpdate() }) {
-                    Text("Yes, Update All")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mainViewModel.dismissRefundKeywordUpdate() }) {
-                    Text("No, Just Save")
-                }
-            }
-        )
-    }
-
-    if (showPrivacyDialog) {
-        PrivacyPolicyDialog(onDismiss = { showPrivacyDialog = false })
-    }
 }
 
+
 @Composable
-fun SettingsSectionTitle(
-    title: String,
-    modifier: Modifier = Modifier,
-    titleColor: Color = MaterialTheme.colorScheme.primary
-) {
+fun SettingsSectionTitle(title: String, modifier: Modifier = Modifier, titleColor: Color = MaterialTheme.colorScheme.primary) {
     Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = titleColor,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+        text = title, style = MaterialTheme.typography.titleSmall, color = titleColor,
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
     )
 }
 
 @Composable
 fun SettingItemRow(
-    icon: ImageVector,
-    title: String,
-    summary: String? = null,
-    onClick: () -> Unit,
+    icon: ImageVector, title: String, summary: String? = null, onClick: () -> Unit,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     iconTint: Color = MaterialTheme.colorScheme.secondary,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = iconTint,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(imageVector = icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.bodyLarge, color = titleColor)
             if (summary != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (trailingContent != null) {
             Spacer(Modifier.width(16.dp))
-            Box(contentAlignment = Alignment.CenterEnd) {
-                trailingContent()
-            }
+            Box(contentAlignment = Alignment.CenterEnd) { trailingContent() }
         }
     }
 }
 
 @Composable
-fun DeleteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                Icons.Filled.DeleteForever,
-                contentDescription = stringResource(R.string.settings_delete_all_data),
-                tint = MaterialTheme.colorScheme.error
-            )
-        },
-        title = { Text(stringResource(R.string.dialog_confirm_deletion_title)) },
-        text = { Text(stringResource(R.string.dialog_confirm_deletion_message)) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text(stringResource(R.string.dialog_button_delete_all))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_button_cancel))
-            }
-        }
-    )
-}
-@Composable
-private fun ThemeChooserDialog(
-    currentTheme: AppTheme,
-    onDismiss: () -> Unit,
-    onThemeSelected: (AppTheme) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Choose a Theme") },
+private fun ThemeChooserDialog(currentTheme: AppTheme, onDismiss: () -> Unit, onThemeSelected: (AppTheme) -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Choose a Theme") },
         text = {
             Column {
                 AppTheme.entries.forEach { theme ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { onThemeSelected(theme) }
-                            .padding(horizontal = 8.dp, vertical = 8.dp), // Adjusted padding
-                        verticalAlignment = Alignment.CenterVertically // This is the key fix
-                    ) {
-                        RadioButton(
-                            selected = theme == currentTheme,
-                            onClick = { onThemeSelected(theme) }
-                        )
-                        Spacer(Modifier.width(16.dp)) // Use a Spacer for consistent padding
+                    Row(Modifier.fillMaxWidth().clickable { onThemeSelected(theme) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = theme == currentTheme, onClick = { onThemeSelected(theme) })
+                        Spacer(Modifier.width(16.dp))
                         Text(theme.displayName)
                     }
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun RefundKeywordDialog(tempKeyword: String, onTempKeywordChange: (String) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Set Refund Keyword") },
+        text = {
+            Column {
+                Text("Transactions with this category will be excluded from spending totals.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(value = tempKeyword, onValueChange = onTempKeywordChange, label = { Text("Keyword") }, singleLine = true)
             }
+        },
+        confirmButton = { Button(onClick = onConfirm) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun RestoreConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error) },
+        title = { Text("Confirm Restore") },
+        text = { Text("This will permanently overwrite all current app data. This action cannot be undone. Are you sure?") },
+        confirmButton = { Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Restore") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun DeleteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.DeleteForever, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error) },
+        title = { Text("Confirm Deletion") },
+        text = { Text("Are you sure you want to permanently delete all transactions and data?") },
+        confirmButton = { Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Delete All") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
+    val policyText = buildAnnotatedString {
+        append("This app is designed with your privacy as the top priority. Here’s how we handle your data:\n\n")
+        withStyle(style = SpanStyle(
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        ) {
+            append("SMS Permission (READ_SMS)\n")
         }
+        append("The app requests permission to read your SMS messages for one reason only: to automatically detect and parse UPI payment and expense messages. This allows the app to build your transaction history without any manual entry.\n\n")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+            append("Data Storage and Security\n")
+        }
+        append("All data processed from your SMS, including the transactions created, is stored exclusively on your device. This data is never uploaded, shared, or sent to any external server. Your financial information does not leave your phone.\n\n")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+            append("Your Control\n")
+        }
+        append("You are in complete control of your data. You can delete any individual transaction or use the 'Delete All Data' option in the settings to permanently erase all stored information from the app at any time.")
+    }
+
+    AlertDialog(onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.PrivacyTip, contentDescription = "Privacy Policy") },
+        title = { Text("Privacy & Data Policy") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(text = policyText, style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
     )
 }
 
@@ -641,10 +510,9 @@ private fun ThemeChooserDialog(
 private fun AboutDialog(onDismiss: () -> Unit) {
     val aboutText = buildAnnotatedString {
         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-            append("UPI Expense Tracker - Version 1.5\n\n")
+            append("UPI Expense Tracker - Version 1.6\n\n")
         }
-        append("Effortlessly manage your spending with UPI Expense Tracker, " +
-                "a powerful tool designed to give you a clear and complete picture of your finances.\n\n")
+        append("Effortlessly manage your spending with UPI Expense Tracker, a powerful tool designed to give you a clear and complete picture of your finances.\n\n")
         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
             append("Core Features:\n")
         }
@@ -658,57 +526,14 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         append("All data is stored privately and securely on your device.")
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
+    AlertDialog(onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Info, contentDescription = "About App") },
         title = { Text("About") },
         text = {
-            // Make the text scrollable in case it's too long for the screen
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(text = aboutText)
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        }
-    )
-}
-@Composable
-private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
-    val policyText = buildAnnotatedString {
-        append("This app is designed with your privacy as the top priority. Here’s how we handle your data:\n\n")
-
-        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
-            append("SMS Permission (READ_SMS)\n")
-        }
-        append("The app requests permission to read your SMS messages for one reason only: to automatically detect and parse UPI payment and expense messages. This allows the app to build your transaction history without any manual entry.\n\n")
-
-        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
-            append("Data Storage and Security\n")
-        }
-        append("All data processed from your SMS, including the transactions created, is stored exclusively on your device. This data is never uploaded, shared, or sent to any external server. Your financial information does not leave your phone.\n\n")
-
-        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
-            append("Your Control\n")
-        }
-        append("You are in complete control of your data. You can delete any individual transaction or use the 'Delete All Data' option in the settings to permanently erase all stored information from the app at any time.")
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.PrivacyTip, contentDescription = "Privacy Policy") },
-        title = { Text("Privacy & Data Policy") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(text = policyText, style = MaterialTheme.typography.bodyMedium)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("OK")
-            }
-        }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
     )
 }

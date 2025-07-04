@@ -168,17 +168,7 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
 
     val listState = rememberLazyListState()
 
-    val groupedTransactions = remember(filteredUpiTransactions) {
-        // This formatter is thread-safe and more reliable
-        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-
-        filteredUpiTransactions.groupBy { transaction ->
-            // Convert the Long timestamp to a modern date object and format it
-            Instant.ofEpochMilli(transaction.date)
-                .atZone(ZoneId.systemDefault())
-                .format(formatter)
-        }
-    }
+    val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
 
 // And change it to this (just add the new key):
     LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
@@ -433,8 +423,8 @@ private fun FilterSheetContent(
                         datePickerStateEnd.selectedDateMillis?.let {
                             val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                             cal.timeInMillis = it
-                            cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
-                            cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                            cal.add(Calendar.DAY_OF_YEAR, 1)
+                            cal.add(Calendar.MILLISECOND, -1)
                             mainViewModel.setDateRangeFilter(filters.startDate, cal.timeInMillis)
                         }
                     }) { Text(stringResource(R.string.dialog_button_ok)) }
@@ -466,7 +456,11 @@ private fun ActiveFiltersRow(
     ) {
         if (filters.startDate != null) {
             item {
-                val formatter = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+                val formatter = remember {
+                    SimpleDateFormat("dd MMM", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                }
                 val start = formatter.format(Date(filters.startDate))
                 val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
                 FilterChip(
@@ -549,7 +543,11 @@ fun DateFilterControls(
     onClearDates: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val displayDateFormat = remember { SimpleDateFormat("dd MMM yy", Locale.getDefault()) }
+    val displayDateFormat = remember {
+        SimpleDateFormat("dd MMM yy", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()

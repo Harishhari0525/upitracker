@@ -1,5 +1,6 @@
 package com.example.upitracker.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -19,6 +20,7 @@ fun RecurringRuleCard(
     rule: RecurringRule,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
+    onViewForecast: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
@@ -26,7 +28,7 @@ fun RecurringRuleCard(
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().clickable { onViewForecast() },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(

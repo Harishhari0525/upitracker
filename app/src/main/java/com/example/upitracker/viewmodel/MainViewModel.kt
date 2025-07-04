@@ -23,6 +23,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import android.util.Log
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -528,7 +531,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             reportData.reversed()
-        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        }
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val budgetStatuses: StateFlow<List<BudgetStatus>> =
         combine(_nonRefundDebits, _budgets) { transactions, budgets ->
@@ -605,14 +610,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val setSearchQuery: (String) -> Unit = { _searchQuery.value = it }
 
-    val filteredUpiTransactions: StateFlow<List<Transaction>> =
+    // The return type is now StateFlow<Map<String, List<Transaction>>>
+    val filteredUpiTransactions: StateFlow<Map<String, List<Transaction>>> =
         combine(
             _transactions,
-            filters, // ✨ Use our new, public 'filters' StateFlow
+            filters,
             _upiTransactionSortField,
             _upiTransactionSortOrder
         ) { transactions, filters, sortField, sortOrder ->
-            // This 'filters' object is now the complete, up-to-date TransactionFilters object
+            // This 'filters' object is the complete, up-to-date TransactionFilters object
+
+            // --- All of your existing filtering logic from Step 1 to 6 remains the same ---
 
             // 1) Linked Status Filter
             val byLinkedStatus = if (filters.showOnlyLinked) {
@@ -620,14 +628,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 transactions
             }
-
             // 2) Type filter
             val byType = when (filters.type) {
                 UpiTransactionTypeFilter.ALL -> byLinkedStatus
                 UpiTransactionTypeFilter.DEBIT -> byLinkedStatus.filter { it.type.equals("DEBIT", ignoreCase = true) }
                 UpiTransactionTypeFilter.CREDIT -> byLinkedStatus.filter { it.type.equals("CREDIT", ignoreCase = true) }
             }
-
             // 3) Date filter
             val byDate = when {
                 filters.startDate != null && filters.endDate != null -> byType.filter { it.date in filters.startDate..filters.endDate }
@@ -635,21 +641,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 filters.endDate != null -> byType.filter { it.date <= filters.endDate }
                 else -> byType
             }
-
             // 4) Search filter
             val bySearch = if (filters.searchQuery.isBlank()) byDate else byDate.filter { tx ->
                 tx.description.contains(filters.searchQuery, ignoreCase = true) ||
                         tx.senderOrReceiver.contains(filters.searchQuery, ignoreCase = true) ||
                         (tx.category?.contains(filters.searchQuery, ignoreCase = true) == true)
             }
-
             // 5) Uncategorized Filter
             val byUncategorized = if (filters.showUncategorized) {
                 bySearch.filter { it.category.isNullOrBlank() }
             } else {
                 bySearch
             }
-
             // 6) Amount Filter
             val byAmount = when (filters.amountType) {
                 AmountFilterType.GREATER_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount > limit } } ?: byUncategorized
@@ -661,7 +664,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // 7) Sort
-            when (sortField) {
+            val sortedTransactions = when (sortField) {
                 SortableTransactionField.DATE ->
                     if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.date }
                     else byAmount.sortedByDescending { it.date }
@@ -674,8 +677,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.category ?: "" }
                     else byAmount.sortedByDescending { it.category ?: "" }
             }
+
+            // ✨ FINAL STEP: Group the sorted list into a Map before finishing ✨
+            val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+            sortedTransactions.groupBy { transaction ->
+                Instant.ofEpochMilli(transaction.date)
+                    .atZone(ZoneId.systemDefault())
+                    .format(formatter)
+            }
         }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .flowOn(Dispatchers.Default) // Run all this work on a background thread
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap()) // Initial value is an emptyMap()
+
 
     fun toggleShowOnlyLinked(isEnabled: Boolean) {
         _showOnlyLinked.value = isEnabled
@@ -777,6 +790,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+            .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun setUpiLiteEnabled(enabled: Boolean) {
@@ -991,6 +1005,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .sortedByDescending { it.totalAmount }
         }
+            .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // --- Action Methods (Public) ---
@@ -1012,6 +1027,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGraphPeriod.value = period
     }
 
+    private fun calculateNextDueDate(startFrom: Long, dayOfPeriod: Int, periodType: BudgetPeriod): Long {
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = startFrom
+        }
+
+        // Move to the next period
+        when (periodType) {
+            BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+            BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
+        }
+
+        // This is the key fix for end-of-month issues.
+        // If the user wants the 31st, but the next month only has 30 days, this will correctly use the 30th.
+        val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+        calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod.coerceAtMost(maxDayInMonth))
+
+        // Set a consistent time of day
+        calendar.set(Calendar.HOUR_OF_DAY, 12)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+
+        return calendar.timeInMillis
+    }
+
     fun addRecurringRule(
         description: String,
         amount: Double,
@@ -1025,26 +1066,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            // --- Calculate the first due date ---
+            // ✨ FIX: Use the helper function to calculate the due date ✨
+            // We start from a month ago to ensure the first date is in the correct upcoming month.
             val calendar = Calendar.getInstance()
-            val today = calendar.get(Calendar.DAY_OF_MONTH)
-
-            // For monthly rules
-            if (period == BudgetPeriod.MONTHLY) {
-                // If the day for this month has already passed, set it for next month
-                if (today >= dayOfPeriod) {
-                    calendar.add(Calendar.MONTH, 1)
-                }
-                calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod)
-            }
-            // TODO: Add logic for WEEKLY and YEARLY periods later
-
-            // Set time to a consistent point in the day, e.g., noon
-            calendar.set(Calendar.HOUR_OF_DAY, 12)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-
-            val nextDueDate = calendar.timeInMillis
+            calendar.add(Calendar.MONTH, -1)
+            val firstDueDate = calculateNextDueDate(calendar.timeInMillis, dayOfPeriod, period)
 
             val newRule = RecurringRule(
                 amount = amount,
@@ -1052,7 +1078,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 categoryName = category,
                 periodType = period,
                 dayOfPeriod = dayOfPeriod,
-                nextDueDate = nextDueDate
+                nextDueDate = firstDueDate
             )
             recurringRuleDao.insert(newRule)
             postPlainSnackbarMessage("Recurring transaction for '$description' saved.")
@@ -1075,25 +1101,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         newDay: Int
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            // First, get the original rule from the database.
-            // This is important to preserve non-editable fields like the creationDate.
-            val originalRule = recurringRuleDao.getRuleById(ruleId)
+            val originalRule = recurringRuleDao.getRuleById(ruleId) ?: return@launch
 
-            originalRule?.let {
-                // Create a new rule object by copying the original and applying changes.
-                val updatedRule = it.copy(
-                    description = newDescription,
-                    amount = newAmount,
-                    categoryName = newCategory,
-                    periodType = newPeriod,
-                    dayOfPeriod = newDay
-                    // Note: We are not changing the nextDueDate here,
-                    // which is usually the desired behavior for an edit.
-                )
-                // Use the existing DAO function to update the database.
-                recurringRuleDao.update(updatedRule)
-                postPlainSnackbarMessage("Recurring rule updated.")
+            // ✨ FIX: Use the helper function to recalculate the due date if needed ✨
+            val nextDueDate = if (originalRule.dayOfPeriod != newDay || originalRule.periodType != newPeriod) {
+                // Start from a month ago to ensure the next date is calculated correctly based on today.
+                val calendar = Calendar.getInstance()
+                calendar.add(Calendar.MONTH, -1)
+                calculateNextDueDate(calendar.timeInMillis, newDay, newPeriod)
+            } else {
+                originalRule.nextDueDate
             }
+
+            val updatedRule = originalRule.copy(
+                description = newDescription,
+                amount = newAmount,
+                categoryName = newCategory,
+                periodType = newPeriod,
+                dayOfPeriod = newDay,
+                nextDueDate = nextDueDate
+            )
+            recurringRuleDao.update(updatedRule)
+            postPlainSnackbarMessage("Recurring rule updated.")
         }
     }
 

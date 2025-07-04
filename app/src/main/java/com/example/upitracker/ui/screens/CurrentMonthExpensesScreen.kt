@@ -109,7 +109,8 @@ fun CurrentMonthExpensesScreen(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text("Monthly Snapshot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                                         Spacer(Modifier.height(8.dp))
-                                        Text("This card shows your total spending for the current month at a glance.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                        Text("Please swipe down from the top to import old SMS's and this card shows your total" +
+                                                " spending for the current month at a glance.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                                     }
                                 }
                             )
@@ -138,7 +139,7 @@ fun CurrentMonthExpensesScreen(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text("Full History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                                         Spacer(Modifier.height(8.dp))
-                                        Text("Tap here to see your complete transaction history with powerful sorting and filtering options.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                        Text("Tap on View All to see your complete transaction history with powerful sorting and filtering options.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                                     }
                                 }
                             )

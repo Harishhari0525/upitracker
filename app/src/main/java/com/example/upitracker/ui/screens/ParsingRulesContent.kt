@@ -35,8 +35,6 @@ fun ParsingRulesContent(
     val regexListState = remember { mutableStateListOf<String>() }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
-
-    // State to control the visibility of our new bottom sheet
     var showTestSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -47,29 +45,17 @@ fun ParsingRulesContent(
         isLoading = false
     }
 
-    // A Scaffold now wraps our content to hold the FloatingActionButton
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text("Test Pattern") },
-                icon = { Icon(Icons.Default.Science, contentDescription = "Test Pattern") },
-                onClick = { showTestSheet = true }
-            )
-        }
-    ) { paddingValues ->
-        // The list of existing rules remains on the main screen.
+    // ✨ FIX: REMOVED the Scaffold. We use a Box to hold the content and the FAB. ✨
+    Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxSize(),
+            // The padding is now simpler, as it doesn't need to account for a Scaffold
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp) // Add bottom padding for FAB
         ) {
             item {
                 Text(
                     stringResource(R.string.regex_editor_active_patterns_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 16.dp)
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     "For advanced users. These are used to find transactions if the app's default parsers fail.",
@@ -115,19 +101,27 @@ fun ParsingRulesContent(
                 }
             }
         }
+
+        // The FAB is now aligned within the Box
+        ExtendedFloatingActionButton(
+            text = { Text("Test Pattern") },
+            icon = { Icon(Icons.Default.Science, contentDescription = "Test Pattern") },
+            onClick = { showTestSheet = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        )
     }
 
-    // This is our new Bottom Sheet for testing patterns
+    // The logic for the "Test Pattern" dialog remains unchanged
     if (showTestSheet) {
         Dialog(
             onDismissRequest = { showTestSheet = false },
-            // This DialogProperties makes the dialog behave like a full-screen destination
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false // Important for edge-to-edge
+                decorFitsSystemWindows = false
             )
         ) {
-            // We add our own Surface and handle the insets safely here
             Surface(modifier = Modifier.fillMaxSize()) {
                 TestPatternSheetContent(
                     onClose = { showTestSheet = false },
@@ -145,13 +139,8 @@ fun ParsingRulesContent(
             }
         }
     }
-    }
+}
 
-/**
- * FINAL version. This composable uses LazyColumn to ensure scrolling works
- * correctly with the keyboard inside a ModalBottomSheet. It also has
- * consistently styled buttons.
- */
 @Composable
 private fun TestPatternSheetContent(
     onClose: () -> Unit,

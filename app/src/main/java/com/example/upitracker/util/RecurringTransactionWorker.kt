@@ -44,22 +44,21 @@ class RecurringTransactionWorker(
 
 
                 // 3. Calculate the NEXT due date and update the rule
-                val calendar = Calendar.getInstance()
-                calendar.timeInMillis = rule.nextDueDate // Start from the last due date
-
-                when (rule.periodType) {
-                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> {
-                        calendar.add(Calendar.MONTH, 1)
-                    }
-                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> {
-                        calendar.add(Calendar.WEEK_OF_YEAR, 1)
-                    }
-                    com.example.upitracker.data.BudgetPeriod.YEARLY -> {
-                        calendar.add(Calendar.YEAR, 1)
-                    }
+                val calendar = Calendar.getInstance().apply {
+                    timeInMillis = rule.nextDueDate
                 }
 
+                when (rule.periodType) {
+                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                    com.example.upitracker.data.BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
+                }
+
+                val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calendar.set(Calendar.DAY_OF_MONTH, rule.dayOfPeriod.coerceAtMost(maxDayInMonth))
+
                 val updatedRule = rule.copy(nextDueDate = calendar.timeInMillis)
+
                 recurringRuleDao.update(updatedRule)
                 Log.d(WORK_NAME, "Updated rule '${rule.description}' to next due date: ${calendar.time}")
             }

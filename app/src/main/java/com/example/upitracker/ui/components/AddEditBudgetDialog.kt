@@ -47,9 +47,8 @@ fun AddEditBudgetDialog(
         title = { Text(if (!isEditing) stringResource(R.string.budget_add_title) else stringResource(R.string.budget_edit_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (!isEditing) {
-                    // ✨ START: This is the new Dropdown Menu section ✨
+                verticalArrangement = Arrangement.spacedBy(16.dp))
+            {
                     ExposedDropdownMenuBox(
                         expanded = isPeriodDropdownExpanded,
                         onExpandedChange = { isPeriodDropdownExpanded = it },
@@ -62,6 +61,7 @@ fun AddEditBudgetDialog(
                             label = { Text("Budget Period") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPeriodDropdownExpanded) },
                             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            enabled = !isEditing
                         )
                         ExposedDropdownMenu(
                             expanded = isPeriodDropdownExpanded,
@@ -99,7 +99,7 @@ fun AddEditBudgetDialog(
                         },
                         label = { Text(stringResource(R.string.budget_amount_label)) },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         isError = isAmountError,
                         prefix = { Text("₹") },
                         // Add a specific error message
@@ -137,7 +137,6 @@ fun AddEditBudgetDialog(
                         Spacer(Modifier.width(8.dp))
                         Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
                     }
-                }
 
             }
         },

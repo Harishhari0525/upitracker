@@ -60,7 +60,7 @@
     <string name="settings_about_app">About UPI Tracker</string>
     <string name="settings_app_version_summary">Version %1$s</string>
     <string name="settings_about_app_coming_soon">About section coming soon!</string>
-    <string name="settings_app_version_placeholder">1.5</string>
+    <string name="settings_app_version_placeholder">1.6</string>
     <string name="dialog_confirm_deletion_title">Confirm Deletion</string>
     <string name="dialog_confirm_deletion_message">Are you sure you want to permanently delete all transactions and UPI Lite summaries? This action cannot be undone.</string>
     <string name="dialog_button_delete_all">Delete All</string>
