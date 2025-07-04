@@ -1,127 +1,89 @@
+# UPI Tracker
+
 [![CodeQL Advanced](https://github.com/Harishhari0525/upitracker/actions/workflows/codeql.yml/badge.svg)](https://github.com/Harishhari0525/upitracker/actions/workflows/codeql.yml)
 
 ## Overview
 
-UPI Tracker is an Android application built with Kotlin and Jetpack Compose that automatically parses UPI (Unified Payments Interface) SMS alerts, stores transaction details locally, and presents insightful spending analytics. The app includes:
+UPI Tracker is a modern Android app (Kotlin + Jetpack Compose) that automatically parses SMS alerts for UPI (Unified Payments Interface) transactions, securely stores your financial data on-device, and presents comprehensive analytics and visualizations of your spending.
 
-- Secure entry via PIN and optional biometric authentication  
-- Customizable regex patterns for parsing UPI messages  
-- Onboarding flow to import historical SMS data  
-- Transaction history and category-based views  
-- Interactive charts (pie and line) for daily and monthly spending  
-- Export functionality for CSV backups  
-- Dark/light theme support and user preferences for customization.
+## Features
 
-## Key Features
+- **Secure Access:** PIN and optional biometric authentication.
+- **Customizable Regex:** Modify parsing patterns for new or updated UPI SMS formats.
+- **Import Historical Data:** Onboarding flow to backfill transactions from existing SMS messages.
+- **Transaction Management:** View, search, and categorize all expenses.
+- **Analytics:** Interactive pie and line charts for daily/monthly spending.
+- **CSV Export:** Export your transaction history for backup or analysis.
+- **Themes:** Light and dark mode with additional color schemes.
 
-1. **Secure Access**  
-   - **PIN Setup & Lock**: Enforce a 4-digit PIN on first launch; subsequent access requires PIN entry (or biometric).  
-   - **Biometric Support** (optional): Use device fingerprint/face to unlock.
+## Key Components
 
-2. **SMS Parsing & Import**  
-   - **Real-Time Listener**: A `BroadcastReceiver` monitors incoming SMS messages; filters and parses ones matching UPI patterns.  
-   - **Custom Regex Editor**: Users can view and modify default regex patterns under Settings → “Regex Editor” to handle new banks or changed SMS formats.  
-   - **Import Historical SMS**: During onboarding, the app reads existing SMS inbox entries via `ImportOldSmsActivity` to backfill past transactions.
+- **SMS Listener:** Real-time `BroadcastReceiver` filters and parses incoming UPI alerts.
+- **Room Database:** Stores transactions, summaries, and archived SMS messages.
+- **Regex Editor:** Edit and test custom regex patterns within app settings.
+- **Onboarding:** Import historical SMS upon first launch.
+- **Data Security:** PIN is securely hashed and stored via encrypted `SharedPreferences` (see `PinStorage.kt`). Biometric unlock supported.
+- **Backup/Restore:** Leverages Android’s backup APIs.
 
-3. **Local Data Storage**  
-   - **Room Database**: Stores three entities:  
-     - `Transaction` (parsed UPI transactions)  
-     - `UpiLiteSummary` (condensed summary for quick overviews)  
-     - `ArchivedSmsMessage` (older raw SMS entries, periodically cleaned)  
-   - **DAOs** provide insert, query, and delete operations.
+## Build Instructions
 
-4. **Transaction Listing & Categorization**  
-   - **Tabbed Home Screen** (`TabbedHomeScreen.kt`): Contains three primary tabs:  
-     - **Current Month Expenses** (`CurrentMonthExpensesScreen.kt`): Pie chart showing category-wise distribution.  
-     - **Transaction History** (`TransactionHistoryScreen.kt`): Scrollable list of all parsed transactions, with merchant, date, category, and amount.  
-     - **Analytics** (`GraphsScreen.kt`): Line chart of daily spend and a pie chart for monthly categories.  
+**Prerequisites:**
+- Android Studio Hedgehog/Koala or newer.
+- JDK 17 or higher.
+- Android SDK Platform 33+ (compileSdk = 36, minSdk = 31).
 
-5. **User Preferences & Settings**  
-   - **Theme Preference**: Light/dark mode selection stored via `ThemePreference.kt`.  
-   - **Regex Preference**: Persist custom regex expressions in `RegexPreference.kt` to adjust parsing logic.  
-   - **Onboarding Flags**: `OnboardingPreference.kt` tracks whether the user has completed initial setup.  
-   - **Backup & Restore Rules** (`backup_rules.xml`) allow automated backups of data using Android’s native backup API.
+**Steps:**
 
-6. **Export & Maintenance Utilities**  
-   - **CSV Exporter** (`CsvExporter.kt`): Allows exporting all transactions into a CSV file saved on device storage.  
-   - **Archived SMS Cleanup** (`CleanupArchivedSmsWorker.kt`): A WorkManager `PeriodicWorkRequest` runs daily to remove archived SMS entries older than 30 days, keeping storage optimized.  
-   - **Biometric Helper** (`BiometricHelper.kt`): Encapsulates biometric prompt logic for fallback unlocking.
+1. **Clone the Repository:**
+   ```sh
+   git clone https://github.com/Harishhari0525/upitracker.git
+   cd upitracker
+   ```
 
-7. **Pin & Biometric Flow**  
-   - **`PinSetupScreen.kt`**: First-time PIN creation.  
-   - **`PinLockScreen.kt` & `OldPinVerificationComponent.kt`**: Prompt for stored PIN or biometric on every app launch.  
-   - **`PinStorage.kt`**: Securely stores hashed PIN in encrypted `SharedPreferences`.
+2. **Open in Android Studio:**
+   - Open the root folder in Android Studio.
+   - Let Gradle sync and download dependencies.
+
+3. **Configure Signing (Optional):**
+   - For a debug build, no configuration is needed.
+   - For release builds, set up a signing config in `app/build.gradle.kts`.
+
+4. **Build & Run:**
+   - Connect an Android device (API 31+) or start an emulator.
+   - Click "Run" in Android Studio or use:
+     ```sh
+     ./gradlew assembleDebug
+     ```
+   - Install the APK on your device or run directly from the IDE.
+
+5. **Grant Permissions:**
+   - On first launch, allow SMS and storage permissions for full functionality.
+
+**Notes:**
+- The app uses the latest Jetpack Compose and Material 3.
+- All data is stored locally—no server or cloud interaction.
+- To modify regex for SMS parsing, use the in-app Regex Editor under Settings.
 
 ---
 
-## Project Structure
+**MIT License**
 
-## Project Structure
+Copyright (c) 2025 Harishhari0525
 
-```plaintext
-app/                                ← Android application module
-├── build.gradle.kts                ← Module-level Gradle build script
-├── src/
-│   ├── main/
-│   │   ├── AndroidManifest.xml     ← Permissions (e.g., READ_SMS) & activity declarations
-│   │   ├── java/com/example/upitracker/
-│   │   │   ├── MainActivity.kt     ← Hosts navigation & top-level permission logic
-│   │   │   ├── data/
-│   │   │   │   ├── AppDatabase.kt            ← Room database definition
-│   │   │   │   ├── Transaction.kt             ← Entity for UPI transactions
-│   │   │   │   ├── TransactionDao.kt
-│   │   │   │   ├── UpiLiteSummary.kt           ← Entity for condensed transaction summaries
-│   │   │   │   ├── UpiLiteSummaryDao.kt
-│   │   │   │   ├── ArchivedSmsMessage.kt       ← Entity for raw archived SMS messages
-│   │   │   │   └── ArchivedSmsMessageDao.kt
-│   │   │   ├── sms/
-│   │   │   │   ├── SmsReceiver.kt              ← BroadcastReceiver for incoming SMS
-│   │   │   │   ├── UpiSmsParser.kt             ← Full-message parsing logic
-│   │   │   │   └── UpiLiteSummaryParser.kt     ← Condensed parsing for quick summary
-│   │   │   ├── ui/
-│   │   │   │   ├── components/                 ← Reusable Compose UI elements
-│   │   │   │   │   ├── CategorySpendingPieChart.kt
-│   │   │   │   │   ├── DeleteDialogs.kt
-│   │   │   │   │   ├── EditCategoryDialog.kt
-│   │   │   │   │   ├── OldPinVerificationComponent.kt
-│   │   │   │   │   ├── PinLockScreen.kt
-│   │   │   │   │   ├── PinSetupScreen.kt
-│   │   │   │   │   ├── RegexEditor.kt
-│   │   │   │   │   ├── TransactionCard.kt
-│   │   │   │   │   ├── TransactionTable.kt
-│   │   │   │   │   └── UpiLiteSummaryCard.kt
-│   │   │   │   ├── screens/                     ← Full-screen Composables
-│   │   │   │   │   ├── BottomNavItem.kt
-│   │   │   │   │   ├── CurrentMonthExpensesScreen.kt
-│   │   │   │   │   ├── GraphsScreen.kt
-│   │   │   │   │   ├── MainAppScreen.kt
-│   │   │   │   │   ├── MainNavHost.kt            ← Compose Navigation Graph
-│   │   │   │   │   ├── OnboardingScreen.kt
-│   │   │   │   │   ├── RegexEditorScreen.kt
-│   │   │   │   │   ├── SettingsScreen.kt
-│   │   │   │   │   ├── TabbedHomeScreen.kt
-│   │   │   │   │   └── TransactionHistoryScreen.kt
-│   │   │   ├── util/
-│   │   │   │   ├── BiometricHelper.kt
-│   │   │   │   ├── CsvExporter.kt
-│   │   │   │   ├── CleanupArchivedSmsWorker.kt
-│   │   │   │   ├── OnboardingPreference.kt
-│   │   │   │   ├── PinStorage.kt
-│   │   │   │   ├── RegexPreference.kt
-│   │   │   │   ├── SampleUpiRegex.kt             ← Default regex patterns
-│   │   │   │   ├── Theme.kt
-│   │   │   │   └── ThemePreference.kt
-│   │   ├── res/
-│   │   │   ├── drawable/                        ← App launcher icons, vector assets
-│   │   │   ├── mipmap-*/                        ← App icons at various densities
-│   │   │   ├── values/
-│   │   │   │   ├── colors.xml
-│   │   │   │   ├── strings.xml
-│   │   │   │   └── themes.xml
-│   │   │   ├── values-night/                    ← Dark theme overrides
-│   │   │   └── xml/                             ← Backup rules, data extraction rules
-│   └── test/                                   ← Unit tests (basic examples)
-├── build.gradle.kts                            ← Project-level Gradle definitions (Kotlin DSL)
-├── gradle.properties                           ← Gradle properties config
-└── settings.gradle.kts                         ← Includes the “app” module in the build
-```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
