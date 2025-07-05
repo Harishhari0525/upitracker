@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -18,6 +19,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Transaction
+import com.example.upitracker.util.CategoryIcon
 
 @Composable
 fun TransactionCardWithMenu(
@@ -27,12 +29,15 @@ fun TransactionCardWithMenu(
     onArchiveAction: (Transaction) -> Unit,
     onDelete: (Transaction) -> Unit,
     archiveActionText: String,
-    archiveActionIcon: ImageVector
+    archiveActionIcon: ImageVector,
+    categoryColor: Color,
+    categoryIcon: CategoryIcon
 ) {
     var showMenu by remember { mutableStateOf(false) }
     // ✨ 1. State to store the width of the card in pixels ✨
     var cardWidth by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
+
 
     Box(
         modifier = modifier
@@ -52,8 +57,8 @@ fun TransactionCardWithMenu(
     ) {
         TransactionCard(
             transaction = transaction,
-            onClick = {}, // The Box handles clicks.
-            onLongClick = {} // The Box handles long clicks.
+            categoryColor = categoryColor,
+            categoryIcon = categoryIcon
         )
 
         DropdownMenu(

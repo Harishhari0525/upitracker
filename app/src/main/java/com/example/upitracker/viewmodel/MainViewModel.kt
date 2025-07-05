@@ -23,6 +23,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import android.util.Log
+import com.example.upitracker.data.Category
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -175,6 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val budgetDao = db.budgetDao()
     private val categorySuggestionRuleDao = db.categorySuggestionRuleDao()
     private val recurringRuleDao = db.recurringRuleDao()
+    private val categoryDao = db.categoryDao()
 
     // --- Base Data Flows (Private) ---
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
@@ -236,7 +238,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
 
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -292,7 +294,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
         if (id == null) {
-            flowOf(null) // Emit null if no ID is selected
+            flowOf(null)
         } else {
             transactionDao.getTransactionById(id)
         }
@@ -483,7 +485,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Lazily, AppTheme.DEFAULT)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.DEFAULT)
 
    // val filters: StateFlow<TransactionFilters> = _filters
 
@@ -1008,7 +1010,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // --- Action Methods (Public) ---
+    val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+
     fun setUpiTransactionTypeFilter(filter: UpiTransactionTypeFilter) {
         _selectedUpiTransactionType.value = filter
     }

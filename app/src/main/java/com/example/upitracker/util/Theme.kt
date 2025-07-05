@@ -8,16 +8,13 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.example.upitracker.viewmodel.MainViewModel
-
-// Assuming your AppLightColorScheme and AppDarkColorScheme are defined here as before
-// For brevity, I'll skip re-pasting them, but ensure they are present in your file.
-
 
 val AppShapes = Shapes(
     small = RoundedCornerShape(12.dp),      // Used by components like Chips, TextFields
@@ -170,21 +167,11 @@ fun Theme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window
-            if (window != null) {
-                window.statusBarColor = Color.Transparent.toArgb()
-                // This check needs to know if the FINAL applied scheme is dark
-                val finalSchemeIsDark = when (appTheme) {
-                    AppTheme.DEFAULT -> isDarkMode
-                    AppTheme.FOREST -> isDarkMode
-                    AppTheme.OCEAN -> isDarkMode
-                    AppTheme.ROSE -> isDarkMode
-                    AppTheme.LAVENDER -> isDarkMode
-                    AppTheme.SUNSET -> isDarkMode
-                    AppTheme.MINT -> isDarkMode
-                }
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !finalSchemeIsDark
-            }
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+
+            window.statusBarColor = Color.Transparent.toArgb()
+            val isLight = colorScheme.surface.luminance() > 0.5f
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLight
         }
     }
 

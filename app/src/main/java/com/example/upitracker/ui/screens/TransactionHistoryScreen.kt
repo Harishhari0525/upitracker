@@ -32,12 +32,11 @@ import com.example.upitracker.viewmodel.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.example.upitracker.util.DecimalInputVisualTransformation
+import com.example.upitracker.util.getCategoryIcon
+import com.example.upitracker.util.parseColor
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -170,6 +169,8 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
 
     val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
 
+    val allCategories by mainViewModel.allCategories.collectAsState()
+
 // And change it to this (just add the new key):
     LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
         listState.animateScrollToItem(index = 0)
@@ -279,6 +280,14 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
                             items = transactionsInMonth,
                             key = { "txn-${it.id}" }
                         ) { transaction ->
+                            val categoryDetails = remember(transaction.category, allCategories) {
+                                allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
+                            }
+                            val categoryColor = remember(categoryDetails) {
+                                parseColor(categoryDetails?.colorHex ?: "#808080") // Default to Gray
+                            }
+                            val categoryIcon = getCategoryIcon(categoryDetails)
+
                             TransactionCardWithMenu(
                                 modifier = Modifier.animateItem(tween(300))
                                     .padding(bottom = 4.dp),
@@ -295,7 +304,9 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
                                     )
                                 },
                                 archiveActionText = "Archive",
-                                archiveActionIcon = Icons.Default.Archive
+                                archiveActionIcon = Icons.Default.Archive,
+                                categoryColor = categoryColor,
+                                categoryIcon = categoryIcon
                             )
                         }
                     }

@@ -19,6 +19,8 @@ import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
 import com.example.upitracker.ui.components.TransactionCardWithMenu
+import com.example.upitracker.util.getCategoryIcon
+import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
 
 
@@ -31,6 +33,8 @@ fun ArchivedTransactionsScreen(
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
     val archivedList by mainViewModel.archivedUpiTransactions
         .collectAsState(initial = emptyList())
+
+    val allCategories by mainViewModel.allCategories.collectAsState()
 
     Scaffold(
         topBar = {
@@ -69,6 +73,17 @@ fun ArchivedTransactionsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(archivedList, key = { it.id }) { transaction ->
+
+                        val categoryDetails = remember(transaction.category, allCategories) {
+                            allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
+                        }
+
+                        val categoryColor = remember(categoryDetails) {
+                            parseColor(categoryDetails?.colorHex ?: "#808080") // Default to Gray
+                        }
+                        val categoryIcon = getCategoryIcon(categoryDetails)
+
+
                         TransactionCardWithMenu(
                             transaction = transaction,
                             onClick = { /* No action on simple click */ },
@@ -77,7 +92,9 @@ fun ArchivedTransactionsScreen(
                             onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, archive = false) },
                             // Pass the correct text and icon
                             archiveActionText = "Restore",
-                            archiveActionIcon = Icons.Default.Restore
+                            archiveActionIcon = Icons.Default.Restore,
+                            categoryColor = categoryColor,
+                            categoryIcon = categoryIcon
                         )
                     }
                 }

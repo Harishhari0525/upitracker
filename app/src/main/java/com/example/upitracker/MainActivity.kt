@@ -124,6 +124,8 @@ class MainActivity : FragmentActivity() {
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         // Use a short delay to prevent the splash screen from disappearing too quickly.
         // In a real app, you might wait for initial data to load here.
         Handler(Looper.getMainLooper()).postDelayed({

@@ -34,6 +34,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.upitracker.util.getCategoryIcon
+import com.example.upitracker.util.parseColor
 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -64,6 +66,8 @@ fun CurrentMonthExpensesScreen(
     val recurringRules by mainViewModel.recurringRules.collectAsState()
     val isImporting by mainViewModel.isImportingSms.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
+
+    val allCategories by mainViewModel.allCategories.collectAsState()
 
 
     // --- UI Layout with Showcase ---
@@ -163,6 +167,15 @@ fun CurrentMonthExpensesScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 recentTransactions.take(3).forEach { item ->
                                     if (item is TransactionHistoryItem) {
+                                        val transaction = item.transaction
+                                        val categoryDetails = remember(transaction.category, allCategories) {
+                                            allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
+                                        }
+                                        val categoryColor = remember(categoryDetails) {
+                                            parseColor(categoryDetails?.colorHex ?: "#808080")
+                                        }
+                                        val categoryIcon = getCategoryIcon(categoryDetails)
+
                                         TransactionCardWithMenu(
                                             transaction = item.transaction,
                                             onClick = { /* ... */ },
@@ -175,7 +188,9 @@ fun CurrentMonthExpensesScreen(
                                             },
                                             // Add the missing parameters
                                             archiveActionText = "Archive",
-                                            archiveActionIcon = Icons.Default.Archive
+                                            archiveActionIcon = Icons.Default.Archive,
+                                            categoryColor = categoryColor,
+                                            categoryIcon = categoryIcon
                                         )
                                     }
                                 }

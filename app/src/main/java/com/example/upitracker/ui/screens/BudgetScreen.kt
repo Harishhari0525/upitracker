@@ -31,6 +31,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.example.upitracker.util.getCategoryIcon
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -113,9 +114,6 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
         )
     }
 
-
-
-    // --- UI LAYOUT ---
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
@@ -177,6 +175,8 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
 private fun BudgetList(mainViewModel: MainViewModel, onEditBudget: (BudgetStatus) -> Unit) {
     val budgetStatuses by mainViewModel.budgetStatuses.collectAsState()
 
+    val allCategories by mainViewModel.allCategories.collectAsState()
+
     if (budgetStatuses.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { /*...*/ }
     } else {
@@ -186,10 +186,17 @@ private fun BudgetList(mainViewModel: MainViewModel, onEditBudget: (BudgetStatus
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(budgetStatuses, key = { it.budgetId }) { status ->
+
+                val categoryDetails = remember(status.categoryName, allCategories) {
+                    allCategories.find { c -> c.name.equals(status.categoryName, ignoreCase = true) }
+                }
+                val categoryIcon = getCategoryIcon(categoryDetails)
+
                 BudgetCard(
                     status = status,
                     onEdit = { onEditBudget(status) }, // This calls the lambda passed from the parent.
-                    onDelete = { mainViewModel.deleteBudget(status.budgetId) }
+                    onDelete = { mainViewModel.deleteBudget(status.budgetId) },
+                    categoryIcon = categoryIcon
                 )
             }
         }

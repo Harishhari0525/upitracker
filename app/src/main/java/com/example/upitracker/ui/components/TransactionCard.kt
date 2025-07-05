@@ -17,22 +17,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import com.example.upitracker.util.CategoryIcon
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionCard(
     modifier: Modifier = Modifier,
     transaction: Transaction,
-    onClick: (Transaction) -> Unit,
-    onLongClick: (Transaction) -> Unit
+    categoryColor: Color,
+    categoryIcon: CategoryIcon
 ) {
     val displayDate = remember(transaction.date) {
         try {
@@ -97,22 +100,21 @@ fun TransactionCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            AnimatedVisibility(
-                visible = transaction.category != null,
-                enter = fadeIn(animationSpec = tween(150)),
-                exit = fadeOut(animationSpec = tween(150))
-            ) {
+            AnimatedVisibility(visible = transaction.category != null) {
                 Column {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.transaction_card_category_label,
-                            transaction.category ?: ""
+                    Spacer(Modifier.height(8.dp))
+                    AssistChip(
+                        onClick = { /* No action */ },
+                        label = { Text(transaction.category ?: "", fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = {
+                            CategoryIconView(categoryIcon = categoryIcon, categoryColor = categoryColor)
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = categoryColor.copy(alpha = 0.15f),
+                            labelColor = categoryColor,
+                            leadingIconContentColor = categoryColor
                         ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        border = null
                     )
                 }
             }
@@ -154,6 +156,33 @@ fun TransactionCard(
                     text = displayDate,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    }
+}
+@Composable
+private fun CategoryIconView(categoryIcon: CategoryIcon, categoryColor: Color) {
+    when (categoryIcon) {
+        is CategoryIcon.ResourceIcon -> {
+            Icon(
+                painter = painterResource(id = categoryIcon.id),
+                contentDescription = null, // Description is handled by the chip's label
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        is CategoryIcon.LetterIcon -> {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .background(color = categoryColor, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = categoryIcon.letter.toString(),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
