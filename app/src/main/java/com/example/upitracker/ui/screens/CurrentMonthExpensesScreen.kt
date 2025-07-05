@@ -190,7 +190,10 @@ fun CurrentMonthExpensesScreen(
                                             archiveActionText = "Archive",
                                             archiveActionIcon = Icons.Default.Archive,
                                             categoryColor = categoryColor,
-                                            categoryIcon = categoryIcon
+                                            categoryIcon = categoryIcon,
+                                            onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
+                                                mainViewModel.toggleCategoryFilter(categoryName)
+                                            }
                                         )
                                     }
                                 }

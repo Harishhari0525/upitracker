@@ -1,20 +1,19 @@
 [versions]
 # UPDATED: All core Compose libraries are now aligned to a new, compatible version
-animation = "1.9.0-beta01"
+animation = "1.9.0-beta02"
 coreSplashscreen = "1.0.1"
 desugar_jdk_libs = "2.1.5"
-foundation = "1.9.0-beta01"
-compose = "1.9.0-beta01"
+foundation = "1.9.0-beta02"
+compose = "1.9.0-beta02"
 gradle = "8.11.0"
 introshowcaseview = "2.0.2"
 kotlinGradlePlugin = "2.0.21"
 protobufJava = "4.31.1"
-protobufJavalite = "4.31.1"
-runtime = "1.9.0-beta01"
-materialVersion = "1.9.0-beta01"
+runtime = "1.9.0-beta02"
+materialVersion = "1.9.0-beta02"
 
 # Your new Material 3 version is compatible with these
-material3 = "1.4.0-alpha16"
+material3 = "1.4.0-alpha17"
 
 # The rest of your versions remain the same
 kotlin = "2.2.0"
@@ -23,7 +22,7 @@ datastorePreferences = "1.1.7"
 iconscompose = "1.7.8"
 room = "2.7.2"
 lifecycle = "2.9.1"
-navigation = "2.9.0"
+navigation = "2.9.1"
 activityCompose = "1.10.1"
 biometric = "1.2.0-alpha05"
 coreKtx = "1.16.0"

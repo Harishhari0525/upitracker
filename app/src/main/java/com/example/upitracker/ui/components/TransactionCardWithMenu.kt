@@ -31,7 +31,8 @@ fun TransactionCardWithMenu(
     archiveActionText: String,
     archiveActionIcon: ImageVector,
     categoryColor: Color,
-    categoryIcon: CategoryIcon
+    categoryIcon: CategoryIcon,
+    onCategoryClick: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     // ✨ 1. State to store the width of the card in pixels ✨
@@ -58,7 +59,8 @@ fun TransactionCardWithMenu(
         TransactionCard(
             transaction = transaction,
             categoryColor = categoryColor,
-            categoryIcon = categoryIcon
+            categoryIcon = categoryIcon,
+            onCategoryClick = onCategoryClick
         )
 
         DropdownMenu(

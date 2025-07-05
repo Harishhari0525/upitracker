@@ -23,6 +23,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import android.util.Log
+import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.upitracker.data.Category
 import java.time.Instant
 import java.time.ZoneId
@@ -117,9 +118,9 @@ data class BudgetStatus(
     val spentAmount: Double,
     val progress: Float,      // A value from 0.0f to 1.0f for progress bars
     val remainingAmount: Double,
-    val allowRollover: Boolean, // ✨ NEW
-    val rolloverAmount: Double,  // ✨ NEW
-    val effectiveBudget: Double // ✨ NEW
+    val allowRollover: Boolean,
+    val rolloverAmount: Double,
+    val effectiveBudget: Double
 )
 
 data class IncomeExpensePoint(
@@ -151,8 +152,8 @@ data class IncomeExpenseSummaryStats(
 data class SnackbarMessage(
     val message: String,
     val actionLabel: String? = null,
-    val onAction: (() -> Unit)? = null, // Action to perform if Undo is clicked
-    val onDismiss: (() -> Unit)? = null  // Action to perform if Snackbar is dismissed (e.g., timeout)
+    val onAction: (() -> Unit)? = null,
+    val onDismiss: (() -> Unit)? = null
 )
 
 data class TransactionFilters(
@@ -164,7 +165,8 @@ data class TransactionFilters(
     val amountType: AmountFilterType,
     val amountValue1: Double?,
     val amountValue2: Double?,
-    val showOnlyLinked: Boolean = false
+    val showOnlyLinked: Boolean = false,
+    val selectedCategories: Set<String> = emptySet()
 )
 
 data class BankMessageCount(val bankName: String, val count: Int)
@@ -197,7 +199,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
-        upiLiteSummaryDao.getAllSummaries() // Assumes DAO sorts by date (Long) DESC
+        upiLiteSummaryDao.getAllSummaries()
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val refundCategory = "Refund"
@@ -210,6 +212,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedDateRangeStart = MutableStateFlow<Long?>(null)
     private val _selectedDateRangeEnd   = MutableStateFlow<Long?>(null)
+
+    private val _categoryFilter = MutableStateFlow<Set<String>>(emptySet())
 
     private val _selectedTransactionId = MutableStateFlow<Int?>(null)
     private val _showOnlyLinked = MutableStateFlow(false)
@@ -244,27 +248,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "Refund") // Default to "Refund"
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "Refund")
 
 
     fun confirmRefundKeywordUpdate() {
         viewModelScope.launch(Dispatchers.IO) {
             _refundKeywordUpdateInfo.value?.let { (oldKeyword, newKeyword) ->
-                // Save the new keyword to settings
                 ThemePreference.setRefundKeyword(getApplication(), newKeyword)
-                // Update the categories in the database
                 transactionDao.updateCategoryName(oldKeyword, newKeyword)
-                // Hide the dialog
                 _refundKeywordUpdateInfo.value = null
                 postPlainSnackbarMessage("Refund keyword and existing transactions updated.")
             }
         }
     }
 
-    // 3. ADD this new function to dismiss the dialog
     fun dismissRefundKeywordUpdate() {
         viewModelScope.launch {
-            // We still need to save the new keyword even if the user declines to update old transactions
             _refundKeywordUpdateInfo.value?.let { (_, newKeyword) ->
                 ThemePreference.setRefundKeyword(getApplication(), newKeyword)
             }
@@ -276,7 +275,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setRefundKeyword(newKeyword: String) {
         viewModelScope.launch {
             val oldKeyword = refundKeyword.first()
-            // Only show the dialog if the keyword has actually changed to something new
             if (newKeyword.isNotBlank() && !newKeyword.equals(oldKeyword, ignoreCase = true)) {
                 _refundKeywordUpdateInfo.value = Pair(oldKeyword, newKeyword)
             }
@@ -309,11 +307,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val archivedSmsDao = db.archivedSmsMessageDao()
 
     val bankMessageCounts: StateFlow<List<BankMessageCount>> =
-        archivedSmsDao.getAllArchivedSms() // Assuming this returns Flow<List<ArchivedSmsMessage>>
+        archivedSmsDao.getAllArchivedSms()
             .map { allMessages ->
                 allMessages
                     .mapNotNull { msg ->
-                        // Heuristically determine bank name from sender address
                         val sender = msg.originalSender.uppercase()
                         when {
                             sender.contains("HDFC") -> "HDFC Bank"
@@ -330,7 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             sender.contains("FEDERAL") -> "Federal Bank"
                             sender.contains("CITI") -> "Citi Bank"
                             sender.contains("RBL") -> "RBL Bank"
-                            else -> null // Ignore senders we don't recognize
+                            else -> null
                         }
                     }
                     .groupingBy { it }
@@ -347,61 +344,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery,
         _showUncategorized
     ) { type, startDate, endDate, query, uncategorized ->
-        // The first combine handles 5 flows and creates a base object
         TransactionFilters(
             type = type,
             startDate = startDate,
             endDate = endDate,
             searchQuery = query,
             showUncategorized = uncategorized,
-            // Default values for the rest, which we will add below
             amountType = AmountFilterType.ALL,
             amountValue1 = null,
             amountValue2 = null,
             showOnlyLinked = false
         )
     }.combine(_amountFilterType) { currentFilters, amountType ->
-        // Chain the next flow and update the object
         currentFilters.copy(amountType = amountType)
     }.combine(_amountFilterValue1) { currentFilters, amountVal1 ->
-        // Chain the next flow...
         currentFilters.copy(amountValue1 = amountVal1)
     }.combine(_amountFilterValue2) { currentFilters, amountVal2 ->
-        // and the next...
         currentFilters.copy(amountValue2 = amountVal2)
     }.combine(_showOnlyLinked) { currentFilters, showLinked ->
-        // And finally, our new filter
         currentFilters.copy(showOnlyLinked = showLinked)
-    }.stateIn(
+    }.combine(_categoryFilter) { currentFilters, categories -> // ✨ ADD THIS
+        currentFilters.copy(selectedCategories = categories)
+    }
+        .stateIn(
         scope = viewModelScope,
         started = SharingStarted.Lazily,
         initialValue = TransactionFilters(
             UpiTransactionTypeFilter.ALL, null, null, "",
-            false, AmountFilterType.ALL, null, null, false
+            false, AmountFilterType.ALL, null, null, false, emptySet()
         )
     )
 
     val userCategories: StateFlow<List<String>> = _transactions
         .map { allTransactions ->
             allTransactions
-                .filter { !it.category.isNullOrBlank() } // Only consider transactions with a category
-                .groupingBy { it.category!! }            // Group by the category name
-                .eachCount()                             // Count occurrences of each category
-                .toList()                                // Convert map to a list of pairs
-                .sortedByDescending { it.second }        // Sort by count, most frequent first
-                .take(7)                                 // Take the top 7 most used categories
-                .map { it.first }                        // Get just the category name
+                .filter { !it.category.isNullOrBlank() }
+                .groupingBy { it.category!! }
+                .eachCount()
+                .toList()
+                .sortedByDescending { it.second }
+                .take(7)
+                .map { it.first }
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
 
-    // In MainViewModel.kt, add these new helper functions
-
     private fun getPreviousWeekRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
-        calendar.add(Calendar.WEEK_OF_YEAR, -1) // Go to previous week
+        calendar.add(Calendar.WEEK_OF_YEAR, -1)
         calendar.firstDayOfWeek = Calendar.MONDAY
         calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
         calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
@@ -414,7 +406,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun getPreviousMonthRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
-        calendar.add(Calendar.MONTH, -1) // Go to previous month
+        calendar.add(Calendar.MONTH, -1)
         calendar.set(Calendar.DAY_OF_MONTH, 1)
         calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
@@ -426,7 +418,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun getPreviousYearRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
-        calendar.add(Calendar.YEAR, -1) // Go to previous year
+        calendar.add(Calendar.YEAR, -1)
         calendar.set(Calendar.DAY_OF_YEAR, 1)
         calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
@@ -459,8 +451,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // In MainViewModel.kt, add this new public function
-
     fun restoreDatabase(sourceUri: Uri, contentResolver: ContentResolver) {
         viewModelScope.launch(Dispatchers.IO) {
             _isRestoring.value = true
@@ -487,14 +477,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.DEFAULT)
 
-   // val filters: StateFlow<TransactionFilters> = _filters
-
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val archivedUpiTransactions: StateFlow<List<Transaction>> =
-        transactionDao.getArchivedTransactions() // Uses the new DAO method
+        transactionDao.getArchivedTransactions()
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val incomeVsExpenseData: StateFlow<List<IncomeExpensePoint>> =
@@ -547,7 +535,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             budgets.map { budget ->
-                // --- Rollover Calculation ---
                 val rolloverAmount = if (budget.allowRollover) {
                     val (prevPeriodStart, prevPeriodEnd) = when (budget.periodType) {
                         BudgetPeriod.WEEKLY -> getPreviousWeekRange()
@@ -557,12 +544,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val spentInPrevPeriod = debitTransactions
                         .filter { it.category.equals(budget.categoryName, true) && it.date in prevPeriodStart..prevPeriodEnd }
                         .sumOf { it.amount }
-                    budget.budgetAmount - spentInPrevPeriod // Leftover or debt from last period
+                    budget.budgetAmount - spentInPrevPeriod
                 } else {
-                    0.0 // Rollover is disabled
+                    0.0
                 }
 
-                // --- Current Period Calculation ---
                 val (currentPeriodStart, currentPeriodEnd) = when (budget.periodType) {
                     BudgetPeriod.WEEKLY -> getCurrentWeekRange()
                     BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
@@ -594,8 +580,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isExportingCsv = MutableStateFlow(false)
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
 
-    // --- Filter & Sort States (Private backing, Public immutable exposure) ---
-
     private val _upiTransactionSortField = MutableStateFlow(SortableTransactionField.DATE)
     val upiTransactionSortField: StateFlow<SortableTransactionField> =
         _upiTransactionSortField.asStateFlow()
@@ -612,100 +596,108 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val setSearchQuery: (String) -> Unit = { _searchQuery.value = it }
 
-    // The return type is now StateFlow<Map<String, List<Transaction>>>
+    @OptIn(ExperimentalCoroutinesApi::class)
     val filteredUpiTransactions: StateFlow<Map<String, List<Transaction>>> =
         combine(
-            _transactions,
             filters,
             _upiTransactionSortField,
             _upiTransactionSortOrder
-        ) { transactions, filters, sortField, sortOrder ->
-            // This 'filters' object is the complete, up-to-date TransactionFilters object
+        ) { currentFilters, sortField, sortOrder ->
+            Pair(currentFilters, Pair(sortField, sortOrder))
+        }.flatMapLatest { (currentFilters, sortInfo) ->
+            val (sortField, sortOrder) = sortInfo
 
-            // --- All of your existing filtering logic from Step 1 to 6 remains the same ---
+            val queryBuilder = StringBuilder("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+            val args = mutableListOf<Any>()
 
-            // 1) Linked Status Filter
-            val byLinkedStatus = if (filters.showOnlyLinked) {
-                transactions.filter { it.linkedTransactionId != null }
-            } else {
-                transactions
+            if (currentFilters.type != UpiTransactionTypeFilter.ALL) {
+                queryBuilder.append(" AND type = ?")
+                args.add(currentFilters.type.name)
             }
-            // 2) Type filter
-            val byType = when (filters.type) {
-                UpiTransactionTypeFilter.ALL -> byLinkedStatus
-                UpiTransactionTypeFilter.DEBIT -> byLinkedStatus.filter { it.type.equals("DEBIT", ignoreCase = true) }
-                UpiTransactionTypeFilter.CREDIT -> byLinkedStatus.filter { it.type.equals("CREDIT", ignoreCase = true) }
+            currentFilters.startDate?.let {
+                queryBuilder.append(" AND date >= ?")
+                args.add(it)
             }
-            // 3) Date filter
-            val byDate = when {
-                filters.startDate != null && filters.endDate != null -> byType.filter { it.date in filters.startDate..filters.endDate }
-                filters.startDate != null -> byType.filter { it.date >= filters.startDate }
-                filters.endDate != null -> byType.filter { it.date <= filters.endDate }
-                else -> byType
+            currentFilters.endDate?.let {
+                queryBuilder.append(" AND date <= ?")
+                args.add(it)
             }
-            // 4) Search filter
-            val bySearch = if (filters.searchQuery.isBlank()) byDate else byDate.filter { tx ->
-                tx.description.contains(filters.searchQuery, ignoreCase = true) ||
-                        tx.senderOrReceiver.contains(filters.searchQuery, ignoreCase = true) ||
-                        (tx.category?.contains(filters.searchQuery, ignoreCase = true) == true)
+            if (currentFilters.searchQuery.isNotBlank()) {
+                queryBuilder.append(" AND (description LIKE ? OR senderOrReceiver LIKE ? OR category LIKE ?)")
+                val query = "%${currentFilters.searchQuery}%"
+                args.add(query)
+                args.add(query)
+                args.add(query)
             }
-            // 5) Uncategorized Filter
-            val byUncategorized = if (filters.showUncategorized) {
-                bySearch.filter { it.category.isNullOrBlank() }
-            } else {
-                bySearch
+            if (currentFilters.showUncategorized) {
+                queryBuilder.append(" AND (category IS NULL OR category = '')")
             }
-            // 6) Amount Filter
-            val byAmount = when (filters.amountType) {
-                AmountFilterType.GREATER_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount > limit } } ?: byUncategorized
-                AmountFilterType.LESS_THAN -> filters.amountValue1?.let { limit -> byUncategorized.filter { it.amount < limit } } ?: byUncategorized
-                AmountFilterType.RANGE -> if (filters.amountValue1 != null && filters.amountValue2 != null) {
-                    byUncategorized.filter { it.amount in filters.amountValue1..filters.amountValue2 }
-                } else byUncategorized
-                AmountFilterType.ALL -> byUncategorized
+            if (currentFilters.showOnlyLinked) {
+                queryBuilder.append(" AND linkedTransactionId IS NOT NULL")
             }
 
-            // 7) Sort
-            val sortedTransactions = when (sortField) {
-                SortableTransactionField.DATE ->
-                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.date }
-                    else byAmount.sortedByDescending { it.date }
-
-                SortableTransactionField.AMOUNT ->
-                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.amount }
-                    else byAmount.sortedByDescending { it.amount }
-
-                SortableTransactionField.CATEGORY ->
-                    if (sortOrder == SortOrder.ASCENDING) byAmount.sortedBy { it.category ?: "" }
-                    else byAmount.sortedByDescending { it.category ?: "" }
+            if (currentFilters.selectedCategories.isNotEmpty()) {
+                // Creates a placeholder string like "(?, ?, ?)"
+                val placeholders = currentFilters.selectedCategories.joinToString { "?" }
+                queryBuilder.append(" AND category IN ($placeholders)")
+                args.addAll(currentFilters.selectedCategories)
             }
 
-            // ✨ FINAL STEP: Group the sorted list into a Map before finishing ✨
+            when (currentFilters.amountType) {
+                AmountFilterType.GREATER_THAN -> currentFilters.amountValue1?.let {
+                    queryBuilder.append(" AND amount > ?")
+                    args.add(it)
+                }
+                AmountFilterType.LESS_THAN -> currentFilters.amountValue1?.let {
+                    queryBuilder.append(" AND amount < ?")
+                    args.add(it)
+                }
+                AmountFilterType.RANGE -> {
+                    currentFilters.amountValue1?.let { val1 ->
+                        currentFilters.amountValue2?.let { val2 ->
+                            queryBuilder.append(" AND amount BETWEEN ? AND ?")
+                            args.add(val1)
+                            args.add(val2)
+                        }
+                    }
+                }
+                AmountFilterType.ALL -> { /* No-op */ }
+            }
+
+            val sortColumn = when (sortField) {
+                SortableTransactionField.DATE -> "date"
+                SortableTransactionField.AMOUNT -> "amount"
+                SortableTransactionField.CATEGORY -> "CASE WHEN category IS NULL THEN 1 ELSE 0 END, category"
+            }
+            val sortDirection = if (sortOrder == SortOrder.ASCENDING) "ASC" else "DESC"
+            queryBuilder.append(" ORDER BY $sortColumn $sortDirection")
+
+            val sqliteQuery = SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray())
+            transactionDao.getFilteredTransactions(sqliteQuery)
+        }.map { transactions ->
             val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-            sortedTransactions.groupBy { transaction ->
+            transactions.groupBy { transaction ->
                 Instant.ofEpochMilli(transaction.date)
                     .atZone(ZoneId.systemDefault())
                     .format(formatter)
             }
         }
-            .flowOn(Dispatchers.Default) // Run all this work on a background thread
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap()) // Initial value is an emptyMap()
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
 
 
     fun toggleShowOnlyLinked(isEnabled: Boolean) {
         _showOnlyLinked.value = isEnabled
     }
 
-    // 3) You can do the same two-into-one trick for summaries if you like:
     val filteredUpiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
         combine(
             _upiLiteSummaries,
             _selectedDateRangeStart,
             _selectedDateRangeEnd,
-            _upiLiteSummarySortField, // ✨ Add sort field
-            _upiLiteSummarySortOrder  // ✨ Add sort order
+            _upiLiteSummarySortField,
+            _upiLiteSummarySortOrder
         ) { summaries, startDate, endDate, sortField, sortOrder ->
-            // 1. Apply Date Filter
             val dateFilteredSummaries = if (startDate != null && endDate != null) {
                 summaries.filter { it.date in startDate..endDate }
             } else if (startDate != null) {
@@ -720,7 +712,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 summaries
             }
-            // 2. Apply Sorting
             when (sortField) {
                 SortableUpiLiteSummaryField.DATE -> {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.date }
@@ -746,7 +737,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 
-    // --- Current Month Data (Public) ---
     private fun getCurrentMonthDateRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.DAY_OF_MONTH, 1)
@@ -765,7 +755,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val (monthStart, monthEnd) = getCurrentMonthDateRange()
             val combinedItems = mutableListOf<HistoryListItem>()
 
-            // Filter and map debit transactions for the current month
             val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true)
                         && !it.category.equals(refundCategory, ignoreCase = true)
@@ -778,12 +767,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
             }
 
-            // Filter and map UPI Lite summaries for the current month
             val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
             val sortedList = combinedItems.sortedByDescending { it.displayDate }
             combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
 
-            // Sort the combined list by date, most recent first
             combinedItems.sortedByDescending { it.displayDate }
             sortedList.distinctBy { item ->
                 when (item) {
@@ -812,35 +799,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
-    // --- Graph Data (Public) ---
+    // In MainViewModel.kt
+
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
-        combine(_nonRefundDebits, _selectedGraphPeriod) { allTransactions, period ->
-            val result = calculateLastNMonthsExpenses(allTransactions, period.months)
-            result
-        }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        combine(
+            _nonRefundDebits,
+            _upiLiteSummaries,      // ✨ ADDED: UPI Lite summaries
+            isUpiLiteEnabled,       // ✨ ADDED: The toggle to check if they should be included
+            _selectedGraphPeriod
+        ) { nonRefundDebits, summaries, upiLiteEnabled, period ->
+            if (nonRefundDebits.isEmpty() && (!upiLiteEnabled || summaries.isEmpty())) {
+                return@combine emptyList()
+            }
 
-    val monthlyDebitSummaryStats: StateFlow<MonthlyDebitSummaryStats> = lastNMonthsExpenses
-        .map { monthlyExpenses ->
-            if (monthlyExpenses.isEmpty()) {
-                MonthlyDebitSummaryStats() // Return default empty stats if there's no data
+            val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
+            val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+
+            // Group both sources of expenses by month
+            val regularExpensesByMonth = nonRefundDebits
+                .groupBy { yearMonthKeyFormat.format(Date(it.date)) }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+
+            val liteExpensesByMonth = if (upiLiteEnabled) {
+                summaries
+                    .groupBy { yearMonthKeyFormat.format(Date(it.date)) }
+                    .mapValues { entry -> entry.value.sumOf { it.totalAmount } }
             } else {
-                val total = monthlyExpenses.sumOf { it.totalAmount }
-                val average = if (monthlyExpenses.isNotEmpty()) total / monthlyExpenses.size else 0.0
-                val highest = monthlyExpenses.maxByOrNull { it.totalAmount }
+                emptyMap()
+            }
 
-                MonthlyDebitSummaryStats(
-                    totalAmount = total,
-                    averageAmount = average,
-                    highestMonth = highest
+            val monthlyExpensesData = mutableListOf<MonthlyExpense>()
+            val calendar = Calendar.getInstance()
+
+            // Iterate through the last N months and build the final data
+            for (i in 0 until period.months) {
+                val targetCalendar = Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
+                val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
+                val displayLabel = monthDisplayFormat.format(targetCalendar.time)
+
+                targetCalendar.set(Calendar.DAY_OF_MONTH, 1)
+                targetCalendar.set(Calendar.HOUR_OF_DAY, 0)
+                targetCalendar.set(Calendar.MINUTE, 0)
+                targetCalendar.set(Calendar.SECOND, 0)
+                targetCalendar.set(Calendar.MILLISECOND, 0)
+                val monthStartTimestamp = targetCalendar.timeInMillis
+
+                // Sum the expenses from both maps for the current month
+                val totalAmountForMonth = (regularExpensesByMonth[yearMonthKey] ?: 0.0) + (liteExpensesByMonth[yearMonthKey] ?: 0.0)
+
+                monthlyExpensesData.add(
+                    MonthlyExpense(
+                        yearMonth = displayLabel,
+                        totalAmount = totalAmountForMonth,
+                        timestamp = monthStartTimestamp
+                    )
                 )
             }
+            monthlyExpensesData.reversed() // Sort from oldest to newest for the chart
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, MonthlyDebitSummaryStats())
+            .flowOn(Dispatchers.Default) // Keep the work on a background thread
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
 
     val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _nonRefundDebits
         .map { allTransactions ->
-            val (rangeStart, rangeEnd) = getDailyTrendDateRange(7) // Last 30 days
+            val (rangeStart, rangeEnd) = getDailyTrendDateRange(7)
             val relevantTransactions = allTransactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true) &&
                         !it.category.equals(refundCategory, ignoreCase = true) &&
@@ -890,6 +913,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, DailyTrendSummaryStats())
 
+    val monthlyDebitSummaryStats: StateFlow<MonthlyDebitSummaryStats> = lastNMonthsExpenses
+        .map { monthlyExpenses ->
+            if (monthlyExpenses.isEmpty()) {
+                MonthlyDebitSummaryStats() // Return default empty stats if there's no data
+            } else {
+                val total = monthlyExpenses.sumOf { it.totalAmount }
+                val average = if (monthlyExpenses.isNotEmpty()) total / monthlyExpenses.size else 0.0
+                val highest = monthlyExpenses.maxByOrNull { it.totalAmount }
+
+                MonthlyDebitSummaryStats(
+                    totalAmount = total,
+                    averageAmount = average,
+                    highestMonth = highest
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, MonthlyDebitSummaryStats())
+
     val incomeExpenseSummaryStats: StateFlow<IncomeExpenseSummaryStats> = incomeVsExpenseData
         .map { incomeExpensePoints ->
             if (incomeExpensePoints.isEmpty()) {
@@ -907,54 +948,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, IncomeExpenseSummaryStats())
 
-    private fun calculateLastNMonthsExpenses(transactions: List<Transaction>, n: Int): List<MonthlyExpense> {
-        if (transactions.isEmpty() || n <= 0) {
-            return emptyList()
-        }
-        val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
-        val yearMonthKeyFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
 
-        val debitTransactions = transactions.filter {
-            it.type.equals("DEBIT", ignoreCase = true)
+    // Add this new public function to the ViewModel
+    fun toggleCategoryFilter(categoryName: String) {
+        val currentFilter = _categoryFilter.value.toMutableSet()
+        if (currentFilter.contains(categoryName)) {
+            currentFilter.remove(categoryName)
+        } else {
+            currentFilter.add(categoryName)
         }
-        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: Filtered DEBIT transactions count: ${debitTransactions.size}")
-        if (debitTransactions.isEmpty()) {
-            return emptyList()
-        }
-
-        val expensesByYearMonth = debitTransactions
-            .groupBy { transaction -> yearMonthKeyFormat.format(Date(transaction.date)) }
-            .mapValues { entry -> entry.value.sumOf { it.amount } }
-
-        val calendar = Calendar.getInstance()
-        val monthlyExpensesData = mutableListOf<MonthlyExpense>()
-        for (i in 0 until n) {
-            val targetCalendar =
-                Calendar.getInstance().apply { time = calendar.time; add(Calendar.MONTH, -i) }
-            val yearMonthKey = yearMonthKeyFormat.format(targetCalendar.time)
-            val displayLabel = monthDisplayFormat.format(targetCalendar.time)
-            targetCalendar.set(Calendar.DAY_OF_MONTH, 1); targetCalendar.set(
-                Calendar.HOUR_OF_DAY,
-                0
-            ); targetCalendar.set(Calendar.MINUTE, 0); targetCalendar.set(
-                Calendar.SECOND,
-                0
-            ); targetCalendar.set(Calendar.MILLISECOND, 0)
-            val monthStartTimestamp = targetCalendar.timeInMillis
-            val amountForMonth = expensesByYearMonth[yearMonthKey] ?: 0.0
-            monthlyExpensesData.add(
-                MonthlyExpense(
-                    yearMonth = displayLabel,
-                    totalAmount = amountForMonth,
-                    timestamp = monthStartTimestamp
-                )
-            )
-            // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: For period $displayLabel ($yearMonthKey),  Timestamp: $monthStartTimestamp, Amount: $amountForMonth")
-        }
-        val result = monthlyExpensesData.reversed()
-        // Log.d("ViewModelDebug", "calculateLastNMonthsExpenses: END. Final data size: ${result.size}, Data: $result")
-        return result
+        _categoryFilter.value = currentFilter
     }
+
+    // Add this function to clear the filter
+    fun clearCategoryFilter() {
+        _categoryFilter.value = emptySet()
+    }
+
 
     private fun getDailyTrendDateRange(daysToShow: Int): Pair<Long, Long> {
         val calendar = Calendar.getInstance(); calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(
@@ -976,12 +986,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val categoryExpensesData: StateFlow<List<CategoryExpense>> =
         combine(
-            _nonRefundDebits, // Use the pre-filtered list of expenses
+            _nonRefundDebits,
             _selectedDateRangeStart,
             _selectedDateRangeEnd
         ) { nonRefundDebits, startDate, endDate ->
 
-            // 1. Apply the date filter to our clean list of expenses
             val filteredForDate = when {
                 startDate != null && endDate != null -> nonRefundDebits.filter { it.date in startDate..endDate }
                 startDate != null -> nonRefundDebits.filter { it.date >= startDate }
@@ -995,7 +1004,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else -> nonRefundDebits
             }
 
-            // 2. Group the remaining transactions by category
             filteredForDate
                 .filter { !it.category.isNullOrBlank() }
                 .groupBy { it.category!! }
@@ -1037,19 +1045,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             timeInMillis = startFrom
         }
 
-        // Move to the next period
         when (periodType) {
             BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
             BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
             BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
         }
 
-        // This is the key fix for end-of-month issues.
-        // If the user wants the 31st, but the next month only has 30 days, this will correctly use the 30th.
         val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
         calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod.coerceAtMost(maxDayInMonth))
 
-        // Set a consistent time of day
         calendar.set(Calendar.HOUR_OF_DAY, 12)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
@@ -1071,8 +1075,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            // ✨ FIX: Use the helper function to calculate the due date ✨
-            // We start from a month ago to ensure the first date is in the correct upcoming month.
             val calendar = Calendar.getInstance()
             calendar.add(Calendar.MONTH, -1)
             val firstDueDate = calculateNextDueDate(calendar.timeInMillis, dayOfPeriod, period)
@@ -1108,9 +1110,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val originalRule = recurringRuleDao.getRuleById(ruleId) ?: return@launch
 
-            // ✨ FIX: Use the helper function to recalculate the due date if needed ✨
             val nextDueDate = if (originalRule.dayOfPeriod != newDay || originalRule.periodType != newPeriod) {
-                // Start from a month ago to ensure the next date is calculated correctly based on today.
                 val calendar = Calendar.getInstance()
                 calendar.add(Calendar.MONTH, -1)
                 calculateNextDueDate(calendar.timeInMillis, newDay, newPeriod)
@@ -1131,7 +1131,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: BudgetPeriod, allowRollover: Boolean, budgetId: Int? = null) { // ✨ ADD allowRollover
+    fun addOrUpdateBudget(categoryName: String, amount: Double, periodType: BudgetPeriod, allowRollover: Boolean, budgetId: Int? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
@@ -1147,7 +1147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     budgetAmount = amount,
                     periodType = periodType,
                     startDate = startDate,
-                    allowRollover = allowRollover // ✨ PASS the new value
+                    allowRollover = allowRollover
                 )
                 budgetDao.insertOrUpdate(budget)
             }
@@ -1170,7 +1170,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (_upiLiteSummarySortOrder.value == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
         } else {
             _upiLiteSummarySortField.value = field
-            _upiLiteSummarySortOrder.value = SortOrder.DESCENDING // Default new field sort
+            _upiLiteSummarySortOrder.value = SortOrder.DESCENDING
         }
     }
 
@@ -1186,13 +1186,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUpiTransactionSort(field: SortableTransactionField) {
         if (_upiTransactionSortField.value == field) {
-            // same field → just flip the order
             _upiTransactionSortOrder.value = when (_upiTransactionSortOrder.value) {
                 SortOrder.ASCENDING -> SortOrder.DESCENDING
                 SortOrder.DESCENDING -> SortOrder.ASCENDING
             }
         } else {
-            // new field → set it and pick a sensible default order
             _upiTransactionSortField.value = field
             _upiTransactionSortOrder.value =
                 if (field == SortableTransactionField.CATEGORY) SortOrder.ASCENDING
@@ -1216,7 +1214,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun permanentlyDeleteTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
-            // This is a hard delete that completely removes the row from the database.
             transactionDao.delete(transaction)
         }
     }
@@ -1224,11 +1221,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun findAndLinkRefund(refund: Transaction) {
         val potentialMatches = transactionDao.findPotentialDebitsForRefund(refund.senderOrReceiver)
 
-        // Find the best match (same amount, closest in time before the refund)
         val bestMatch = potentialMatches.filter { it.amount == refund.amount && it.date <= refund.date }.minByOrNull { refund.date - it.date }
 
         if (bestMatch != null) {
-            // Link them together
             val linkedRefund = refund.copy(linkedTransactionId = bestMatch.id)
             val linkedDebit = bestMatch.copy(linkedTransactionId = refund.id)
 
@@ -1254,9 +1249,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             originalTransaction?.let {
                 val isManualEntry = it.senderOrReceiver == "Manual Entry"
 
-                // Create the updated transaction based on our new rule
                 val updatedTransaction = if (isManualEntry) {
-                    // If it's a manual entry, update everything.
                     it.copy(
                         description = newDescription.trim(),
                         amount = newAmount,
@@ -1270,19 +1263,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 transactionDao.update(updatedTransaction)
 
                 val refundKeywordValue = refundKeyword.first()
-                // If the category was just changed TO the refund keyword...
                 if (updatedTransaction.type == "CREDIT" &&
                     newCategory?.equals(refundKeywordValue, ignoreCase = true) == true &&
                     !originalTransaction.category.equals(refundKeywordValue, ignoreCase = true)
                 ) {
                     findAndLinkRefund(updatedTransaction)
                 }
-                // If the category was just changed AWAY FROM the refund keyword...
                 else if (originalTransaction.category.equals(refundKeywordValue, ignoreCase = true) &&
                     !newCategory.equals(refundKeywordValue, ignoreCase = true) &&
                     originalTransaction.linkedTransactionId != null)
                 {
-                    // Unlink the pair
                     transactionDao.unlinkTransaction(originalTransaction.id)
                     transactionDao.unlinkTransaction(originalTransaction.linkedTransactionId)
                     postPlainSnackbarMessage("Unlinked refund from purchase.")
@@ -1303,8 +1293,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 var bestMatch: CategorySuggestionRule? = null
 
-                // ✨ NEW, SMARTER LOGIC ✨
-                // We now loop through all rules to find the best possible match.
                 for (rule in rules) {
                     val textToMatch = when (rule.fieldToMatch) {
                         RuleField.DESCRIPTION -> transaction.description
@@ -1321,15 +1309,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     if (isMatch) {
-                        // Check if this match is better than what we've already found.
                         if (bestMatch == null) {
-                            // It's the first match, so it's the best so far.
                             bestMatch = rule
                         } else if (rule.priority > bestMatch.priority) {
-                            // This rule has a higher priority, so it's better.
                             bestMatch = rule
                         } else if (rule.priority == bestMatch.priority && rule.keyword.length > bestMatch.keyword.length) {
-                            // Priorities are the same, so choose the one with the longer, more specific keyword.
                             bestMatch = rule
                         }
                     }
@@ -1353,7 +1337,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    // Add this new function to your MainViewModel
     fun reapplyRulesToTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
             if (transaction.category.isNullOrBlank()) {
@@ -1383,13 +1366,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (bestMatch != null) {
                     val updatedTransaction = transaction.copy(category = bestMatch.categoryName)
-                    transactionDao.update(updatedTransaction) // Update the transaction with the new category
+                    transactionDao.update(updatedTransaction)
 
                     postPlainSnackbarMessage("Transaction categorized as '${bestMatch.categoryName}'!")
 
                     val refundKeywordValue = refundKeyword.first()
                     if (updatedTransaction.type == "CREDIT" && updatedTransaction.category.equals(refundKeywordValue, ignoreCase = true)) {
-                        // This will now correctly find a match and show the "Successfully linked..." snackbar.
                         findAndLinkRefund(updatedTransaction)
                     }
                 } else {
@@ -1428,9 +1410,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ✨✨✨ START: NEW CATEGORY MANAGEMENT FUNCTIONS ✨✨✨
+    fun addCategory(name: String, iconName: String, colorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val trimmedName = name.trim()
+            if (trimmedName.isBlank()) {
+                postPlainSnackbarMessage("Category name cannot be empty.")
+                return@launch
+            }
+            // Check for duplicates
+            if (categoryDao.getCategoryByName(trimmedName) != null) {
+                postPlainSnackbarMessage("Category '$trimmedName' already exists.")
+                return@launch
+            }
+
+            val newCategory = Category(name = trimmedName, iconName = iconName, colorHex = colorHex)
+            categoryDao.insert(newCategory)
+            postPlainSnackbarMessage("Category '$trimmedName' added.")
+        }
+    }
+
+    fun updateCategory(category: Category, newName: String, newIconName: String, newColorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val trimmedName = newName.trim()
+            if (trimmedName.isBlank()) {
+                postPlainSnackbarMessage("Category name cannot be empty.")
+                return@launch
+            }
+
+            // If name is changed, check if the new name conflicts with another existing category
+            val oldName = category.name
+            if (!category.name.equals(trimmedName, ignoreCase = true)) {
+                if (categoryDao.getCategoryByName(trimmedName) != null) {
+                    postPlainSnackbarMessage("Category '$trimmedName' already exists.")
+                    return@launch
+                }
+                // Also update the name in all associated transactions
+                transactionDao.updateCategoryName(category.name, trimmedName)
+                categorySuggestionRuleDao.updateCategoryNameInRules(oldName, trimmedName)
+            }
+
+            val updatedCategory = category.copy(
+                name = trimmedName,
+                iconName = newIconName,
+                colorHex = newColorHex
+            )
+            categoryDao.update(updatedCategory)
+            postPlainSnackbarMessage("Category updated.")
+        }
+    }
+
+    fun deleteCategory(category: Category) {
+        viewModelScope.launch(Dispatchers.IO) {
+            categorySuggestionRuleDao.deleteRulesForCategory(category.name)
+            // Un-assign the category from all transactions that use it
+            transactionDao.clearCategoryForTransactions(category.name)
+            // Delete the category itself
+            categoryDao.delete(category)
+            postPlainSnackbarMessage("Category '${category.name}' deleted.")
+        }
+    }
+    // ✨✨✨ END: NEW CATEGORY MANAGEMENT FUNCTIONS ✨✨✨
+
     fun setIsRefreshingSmsArchive(isRefreshing: Boolean) {
         _isRefreshingSmsArchive.value = isRefreshing
-        if (isRefreshing) { // If ad-hoc refresh starts, general import is not also in progress separately
+        if (isRefreshing) {
             _isImportingSms.value = false
         }
     }
@@ -1443,7 +1487,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            // Create a copy of the transaction and set the deletion timestamp.
             val transactionToMark = transaction.copy(
                 pendingDeletionTimestamp = System.currentTimeMillis()
             )
@@ -1452,13 +1495,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             _snackbarEvents.emit(
                 SnackbarMessage(
-                    message = "Moved to Recycle Bin. Will be deleted in 24 hours.", // TODO: Use string resource
-                    actionLabel = "Undo", // TODO: Use string resource
+                    message = "Moved to Recycle Bin. Will be deleted in 24 hours.",
+                    actionLabel = "Undo",
                     onAction = {
-                        // The UNDO action simply sets the timestamp back to null, making it visible again.
                         viewModelScope.launch {
                             transactionDao.update(transaction.copy(pendingDeletionTimestamp = null))
-                            postPlainSnackbarMessage("Transaction restored") // TODO: Use string resource
+                            postPlainSnackbarMessage("Transaction restored")
                         }
                     }
                 )
@@ -1503,20 +1545,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val newTransaction = Transaction(
-                // id is 0 so Room will auto-generate a new one
                 amount = amount,
                 type = type,
                 description = description.trim(),
                 category = category.trim().takeIf { it.isNotEmpty() },
-                date = System.currentTimeMillis(), // Use the current date and time
-                senderOrReceiver = "Manual Entry", // A placeholder for the party
+                date = System.currentTimeMillis(),
+                senderOrReceiver = "Manual Entry",
                 isArchived = false,
                 note = ""
             )
 
             processAndInsertTransaction(newTransaction)
 
-            // Post a confirmation message to the user
             postPlainSnackbarMessage("Transaction saved successfully!")
             _uiEvents.emit(UiEvent.ScrollToTop)
         }
@@ -1539,6 +1579,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         outputStream.flush()
                     } ?: throw IOException("Failed to open output stream for URI: $uri")
                 }
+
                 postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_success))
             } catch (e: IOException) {
                 Log.e("MainViewModelCSV", "Error exporting CSV: ${e.message}", e)
@@ -1560,7 +1601,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleTransactionArchiveStatus(transaction: Transaction, archive: Boolean = true) {
         viewModelScope.launch {
             if (archive) {
-                // --- ARCHIVING A TRANSACTION ---
                 val transactionToArchive = transaction
                 val originalCategory = transaction.category
 
@@ -1575,7 +1615,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo),
                         onAction = {
-                            // This self-contained Undo action restores the correct transaction
                             viewModelScope.launch {
                                 val restoredTransaction = transactionToArchive.copy(
                                     isArchived = false,
@@ -1587,7 +1626,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             } else {
-                // --- RESTORING A TRANSACTION (from Archived screen) ---
                 val unarchivedTransaction = transaction.copy(isArchived = false)
                 transactionDao.update(unarchivedTransaction)
                 postPlainSnackbarMessage(
@@ -1634,7 +1672,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         object ScrollToTop : UiEvent()
     }
 
-    // Initialize base flows collection
     init {
         viewModelScope.launch { _transactions.collect() }
         viewModelScope.launch { _upiLiteSummaries.collect() }

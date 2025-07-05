@@ -265,6 +265,7 @@ fun MainAppScreen(
                     onRefreshSmsArchive = onRefreshSmsArchive,
                     onNavigateToRules = { rootNavController.navigate("rule_management") },
                     onNavigateToArchive = { rootNavController.navigate("archived_transactions")},
+                    onNavigateToCategories = { rootNavController.navigate("category_management") },
                     onBackupDatabase = onBackupDatabase, // ✨ PASS IT DOWN
                     onRestoreDatabase = onRestoreDatabase,
                     modifier = Modifier.fillMaxSize()

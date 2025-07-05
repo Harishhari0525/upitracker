@@ -22,4 +22,10 @@ interface CategorySuggestionRuleDao {
 
     @Query("SELECT * FROM category_suggestion_rules ORDER BY priority DESC")
     fun getAllRules(): Flow<List<CategorySuggestionRule>>
+
+    @Query("UPDATE category_suggestion_rules SET categoryName = :newName WHERE categoryName = :oldName")
+    suspend fun updateCategoryNameInRules(oldName: String, newName: String)
+
+    @Query("DELETE FROM category_suggestion_rules WHERE categoryName = :categoryNameToDelete")
+    suspend fun deleteRulesForCategory(categoryNameToDelete: String)
 }

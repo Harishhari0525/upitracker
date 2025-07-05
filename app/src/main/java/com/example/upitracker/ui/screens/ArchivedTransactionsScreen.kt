@@ -94,7 +94,10 @@ fun ArchivedTransactionsScreen(
                             archiveActionText = "Restore",
                             archiveActionIcon = Icons.Default.Restore,
                             categoryColor = categoryColor,
-                            categoryIcon = categoryIcon
+                            categoryIcon = categoryIcon,
+                            onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
+                                mainViewModel.toggleCategoryFilter(categoryName)
+                            }
                         )
                     }
                 }

@@ -65,7 +65,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBackupDatabase: () -> Unit,
     onRestoreDatabase: () -> Unit,
-    onNavigateToArchive: () -> Unit
+    onNavigateToArchive: () -> Unit,
+    onNavigateToCategories: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -146,6 +147,16 @@ fun SettingsScreen(
                 onClick = onNavigateToRules
             )
         }
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Category, // ✨ ADD THIS NEW ITEM
+                title = "Manage Categories",
+                summary = "Add, edit, or delete custom categories",
+                onClick = onNavigateToCategories
+            )
+        }
+
         item {
             SettingItemRow(
                 icon = Icons.Filled.Archive,

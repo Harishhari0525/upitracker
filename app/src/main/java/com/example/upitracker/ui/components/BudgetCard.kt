@@ -10,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -96,15 +95,16 @@ fun BudgetCard(
 @Composable
 private fun CategoryIconView(categoryIcon: CategoryIcon, size: androidx.compose.ui.unit.Dp) {
     when (categoryIcon) {
-        is CategoryIcon.ResourceIcon -> {
+        is CategoryIcon.VectorIcon -> { // ✨ CHANGE: from ResourceIcon to VectorIcon
             Icon(
-                painter = painterResource(id = categoryIcon.id),
+                imageVector = categoryIcon.image, // ✨ CHANGE: use .image instead of painterResource
                 contentDescription = null,
                 modifier = Modifier.size(size),
                 tint = MaterialTheme.colorScheme.secondary
             )
         }
         is CategoryIcon.LetterIcon -> {
+            // This part remains the same
             Box(
                 modifier = Modifier
                     .size(size)

@@ -23,7 +23,6 @@ import com.example.upitracker.data.Transaction
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -35,7 +34,8 @@ fun TransactionCard(
     modifier: Modifier = Modifier,
     transaction: Transaction,
     categoryColor: Color,
-    categoryIcon: CategoryIcon
+    categoryIcon: CategoryIcon,
+    onCategoryClick: (String) -> Unit
 ) {
     val displayDate = remember(transaction.date) {
         try {
@@ -104,7 +104,7 @@ fun TransactionCard(
                 Column {
                     Spacer(Modifier.height(8.dp))
                     AssistChip(
-                        onClick = { /* No action */ },
+                        onClick = { onCategoryClick(transaction.category!!) },
                         label = { Text(transaction.category ?: "", fontWeight = FontWeight.SemiBold) },
                         leadingIcon = {
                             CategoryIconView(categoryIcon = categoryIcon, categoryColor = categoryColor)
@@ -164,14 +164,15 @@ fun TransactionCard(
 @Composable
 private fun CategoryIconView(categoryIcon: CategoryIcon, categoryColor: Color) {
     when (categoryIcon) {
-        is CategoryIcon.ResourceIcon -> {
+        is CategoryIcon.VectorIcon -> { // ✨ CHANGE: from ResourceIcon to VectorIcon
             Icon(
-                painter = painterResource(id = categoryIcon.id),
+                imageVector = categoryIcon.image, // ✨ CHANGE: use .image instead of painterResource
                 contentDescription = null, // Description is handled by the chip's label
                 modifier = Modifier.size(18.dp)
             )
         }
         is CategoryIcon.LetterIcon -> {
+            // This part remains the same
             Box(
                 modifier = Modifier
                     .size(18.dp)

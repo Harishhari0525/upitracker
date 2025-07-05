@@ -2,7 +2,9 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,7 +92,9 @@ fun TransactionHistoryScreen(
                 onClearUncategorizedFilter = { mainViewModel.toggleUncategorizedFilter(false) },
                 onDateFilterClick = { mainViewModel.onFilterClick() },
                 onAmountFilterClick = { mainViewModel.onFilterClick() },
-                onUncategorizedFilterClick = { mainViewModel.onFilterClick() }
+                onUncategorizedFilterClick = { mainViewModel.onFilterClick() },
+                onCategoryChipClick = { categoryName -> mainViewModel.toggleCategoryFilter(categoryName) },
+                onClearAllCategories = { mainViewModel.clearCategoryFilter() }
             )
 
             // Tabs and Pager for content
@@ -306,7 +310,10 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
                                 archiveActionText = "Archive",
                                 archiveActionIcon = Icons.Default.Archive,
                                 categoryColor = categoryColor,
-                                categoryIcon = categoryIcon
+                                categoryIcon = categoryIcon,
+                                onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
+                                    mainViewModel.toggleCategoryFilter(categoryName)
+                                }
                             )
                         }
                     }
@@ -456,90 +463,132 @@ private fun ActiveFiltersRow(
     onClearUncategorizedFilter: () -> Unit,
     onDateFilterClick: () -> Unit,
     onAmountFilterClick: () -> Unit,
-    onUncategorizedFilterClick: () -> Unit
+    onUncategorizedFilterClick: () -> Unit,
+    onCategoryChipClick: (String) -> Unit,
+    onClearAllCategories: () -> Unit
 ) {
-    // This LazyRow scrolls if there are too many active filter chips
-    LazyRow(
+    val showRow = filters.startDate != null ||
+            filters.amountType != AmountFilterType.ALL ||
+            filters.showUncategorized ||
+            filters.selectedCategories.isNotEmpty()
+
+    AnimatedVisibility(visible = showRow) {
+        LazyRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (filters.startDate != null) {
-            item {
-                val formatter = remember {
-                    SimpleDateFormat("dd MMM", Locale.getDefault()).apply {
-                        timeZone = TimeZone.getTimeZone("UTC")
+            if (filters.startDate != null) {
+                item {
+                    val formatter = remember {
+                        SimpleDateFormat("dd MMM", Locale.getDefault()).apply {
+                            timeZone = TimeZone.getTimeZone("UTC")
+                        }
                     }
+                    val start = formatter.format(Date(filters.startDate))
+                    val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
+                    FilterChip(
+                        selected = true, // Make active filters look selected
+                        onClick = onDateFilterClick,
+                        label = { Text("$start - $end") },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Clear date filter",
+                                modifier = Modifier
+                                    .size(FilterChipDefaults.IconSize)
+                                    .clickable(onClick = onClearDateFilter)
+                            )
+                        }
+                    )
                 }
-                val start = formatter.format(Date(filters.startDate))
-                val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
+            }
+
+            if (filters.amountType != AmountFilterType.ALL) {
+                item {
+                    // ✨ START OF THE FIX ✨
+                    val amountFilterText =
+                        remember(filters.amountType, filters.amountValue1, filters.amountValue2) {
+                            // Using the elvis operator `?: ""` replaces a null value with an empty string
+                            val val1 = filters.amountValue1?.toInt()
+                            val val2 = filters.amountValue2?.toInt()
+                            when (filters.amountType) {
+                                AmountFilterType.GREATER_THAN -> "> ₹${val1 ?: ""}"
+                                AmountFilterType.LESS_THAN -> "< ₹${val1 ?: ""}"
+                                AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
+                                else -> "Amount"
+                            }
+                        }
+                    // ✨ END OF THE FIX ✨
+
+                    FilterChip(
+                        selected = true, // Make active filters look selected
+                        onClick = onAmountFilterClick,
+                        label = { Text(amountFilterText) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Clear amount filter",
+                                modifier = Modifier
+                                    .size(FilterChipDefaults.IconSize)
+                                    .clickable(onClick = onClearAmountFilter)
+                            )
+                        }
+                    )
+                }
+            }
+
+            if (filters.showUncategorized) {
+                item {
+                    FilterChip(
+                        selected = true, // Make active filters look selected
+                        onClick = onUncategorizedFilterClick,
+                        label = { Text("Uncategorized") },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Clear uncategorized filter",
+                                modifier = Modifier
+                                    .size(FilterChipDefaults.IconSize)
+                                    .clickable(onClick = onClearUncategorizedFilter)
+                            )
+                        }
+                    )
+                }
+            }
+            items(filters.selectedCategories.toList()) { categoryName ->
                 FilterChip(
-                    selected = true, // Make active filters look selected
-                    onClick = onDateFilterClick,
-                    label = { Text("$start - $end") },
+                    selected = true,
+                    onClick = { /* Tapping the chip itself does nothing */ },
+                    label = { Text(categoryName) },
                     trailingIcon = {
                         Icon(
                             Icons.Default.Cancel,
-                            contentDescription = "Clear date filter",
+                            contentDescription = "Clear $categoryName filter",
                             modifier = Modifier
                                 .size(FilterChipDefaults.IconSize)
-                                .clickable(onClick = onClearDateFilter)
+                                .clickable { onCategoryChipClick(categoryName) } // Click the 'X' to remove
                         )
                     }
                 )
             }
-        }
-
-        if (filters.amountType != AmountFilterType.ALL) {
-            item {
-                // ✨ START OF THE FIX ✨
-                val amountFilterText = remember(filters.amountType, filters.amountValue1, filters.amountValue2) {
-                    // Using the elvis operator `?: ""` replaces a null value with an empty string
-                    val val1 = filters.amountValue1?.toInt()
-                    val val2 = filters.amountValue2?.toInt()
-                    when (filters.amountType) {
-                        AmountFilterType.GREATER_THAN -> "> ₹${val1 ?: ""}"
-                        AmountFilterType.LESS_THAN -> "< ₹${val1 ?: ""}"
-                        AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
-                        else -> "Amount"
-                    }
+            if (filters.selectedCategories.size > 1) {
+                item {
+                    InputChip(
+                        selected = false, // ✨ ADD THIS LINE
+                        onClick = onClearAllCategories,
+                        label = { Text("Clear All") },
+                        enabled = true, // ✨ ADD THIS LINE
+                        colors = InputChipDefaults.inputChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    )
                 }
-                // ✨ END OF THE FIX ✨
-
-                FilterChip(
-                    selected = true, // Make active filters look selected
-                    onClick = onAmountFilterClick,
-                    label = { Text(amountFilterText) },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Default.Cancel,
-                            contentDescription = "Clear amount filter",
-                            modifier = Modifier
-                                .size(FilterChipDefaults.IconSize)
-                                .clickable(onClick = onClearAmountFilter)
-                        )
-                    }
-                )
-            }
-        }
-
-        if (filters.showUncategorized) {
-            item {
-                FilterChip(
-                    selected = true, // Make active filters look selected
-                    onClick = onUncategorizedFilterClick,
-                    label = { Text("Uncategorized") },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Default.Cancel,
-                            contentDescription = "Clear uncategorized filter",
-                            modifier = Modifier
-                                .size(FilterChipDefaults.IconSize)
-                                .clickable(onClick = onClearUncategorizedFilter)
-                        )
-                    }
-                )
             }
         }
     }

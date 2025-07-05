@@ -1,6 +1,7 @@
 package com.example.upitracker.data
 
 import androidx.room.*
+import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -16,6 +17,10 @@ interface TransactionDao {
      */
     @Query("SELECT * FROM transactions WHERE isArchived = 1 ORDER BY date DESC") // ✨ New query for archived
     fun getArchivedTransactions(): Flow<List<Transaction>>
+
+    // ✨ NEW: This is the powerful new function that will handle all filtering and sorting. ✨
+    @RawQuery(observedEntities = [Transaction::class])
+    fun getFilteredTransactions(query: SupportSQLiteQuery): Flow<List<Transaction>>
 
     @Query("SELECT * FROM transactions WHERE amount = :amount AND date = :date AND description = :desc LIMIT 1")
     suspend fun getTransactionByDetails(amount: Double, date: Long, desc: String): Transaction?
@@ -58,5 +63,8 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
     suspend fun updateCategoryName(oldCategory: String, newCategory: String)
+
+    @Query("UPDATE transactions SET category = NULL WHERE category = :categoryName")
+    suspend fun clearCategoryForTransactions(categoryName: String)
 
 }

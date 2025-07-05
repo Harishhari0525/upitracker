@@ -110,6 +110,31 @@ fun MainNavHost(
                 onBack = { navController.popBackStack() }
             )
         }
-        // You might remove the separate "settings" route here if it's solely handled by MainAppScreen's bottom nav.
+
+        composable(
+            "category_management", // ✨ ADD THIS NEW ROUTE
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
+                        fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
+                        fadeOut(animationSpec = tween(300))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
+                        fadeIn(animationSpec = tween(300))
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
+                        fadeOut(animationSpec = tween(300))
+            }
+        ) {
+            // This will call the screen we create in the next step
+            CategoryManagementScreen(
+                mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
