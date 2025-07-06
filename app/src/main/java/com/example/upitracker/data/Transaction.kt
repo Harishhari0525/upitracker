@@ -15,5 +15,6 @@ data class Transaction(
     val category: String? = null, // ✨ New nullable field for category ✨
     val isArchived: Boolean = false,
     val pendingDeletionTimestamp: Long? = null,
-    val linkedTransactionId: Int? = null
+    val linkedTransactionId: Int? = null,
+    val bankName: String? = null
 )

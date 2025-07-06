@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.upitracker.data.RecurringRule
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.util.OnboardingPreference
 import com.example.upitracker.viewmodel.BankMessageCount
@@ -36,6 +37,12 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -126,7 +133,13 @@ fun CurrentMonthExpensesScreen(
                 item {
                     SectionHeader(title = "Bank Activity")
                     Spacer(Modifier.height(8.dp))
-                    BankActivityCard(counts = bankMessageCounts)
+                    BankActivityCard(
+                        counts = bankMessageCounts,
+                        onBankClick = { bankName ->
+                            mainViewModel.setBankFilter(bankName) // Set the filter
+                            onViewAllClick() // Navigate to the history screen
+                        }
+                    )
                 }
 
                 item {
@@ -264,10 +277,14 @@ private fun UpcomingPaymentsSection(rules: List<RecurringRule>) {
 @Composable
 private fun TotalExpensesHeroCard(total: Double, modifier: Modifier = Modifier) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
+
+    // ✨ 1. Define a more expressive, asymmetrical shape.
+    val modernShape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 28.dp, bottomEnd = 28.dp)
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = modernShape, // ✨ 2. Apply the new shape here.
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Changed color for more pop
     ) {
         Row(
             modifier = Modifier
@@ -276,43 +293,76 @@ private fun TotalExpensesHeroCard(total: Double, modifier: Modifier = Modifier) 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Current Month's Expenses", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
                 Text(
-                    currencyFormatter.format(total),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    lineHeight = 40.sp
+                    "Current Month's Expenses",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer // Use theme-aware color
                 )
+                Spacer(Modifier.height(8.dp))
+
+                // ✨ 3. Wrap the amount in AnimatedContent for the "ticking" animation.
+                AnimatedContent(
+                    targetState = total,
+                    transitionSpec = {
+                        if (targetState > initialState) {
+                            // Animate up
+                            slideInVertically { height -> height } togetherWith slideOutVertically { height -> -height }
+                        } else {
+                            // Animate down
+                            slideInVertically { height -> -height } togetherWith slideOutVertically { height -> height }
+                        }
+                    },
+                    label = "totalAmountAnimation"
+                ) { targetTotal ->
+                    Text(
+                        currencyFormatter.format(targetTotal),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer, // Use theme-aware color
+                        lineHeight = 40.sp
+                    )
+                }
             }
             Icon(
-                imageVector = Icons.Filled.TrackChanges,
+                imageVector = Icons.Filled.AccountBalanceWallet,
                 contentDescription = "Monthly Expenses",
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
                     .padding(10.dp),
-                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
 }
 
 @Composable
-private fun BankActivityCard(counts: List<BankMessageCount>) {
+private fun BankActivityCard(
+    counts: List<BankMessageCount>,
+    onBankClick: (String) -> Unit) {
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
     ) {
         if (counts.isNotEmpty()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) { // Reduced vertical padding
                 counts.take(3).forEach { item ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(item.bankName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                        Text("${item.count} messages", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onBankClick(item.bankName) } // ✨ MAKE ROW CLICKABLE
+                            .padding(horizontal = 16.dp, vertical = 12.dp), // Add padding here
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(item.bankName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("${item.count} messages",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

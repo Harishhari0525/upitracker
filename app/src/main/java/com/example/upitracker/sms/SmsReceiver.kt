@@ -42,6 +42,27 @@ class SmsReceiver(
 
             var isUpiRelated = false // Flag to check if SMS was UPI related for backup
 
+            val bankName = when {
+                sender.uppercase().contains("HDFC") -> "HDFC Bank"
+                sender.uppercase().contains("ICICI") -> "ICICI Bank"
+                sender.uppercase().contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
+                sender.uppercase().contains("AXIS") -> "Axis Bank"
+                sender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
+                sender.uppercase().contains("PNB") -> "Punjab National Bank"
+                sender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
+                sender.uppercase().contains("IDBI") -> "IDBI Bank"
+                sender.uppercase().contains("YES") -> "Yes Bank"
+                sender.uppercase().contains("CITI") -> "Citibank"
+                sender.uppercase().contains("BOB") -> "Bank of Baroda"
+                sender.uppercase().contains("UNION") -> "Union Bank of India"
+                sender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
+                sender.uppercase().contains("AU") -> "AU Small Finance Bank"
+                sender.uppercase().contains("FEDERAL") -> "Federal Bank"
+                sender.uppercase().contains("RBL") -> "RBL Bank"
+                sender.uppercase().contains("CREDIT") -> "Credit Bank"
+                else -> null
+            }
+
             // Attempt to parse as UPI Lite Summary first
             val liteSummary = parseUpiLiteSummarySms(body)
             if (liteSummary != null) {
@@ -53,12 +74,6 @@ class SmsReceiver(
                 Log.d("SmsReceiver", "SMS from $sender not a UPI Lite Summary. Attempting regular UPI parse.")
             }
 
-            // If not a Lite Summary OR if you want to parse even if it was a Lite Summary (adjust logic above)
-            // For now, assuming if it's a lite summary, we don't try to parse as regular UPI for backup purposes
-            // but we DO want to back it up if it was a lite summary.
-
-            // If it wasn't a Lite Summary, try regular UPI parse.
-            // If it *was* a Lite Summary, `isUpiRelated` is true, so we'll back it up after this block.
             if (!isUpiRelated) { // Only attempt regular parse if not already identified as Lite summary
                 receiverScope.launch {
                     var customRegexPatterns: List<Regex> = emptyList()
@@ -73,7 +88,8 @@ class SmsReceiver(
                         message = body,
                         sender = sender,
                         smsDate = smsTimestamp,
-                        customRegexList = customRegexPatterns
+                        customRegexList = customRegexPatterns,
+                        bankName = bankName
                     )
                     if (transaction != null) {
                         Log.i("SmsReceiver", "Successfully parsed UPI Transaction: $transaction")

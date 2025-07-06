@@ -15,7 +15,8 @@ fun parseUpiSms(
     message: String,
     sender: String,
     smsDate: Long,
-    customRegexList: List<Regex> = emptyList() // Custom regex from user preferences
+    customRegexList: List<Regex> = emptyList(),
+    bankName: String? = null
 ): Transaction? {
     // Combine custom patterns (if any) with defaults, then remove duplicates
     val allRegexToTry = (customRegexList + defaultRegexList).distinct()
@@ -40,7 +41,7 @@ fun parseUpiSms(
                     ?.lowercase(Locale.getDefault())
 
                 // 3) Infer transaction type (DEBIT or CREDIT). First check the captured group:
-                var type: String = when {
+                val type: String = when {
                     actionKeyword?.contains("debit") == true ||
                             actionKeyword?.contains("sent") == true ||
                             actionKeyword?.contains("paid") == true ||
@@ -91,16 +92,13 @@ fun parseUpiSms(
                     date = smsDate,
                     description = description,
                     senderOrReceiver = counterpartyInMsg,
-                    note = noteMsg
+                    note = noteMsg,
+                    bankName = bankName
                 )
-            } catch (ex: Exception) {
-                // If anything goes wrong inside this try (unlikely once groups are correct),
-                // skip to the next regex pattern.
+            } catch (_: Exception) {
                 continue
             }
         }
     }
-
-    // No regex matched -> not a valid UPI SMS we care about
     return null
 }

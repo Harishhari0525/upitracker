@@ -386,6 +386,27 @@ class MainActivity : FragmentActivity() {
             for ((sender, body, smsDate) in smsList) {
                 var isUpiRelated = false
 
+                val bankName = when {
+                    sender.uppercase().contains("HDFC") -> "HDFC Bank"
+                    sender.uppercase().contains("ICICI") -> "ICICI Bank"
+                    sender.uppercase().contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
+                    sender.uppercase().contains("AXIS") -> "Axis Bank"
+                    sender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
+                    sender.uppercase().contains("PNB") -> "Punjab National Bank"
+                    sender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
+                    sender.uppercase().contains("IDBI") -> "IDBI Bank"
+                    sender.uppercase().contains("YES") -> "Yes Bank"
+                    sender.uppercase().contains("CITI") -> "Citibank"
+                    sender.uppercase().contains("BOB") -> "Bank of Baroda"
+                    sender.uppercase().contains("UNION") -> "Union Bank of India"
+                    sender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
+                    sender.uppercase().contains("AU") -> "AU Small Finance Bank"
+                    sender.uppercase().contains("FEDERAL") -> "Federal Bank"
+                    sender.uppercase().contains("RBL") -> "RBL Bank"
+                    sender.uppercase().contains("CREDIT") -> "Credit Bank"
+                    else -> null
+                }
+
                 parseUpiLiteSummarySms(body)?.let { summary ->
                     isUpiRelated = true
                     val existing = liteDao.getSummaryByDateAndBank(summary.date, summary.bank)
@@ -398,7 +419,7 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
-                parseUpiSms(body, sender, smsDate, customRegexPatterns)?.let { transaction ->
+                parseUpiSms(body, sender, smsDate, customRegexPatterns, bankName)?.let { transaction ->
                     isUpiRelated = true
                     // Check if a transaction with the same core details already exists
                     if (dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description) == null) {

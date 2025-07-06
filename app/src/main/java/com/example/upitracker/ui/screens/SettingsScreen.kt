@@ -215,6 +215,15 @@ fun SettingsScreen(
 
         item {
             SettingItemRow(
+                icon = Icons.Filled.SyncLock,
+                title = "Re-Sync Bank Names",
+                summary = "Update older transactions with bank data",
+                onClick = { mainViewModel.backfillBankNames() }
+            )
+        }
+
+        item {
+            SettingItemRow(
                 icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
                 title = "Import from All SMS",
                 summary = if (isImportingSms) "Import in progress..." else "One-time import from entire SMS inbox",

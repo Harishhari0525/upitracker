@@ -94,7 +94,8 @@ fun TransactionHistoryScreen(
                 onAmountFilterClick = { mainViewModel.onFilterClick() },
                 onUncategorizedFilterClick = { mainViewModel.onFilterClick() },
                 onCategoryChipClick = { categoryName -> mainViewModel.toggleCategoryFilter(categoryName) },
-                onClearAllCategories = { mainViewModel.clearCategoryFilter() }
+                onClearAllCategories = { mainViewModel.clearCategoryFilter() },
+                onClearBankFilter = { mainViewModel.setBankFilter(null) }
             )
 
             // Tabs and Pager for content
@@ -465,12 +466,14 @@ private fun ActiveFiltersRow(
     onAmountFilterClick: () -> Unit,
     onUncategorizedFilterClick: () -> Unit,
     onCategoryChipClick: (String) -> Unit,
-    onClearAllCategories: () -> Unit
+    onClearAllCategories: () -> Unit,
+    onClearBankFilter: () -> Unit
 ) {
     val showRow = filters.startDate != null ||
             filters.amountType != AmountFilterType.ALL ||
             filters.showUncategorized ||
-            filters.selectedCategories.isNotEmpty()
+            filters.selectedCategories.isNotEmpty() ||
+            filters.bankNameFilter != null
 
     AnimatedVisibility(visible = showRow) {
         LazyRow(
@@ -573,6 +576,27 @@ private fun ActiveFiltersRow(
                     }
                 )
             }
+
+            if (filters.bankNameFilter != null) {
+                item {
+                    FilterChip(
+                        selected = true,
+                        onClick = { /* No action on click */ },
+                        label = { Text(filters.bankNameFilter) },
+                        leadingIcon = { Icon(Icons.Filled.AccountBalance, contentDescription = "Bank Filter") },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Clear bank filter",
+                                modifier = Modifier
+                                    .size(FilterChipDefaults.IconSize)
+                                    .clickable(onClick = onClearBankFilter)
+                            )
+                        }
+                    )
+                }
+            }
+
             if (filters.selectedCategories.size > 1) {
                 item {
                     InputChip(

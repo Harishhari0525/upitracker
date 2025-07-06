@@ -166,7 +166,8 @@ data class TransactionFilters(
     val amountValue1: Double?,
     val amountValue2: Double?,
     val showOnlyLinked: Boolean = false,
-    val selectedCategories: Set<String> = emptySet()
+    val selectedCategories: Set<String> = emptySet(),
+    val bankNameFilter: String? = null
 )
 
 data class BankMessageCount(val bankName: String, val count: Int)
@@ -281,6 +282,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _bankFilter = MutableStateFlow<String?>(null)
+
     private val _nonRefundDebits: StateFlow<List<Transaction>> =
         combine(_transactions, refundKeyword) { transactions, keyword ->
             transactions.filter {
@@ -365,13 +368,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentFilters.copy(showOnlyLinked = showLinked)
     }.combine(_categoryFilter) { currentFilters, categories -> // ✨ ADD THIS
         currentFilters.copy(selectedCategories = categories)
+    }.combine(_bankFilter) { currentFilters, bank -> // ✨ ADD THIS
+        currentFilters.copy(bankNameFilter = bank)
     }
         .stateIn(
         scope = viewModelScope,
         started = SharingStarted.Lazily,
         initialValue = TransactionFilters(
             UpiTransactionTypeFilter.ALL, null, null, "",
-            false, AmountFilterType.ALL, null, null, false, emptySet()
+            false, AmountFilterType.ALL, null, null,
+            false, emptySet(), null
         )
     )
 
@@ -414,6 +420,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         calendar.add(Calendar.MONTH, 1); calendar.add(Calendar.MILLISECOND, -1)
         val monthEnd = calendar.timeInMillis
         return monthStart to monthEnd
+    }
+
+    // Add this new public function
+    fun setBankFilter(bankName: String?) {
+        _bankFilter.value = bankName
     }
 
     private fun getPreviousYearRange(): Pair<Long, Long> {
@@ -641,6 +652,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val placeholders = currentFilters.selectedCategories.joinToString { "?" }
                 queryBuilder.append(" AND category IN ($placeholders)")
                 args.addAll(currentFilters.selectedCategories)
+            }
+            currentFilters.bankNameFilter?.let { bankName ->
+                queryBuilder.append(" AND bankName = ?")
+                args.add(bankName)
             }
 
             when (currentFilters.amountType) {
@@ -1096,6 +1111,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             recurringRuleDao.delete(rule)
             postPlainSnackbarMessage("Recurring transaction deleted.")
+        }
+    }
+
+    fun backfillBankNames() {
+        viewModelScope.launch(Dispatchers.IO) {
+            postPlainSnackbarMessage("Starting bank name sync...")
+            val allTransactions = transactionDao.getAllTransactions().first()
+            val transactionsToUpdate = allTransactions.filter { it.bankName.isNullOrEmpty() }
+
+            if (transactionsToUpdate.isEmpty()) {
+                postPlainSnackbarMessage("All transactions are already up to date.")
+                return@launch
+            }
+
+            val allSms = archivedSmsDao.getAllArchivedSms().first()
+            var updatedCount = 0
+
+            // Create a lookup map from SMS messages for efficiency
+            val smsBankLookup = allSms.associateBy(
+                keySelector = { it.originalBody.trim() }, // Use the SMS body as a key
+                valueTransform = {
+                    when {
+                        it.originalSender.uppercase().contains("HDFC") -> "HDFC Bank"
+                        it.originalSender.uppercase().contains("ICICI") -> "ICICI Bank"
+                        it.originalSender.uppercase().contains("SBI") || it.originalSender.contains("SBIN") -> "State Bank of India"
+                        it.originalSender.uppercase().contains("AXIS") -> "Axis Bank"
+                        it.originalSender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
+                        it.originalSender.uppercase().contains("PNB") -> "Punjab National Bank"
+                        it.originalSender.uppercase().contains("UNION") -> "Union Bank of India"
+                        it.originalSender.uppercase().contains("CITI") -> "Citibank"
+                        it.originalSender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
+                        it.originalSender.uppercase().contains("IDBI") -> "IDBI Bank"
+                        it.originalSender.uppercase().contains("BANK OF BARODA") -> "Bank of Baroda"
+                        it.originalSender.uppercase().contains("YES BANK") -> "Yes Bank"
+                        it.originalSender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
+                        it.originalSender.uppercase().contains("FEDERAL") -> "Federal Bank"
+                        it.originalSender.uppercase().contains("RBL") -> "RBL Bank"
+                        it.originalSender.uppercase().contains("AU SMALL FINANCE BANK") -> "AU Small Finance Bank"
+                        else -> null
+                    }
+                }
+            )
+
+            transactionsToUpdate.forEach { transaction ->
+                // Find the matching SMS and get its bank name
+                val bankName = smsBankLookup[transaction.description.trim()]
+                if (bankName != null) {
+                    transactionDao.update(transaction.copy(bankName = bankName))
+                    updatedCount++
+                }
+            }
+            postPlainSnackbarMessage("Sync complete. Updated $updatedCount transactions.")
         }
     }
 
