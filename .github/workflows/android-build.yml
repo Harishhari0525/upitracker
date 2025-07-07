@@ -1,4 +1,4 @@
-name: Build Release APK
+name: Build Signed Release APK
 
 on:
   push:
@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Check out the code
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -24,7 +23,6 @@ jobs:
           echo "Extracted version: $VERSION_NAME"
           echo "APP_VERSION=$VERSION_NAME" >> $GITHUB_OUTPUT
 
-      # 2) Set up JDK for the build
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -32,41 +30,28 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      # 3) Set up the Android SDK (subosito/android-action installs
-      #    command-line tools + specified platforms/build-tools)
-      - name: Set up Android SDK
-        uses: subosito/android-action@v2
-        with:
-          sdk: |
-            platform-tools
-            platforms;android-31
-            build-tools;31.0.0
-
-      # 4) Cache Gradle wrapper & dependencies to speed up future builds
-      - name: Cache Gradle packages
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          # Cache key includes all Gradle build files so cache invalidates when dependencies change
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      # 5) Build the release APK
-      - name: Build Release APK
+      # ✨ START: NEW STEP TO DECODE KEYSTORE ✨
+      - name: Decode and Install Release Keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > ${{ github.workspace }}/release.jks
+      # ✨ END: NEW STEP ✨
+      
+      - name: Build Signed Release APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          # ✨ Pass the secrets securely as properties to the Gradle command ✨
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=${{ github.workspace }}/release.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.RELEASE_KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.RELEASE_KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.RELEASE_KEY_PASSWORD }}
 
-      # 6) Prepare Release APK
       - name: Prepare Release APK
         run: |
           mkdir -p releases
+          # The signed APK is still named app-release.apk
           cp app/build/outputs/apk/release/app-release.apk "releases/UPIExpenseTracker.apk"
 
-   
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v1
         env:
@@ -76,7 +61,6 @@ jobs:
           name: Release v${{ steps.extract_version.outputs.APP_VERSION }}
           body: |
             Release of version ${{ steps.extract_version.outputs.APP_VERSION }}.
-            APK attached as "UPI Expense Tracker.apk".
           files: "releases/UPIExpenseTracker.apk"
           draft: false
           prerelease: false
