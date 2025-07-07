@@ -245,7 +245,21 @@ private fun UpcomingPaymentsSection(rules: List<RecurringRule>) {
                             Text("${currencyFormatter.format(rule.amount)} • Due ${SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(rule.nextDueDate))}")
                         },
                         trailingContent = {
-                            val daysUntil = TimeUnit.MILLISECONDS.toDays(rule.nextDueDate - System.currentTimeMillis())
+                            val today = Calendar.getInstance().apply {
+                                set(Calendar.HOUR_OF_DAY, 0)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            val dueDate = Calendar.getInstance().apply {
+                                timeInMillis = rule.nextDueDate
+                                set(Calendar.HOUR_OF_DAY, 0)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            val diff = dueDate.timeInMillis - today.timeInMillis
+                            val daysUntil = TimeUnit.MILLISECONDS.toDays(diff)
                             val dueText = when {
                                 daysUntil < 0 -> "Overdue"
                                 daysUntil == 0L -> "Today"
