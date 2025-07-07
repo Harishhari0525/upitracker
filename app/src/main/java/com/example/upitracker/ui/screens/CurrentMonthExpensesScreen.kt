@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.ui.text.style.TextOverflow
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import androidx.compose.animation.AnimatedContent
@@ -43,6 +42,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import java.text.SimpleDateFormat
 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -106,8 +106,8 @@ fun CurrentMonthExpensesScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                contentPadding = PaddingValues(bottom = 10.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 4.dp)
             ) {
                 stickyHeader {
                     Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
@@ -126,7 +126,7 @@ fun CurrentMonthExpensesScreen(
                                 }
                             )
                         )
-                        Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
 
@@ -162,7 +162,7 @@ fun CurrentMonthExpensesScreen(
                             )
                         )
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         if (recentTransactions.isEmpty()) {
                             Box(
@@ -218,8 +218,6 @@ fun CurrentMonthExpensesScreen(
         }
     }
 }
-
-
 @Composable
 private fun UpcomingPaymentsSection(rules: List<RecurringRule>) {
     val upcomingRules = rules.take(3)
@@ -228,32 +226,25 @@ private fun UpcomingPaymentsSection(rules: List<RecurringRule>) {
         Column {
             SectionHeader(title = "Upcoming Payments")
             Spacer(Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor =
-                    MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    upcomingRules.forEachIndexed { index, rule ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = rule.description,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f), // This is the key change
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.width(16.dp))
 
+            // The parent Card has been removed.
+            // This Column now handles the spacing between each floating list item.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                upcomingRules.forEach { rule ->
+                    // Each ListItem is now styled individually to look like a card.
+                    ListItem(
+                        modifier = Modifier.clip(MaterialTheme.shapes.large),
+                        headlineContent = {
+                            Text(rule.description, fontWeight = FontWeight.SemiBold)
+                        },
+                        supportingContent = {
+                            val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
+                            Text("${currencyFormatter.format(rule.amount)} • Due ${SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(rule.nextDueDate))}")
+                        },
+                        trailingContent = {
                             val daysUntil = TimeUnit.MILLISECONDS.toDays(rule.nextDueDate - System.currentTimeMillis())
                             val dueText = when {
                                 daysUntil < 0 -> "Overdue"
@@ -262,29 +253,29 @@ private fun UpcomingPaymentsSection(rules: List<RecurringRule>) {
                                 else -> "in $daysUntil days"
                             }
                             Text(dueText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                        }
-                        if (index < upcomingRules.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                        }
-                    }
+                        },
+                        // Apply the same colors as the Bank Activity items for consistency.
+                        colors = ListItemDefaults.colors(
+                            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                        )
+                    )
                 }
             }
         }
     }
 }
-
-// --- FIX: Added modifier parameter ---
 @Composable
 private fun TotalExpensesHeroCard(total: Double, modifier: Modifier = Modifier) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
 
     // ✨ 1. Define a more expressive, asymmetrical shape.
-    val modernShape = RoundedCornerShape(topStart = 28.dp, topEnd = 8.dp, bottomStart = 28.dp, bottomEnd = 28.dp)
+    val modernShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 28.dp, bottomEnd = 8.dp)
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = modernShape, // ✨ 2. Apply the new shape here.
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Changed color for more pop
+        shape = modernShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Row(
             modifier = Modifier
@@ -330,7 +321,7 @@ private fun TotalExpensesHeroCard(total: Double, modifier: Modifier = Modifier) 
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    .padding(10.dp),
+                    .padding(6.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
         }
@@ -340,31 +331,37 @@ private fun TotalExpensesHeroCard(total: Double, modifier: Modifier = Modifier) 
 @Composable
 private fun BankActivityCard(
     counts: List<BankMessageCount>,
-    onBankClick: (String) -> Unit) {
-
-    Card(
+    onBankClick: (String) -> Unit
+) {
+    // We no longer use a parent Card. The Column is now the root.
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
+        verticalArrangement = Arrangement.spacedBy(8.dp) // Adds space between each item
     ) {
         if (counts.isNotEmpty()) {
-            Column(modifier = Modifier.padding(vertical = 4.dp)) { // Reduced vertical padding
-                counts.take(3).forEach { item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onBankClick(item.bankName) } // ✨ MAKE ROW CLICKABLE
-                            .padding(horizontal = 16.dp, vertical = 12.dp), // Add padding here
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(item.bankName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold)
-                        Text("${item.count} messages",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+            counts.take(3).forEach { item ->
+                ListItem(
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.large) // Apply the shape directly to the item
+                        .clickable { onBankClick(item.bankName) },
+                    headlineContent = {
+                        Text(item.bankName, fontWeight = FontWeight.SemiBold)
+                    },
+                    trailingContent = {
+                        Text("${item.count} messages", style = MaterialTheme.typography.bodyMedium)
+                    },
+                    leadingContent = {
+                        Icon(
+                            Icons.Filled.AccountBalance,
+                            contentDescription = "Bank",
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    },
+                    // This gives each item its own background and elevation color
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                    )
+                )
             }
         }
     }

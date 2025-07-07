@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -200,6 +201,7 @@ private fun PageContent(
     var currentlySelectedCategoryNameForPie by remember { mutableStateOf<String?>(null) }
     var selectedIncomeExpensePoint by remember { mutableStateOf<IncomeExpensePoint?>(null) }
 
+    val chartCardShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
 
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -238,7 +240,7 @@ private fun PageContent(
                         Text(stringResource(R.string.graph_daily_trend_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize()) {
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize(),shape = chartCardShape) {
                         SimpleDailyExpenseLineChart(
                             dailyExpenses = dailyTrendExpenses,
                             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -320,7 +322,7 @@ private fun PageContent(
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
-                        ElevatedCard(modifier = Modifier.fillMaxSize().animateContentSize()) {
+                        ElevatedCard(modifier = Modifier.fillMaxSize().animateContentSize(),shape = chartCardShape) {
                             SimpleMonthlyExpenseBarChart(
                                 monthlyExpenses = lastNMonthsExpenses,
                                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -434,7 +436,7 @@ private fun PageContent(
                         Text(stringResource(R.string.graph_category_pie_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize()) {
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize(),shape = chartCardShape) {
                         CategorySpendingPieChart(
                             categoryExpenses = categoryData,
                             modifier = Modifier.fillMaxSize(),
@@ -508,7 +510,7 @@ private fun PageContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize()) {
+                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize(),shape = chartCardShape) {
                         // ✨ 3. PASS the selection lambda to the chart ✨
                         IncomeExpenseGroupedBarChart(
                             data = recentData,

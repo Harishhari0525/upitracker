@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,9 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.upitracker.util.getCategoryIcon
+import androidx.compose.foundation.shape.CircleShape
+import com.example.upitracker.util.CategoryIcon
 
 @Composable
 fun TransactionDetailSheetContent(
@@ -81,8 +85,13 @@ fun TransactionDetailSheetContent(
             )
             Spacer(Modifier.height(8.dp))
 
-            val filteredSuggestions = remember(categoryText, userCategories) {
-                if (categoryText.isBlank()) userCategories else userCategories.filter { it.contains(categoryText, ignoreCase = true) }
+            val filteredSuggestions = remember(key1 = categoryText, key2 = userCategories) {
+                if (categoryText.isBlank()) {
+                    userCategories
+                } else {
+                    // Just add .name before .contains
+                    userCategories.filter { it.name.contains(categoryText, ignoreCase = true) }
+                }
             }
             if (filteredSuggestions.isNotEmpty()) {
                 Text("Suggestions", style = MaterialTheme.typography.titleSmall)
@@ -94,9 +103,38 @@ fun TransactionDetailSheetContent(
                 ) {
                     filteredSuggestions.forEach { category ->
                         FilterChip(
-                            selected = categoryText.equals(category, ignoreCase = true),
-                            onClick = { categoryText = category },
-                            label = { Text(category) }
+                            selected = categoryText.equals(category.name, ignoreCase = true),
+                            onClick = { categoryText = category.name },
+                            label = { Text(category.name) },
+                            leadingIcon = {
+                                val categoryIcon = getCategoryIcon(category)
+                                when (categoryIcon) {
+                                    is CategoryIcon.VectorIcon -> {
+                                        Icon(
+                                            imageVector = categoryIcon.image,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                        )
+                                    }
+                                    is CategoryIcon.LetterIcon -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(FilterChipDefaults.IconSize)
+                                                .background(
+                                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                                    shape = CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = categoryIcon.letter.toString(),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         )
                     }
                 }

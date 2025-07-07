@@ -18,5 +18,6 @@ data class Budget(
     val periodType: BudgetPeriod, // WEEKLY, MONTHLY, or YEARLY
     val startDate: Long, // The timestamp for the first millisecond of the budget period
     val isActive: Boolean = true, // To enable/disable budgets without deleting
-    val allowRollover: Boolean = false
+    val allowRollover: Boolean = false,
+    val lastNotificationTimestamp: Long = 0L
 )

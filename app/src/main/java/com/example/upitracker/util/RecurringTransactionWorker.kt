@@ -7,6 +7,8 @@ import androidx.work.WorkerParameters
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
 import java.util.Calendar
+import com.example.upitracker.util.NotificationHelper
+import java.util.concurrent.TimeUnit
 
 class RecurringTransactionWorker(
     appContext: Context,
@@ -25,42 +27,40 @@ class RecurringTransactionWorker(
             val transactionDao = db.transactionDao()
             val now = System.currentTimeMillis()
 
-            // 1. Get all rules that are due
             val dueRules = recurringRuleDao.getDueRules(now)
-            Log.d(WORK_NAME, "Found ${dueRules.size} due rules to process.")
+            if (dueRules.isNotEmpty()) {
+                Log.d(WORK_NAME, "Found ${dueRules.size} due rules to process.")
+                for (rule in dueRules) {
+                    val newTransaction = Transaction(
+                        amount = rule.amount, type = "DEBIT", date = rule.nextDueDate,
+                        description = rule.description, senderOrReceiver = "Recurring", category = rule.categoryName
+                    )
+                    transactionDao.insert(newTransaction)
+                    Log.d(WORK_NAME, "Created transaction for '${rule.description}'.")
 
-            for (rule in dueRules) {
-                // 2. For each due rule, create a new Transaction
-                val newTransaction = Transaction(
-                    amount = rule.amount,
-                    type = "DEBIT", // Recurring transactions are always debits
-                    date = rule.nextDueDate, // Use the due date as the transaction date
-                    description = rule.description,
-                    senderOrReceiver = "Recurring", // Mark the source
-                    category = rule.categoryName
-                )
-                transactionDao.insert(newTransaction)
-                Log.d(WORK_NAME, "Created transaction for '${rule.description}'.")
-
-
-                // 3. Calculate the NEXT due date and update the rule
-                val calendar = Calendar.getInstance().apply {
-                    timeInMillis = rule.nextDueDate
+                    val calendar = Calendar.getInstance().apply { timeInMillis = rule.nextDueDate }
+                    when (rule.periodType) {
+                        com.example.upitracker.data.BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
+                        com.example.upitracker.data.BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                        com.example.upitracker.data.BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
+                    }
+                    val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+                    calendar.set(Calendar.DAY_OF_MONTH, rule.dayOfPeriod.coerceAtMost(maxDayInMonth))
+                    val updatedRule = rule.copy(nextDueDate = calendar.timeInMillis)
+                    recurringRuleDao.update(updatedRule)
                 }
+            }
 
-                when (rule.periodType) {
-                    com.example.upitracker.data.BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
-                    com.example.upitracker.data.BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
-                    com.example.upitracker.data.BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
+            // --- ✨ Section 2: Notify for UPCOMING rules (New Logic) ---
+            val twoDaysInMillis = TimeUnit.DAYS.toMillis(2)
+            val upcomingRules = recurringRuleDao.getUpcomingRules(now, now + twoDaysInMillis)
+            if (upcomingRules.isNotEmpty()) {
+                Log.d(WORK_NAME, "Found ${upcomingRules.size} upcoming rules to notify about.")
+                // Ensure notification channel exists
+                NotificationHelper.createNotificationChannels(applicationContext)
+                upcomingRules.forEach { rule ->
+                    NotificationHelper.showUpcomingPaymentNotification(applicationContext, rule)
                 }
-
-                val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-                calendar.set(Calendar.DAY_OF_MONTH, rule.dayOfPeriod.coerceAtMost(maxDayInMonth))
-
-                val updatedRule = rule.copy(nextDueDate = calendar.timeInMillis)
-
-                recurringRuleDao.update(updatedRule)
-                Log.d(WORK_NAME, "Updated rule '${rule.description}' to next due date: ${calendar.time}")
             }
 
             Log.i(WORK_NAME, "Worker finished successfully.")

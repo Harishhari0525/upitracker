@@ -32,6 +32,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import com.example.upitracker.util.getCategoryIcon
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.upitracker.util.NotificationHelper
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -50,6 +56,24 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
     var showRecurringHelpDialog by remember { mutableStateOf(false) }
 
     var ruleForForecast by remember { mutableStateOf<RecurringRule?>(null) }
+
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (!isGranted) {
+                mainViewModel.postPlainSnackbarMessage("Notifications for upcoming payments will not be shown.")
+            }
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        NotificationHelper.createNotificationChannels(context)
+        // Request permission if on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
 
     if (showAddBudgetDialog) {

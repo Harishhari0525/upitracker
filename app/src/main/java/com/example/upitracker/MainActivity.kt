@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import java.util.concurrent.TimeUnit
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import com.example.upitracker.util.BudgetCheckerWorker
 import com.example.upitracker.util.CryptoManager
 
 class MainActivity : FragmentActivity() {
@@ -157,6 +158,7 @@ class MainActivity : FragmentActivity() {
         scheduleArchivedSmsCleanup()
         schedulePermanentDeleteWorker()
         scheduleRecurringTransactionWorker()
+        scheduleBudgetCheckerWorker()
 
         // ... (db, dao, smsReceiver setup remains the same)
         val db = AppDatabase.getDatabase(this); val liteDao = db.upiLiteSummaryDao()
@@ -544,6 +546,19 @@ class MainActivity : FragmentActivity() {
             deleteRequest
         )
         Log.d("MainActivity", "Periodic permanent delete worker scheduled.")
+    }
+
+    private fun scheduleBudgetCheckerWorker() {
+        val budgetCheckRequest =
+            PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12, TimeUnit.HOURS)
+                .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            BudgetCheckerWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            budgetCheckRequest
+        )
+        Log.d("MainActivity", "Periodic budget checker worker scheduled.")
     }
 
     override fun onDestroy() {

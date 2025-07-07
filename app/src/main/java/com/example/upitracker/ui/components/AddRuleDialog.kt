@@ -2,6 +2,7 @@ package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,12 +14,14 @@ import com.example.upitracker.data.RuleMatcher
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.input.KeyboardType
+import com.example.upitracker.data.RuleLogic
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRuleDialog(
     onDismiss: () -> Unit,
-    onConfirm: (field: RuleField, matcher: RuleMatcher, keyword: String, category: String, priority: Int) -> Unit
+    onConfirm: (field: RuleField, matcher: RuleMatcher, keyword: String, category: String, priority: Int, logic: RuleLogic) -> Unit
 ) {
     var keyword by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -28,6 +31,7 @@ fun AddRuleDialog(
     var isFieldExpanded by remember { mutableStateOf(false) }
     var isMatcherExpanded by remember { mutableStateOf(false) }
     var priorityText by remember { mutableStateOf("0") }
+    var selectedLogic by remember { mutableStateOf(RuleLogic.ANY) }
 
 
     AlertDialog(
@@ -70,14 +74,32 @@ fun AddRuleDialog(
                     }
                 }
 
-                // Keyword to search for
+                Text("Matching Logic", style = MaterialTheme.typography.labelLarge)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        onClick = { selectedLogic = RuleLogic.ANY },
+                        selected = selectedLogic == RuleLogic.ANY
+                    ) {
+                        Text("(OR)")
+                    }
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        onClick = { selectedLogic = RuleLogic.ALL },
+                        selected = selectedLogic == RuleLogic.ALL
+                    ) {
+                        Text("(AND)")
+                    }
+                }
+
+
                 OutlinedTextField(
                     value = keyword, onValueChange = { keyword = it },
-                    label = { Text("Keyword (e.g. Zomato)") },
+                    label = { Text("Keywords (e.g. Zomato, Swiggy)") }, // ✨ CHANGED LABEL
+                    supportingText = { Text("Separate multiple keywords with a comma.") }, // ✨ ADDED SUPPORTING TEXT
                     singleLine = true
                 )
 
-                // Category to apply
                 OutlinedTextField(
                     value = category, onValueChange = { category = it },
                     label = { Text("Category to Apply (e.g. Food)") },
@@ -98,7 +120,7 @@ fun AddRuleDialog(
             Button(
                 onClick = {
                     if (keyword.isNotBlank() && category.isNotBlank()) {
-                        onConfirm(selectedField, selectedMatcher, keyword, category, priorityText.toIntOrNull() ?: 0)
+                        onConfirm(selectedField, selectedMatcher, keyword, category, priorityText.toIntOrNull() ?: 0, selectedLogic)
                     }
                 }
             ) { Text("Save Rule") }

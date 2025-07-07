@@ -8,7 +8,11 @@ import java.util.Locale
 private val defaultRegexList = listOf(
     Regex("""(?:debited|credited).*\bRs\.?\s*([0-9,.]+).*\bUPI\b""", RegexOption.IGNORE_CASE),
     Regex("""UPI.*\bRs\.?\s*([0-9,.]+).*(debited|credited)""", RegexOption.IGNORE_CASE)
-    // Add back any other default patterns here if needed
+)
+
+private val rejectionKeywords = listOf(
+    "outstanding", "o/s", "available balance", "a/c bal", "statement", "is rs.", "is inr", "offer", "reward",
+    "cashback", "revoked", "declined", "rejected", "failed", "cancelled", "not processed", "not completed", "unblocked"
 )
 
 fun parseUpiSms(
@@ -22,6 +26,10 @@ fun parseUpiSms(
     val allRegexToTry = (customRegexList + defaultRegexList).distinct()
     // Lower‐cased version of the entire SMS text, for fallback keyword checks
     val messageLower = message.lowercase(Locale.getDefault())
+
+    if (rejectionKeywords.any { messageLower.contains(it) }) {
+        return null // If it does, ignore this SMS immediately.
+    }
 
     // Try each regex in turn. As soon as one matches, we extract groupValues etc.
     for (regex in allRegexToTry) {

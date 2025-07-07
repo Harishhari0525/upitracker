@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
+import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
 
@@ -381,18 +382,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
 
-    val userCategories: StateFlow<List<String>> = _transactions
-        .map { allTransactions ->
-            allTransactions
+    val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val userCategories: StateFlow<List<Category>> =
+        combine(_transactions, allCategories) { transactions, allCategories ->
+            // Create a map of category names to their full Category objects for easy lookup
+            val categoryMap = allCategories.associateBy { it.name }
+
+            // Count the frequency of each category name in the transactions
+            val frequentCategoryNames = transactions
                 .filter { !it.category.isNullOrBlank() }
                 .groupingBy { it.category!! }
                 .eachCount()
                 .toList()
-                .sortedByDescending { it.second }
-                .take(7)
-                .map { it.first }
+                .sortedByDescending { it.second } // Sort by most used
+                .take(7) // Take the top 7
+                .map { it.first } // Get just the names
+
+            // Map the frequent names back to their full Category objects
+            frequentCategoryNames.mapNotNull { name -> categoryMap[name] }
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
@@ -1033,8 +1044,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
 
 
     fun setUpiTransactionTypeFilter(filter: UpiTransactionTypeFilter) {
@@ -1366,13 +1376,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         RuleField.SENDER_OR_RECEIVER -> transaction.senderOrReceiver
                     }.lowercase()
 
-                    val keyword = rule.keyword.lowercase()
+                    val keywords = rule.keyword.split(',').map { it.trim().lowercase() }.filter { it.isNotBlank() }
+                    var isMatch = false
 
-                    val isMatch = when (rule.matcher) {
-                        RuleMatcher.CONTAINS -> textToMatch.contains(keyword)
-                        RuleMatcher.EQUALS -> textToMatch == keyword
-                        RuleMatcher.STARTS_WITH -> textToMatch.startsWith(keyword)
-                        RuleMatcher.ENDS_WITH -> textToMatch.endsWith(keyword)
+                    if (keywords.isNotEmpty()) {
+                        val checkMatch: (String) -> Boolean = { keyword ->
+                            when (rule.matcher) {
+                                RuleMatcher.CONTAINS -> textToMatch.contains(keyword)
+                                RuleMatcher.EQUALS -> textToMatch == keyword
+                                RuleMatcher.STARTS_WITH -> textToMatch.startsWith(keyword)
+                                RuleMatcher.ENDS_WITH -> textToMatch.endsWith(keyword)
+                            }
+                        }
+
+                        isMatch = if (rule.logic == RuleLogic.ALL) {
+                            // AND logic: all keywords must match
+                            keywords.all { checkMatch(it) }
+                        } else {
+                            // OR logic: any keyword can match
+                            keywords.any { checkMatch(it) }
+                        }
                     }
 
                     if (isMatch) {
@@ -1453,7 +1476,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         matcher: RuleMatcher,
         keyword: String,
         category: String,
-        priority: Int
+        priority: Int,
+        logic: RuleLogic
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             if (keyword.isNotBlank() && category.isNotBlank()) {
@@ -1462,7 +1486,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     matcher = matcher,
                     keyword = keyword,
                     categoryName = category,
-                    priority = priority
+                    priority = priority,
+                    logic = logic
                 )
                 categorySuggestionRuleDao.insert(newRule)
                 postPlainSnackbarMessage("New categorization rule saved.")

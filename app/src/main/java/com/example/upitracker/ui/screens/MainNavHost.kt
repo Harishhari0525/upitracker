@@ -1,11 +1,6 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -13,6 +8,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.util.expressivePopEnter
+import com.example.upitracker.util.expressivePopExit
+import com.example.upitracker.util.expressiveSlideIn
+import com.example.upitracker.util.expressiveSlideOut
 
 @OptIn(ExperimentalAnimationApi::class) // Added for NavHost transitions
 @Composable
@@ -34,22 +33,10 @@ fun MainNavHost(
     ) {
         composable(
             "main_app_shell",
-            enterTransition = {
-                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            exitTransition = {
-                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            },
-            popEnterTransition = {
-                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            popExitTransition = {
-                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            }
+            enterTransition = { expressiveSlideIn() },
+            exitTransition = { expressiveSlideOut() },
+            popEnterTransition = { expressivePopEnter() },
+            popExitTransition = { expressivePopExit() }
         ) { // Route that loads the screen with bottom navigation
             MainAppScreen(
                 mainViewModel = mainViewModel,
@@ -64,22 +51,10 @@ fun MainNavHost(
         // so SettingsScreen (inside MainAppScreen) will use the rootNavController to get here.
         composable(
             "rule_management",
-            enterTransition = {
-                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            exitTransition = {
-                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            },
-            popEnterTransition = {
-                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            popExitTransition = {
-                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            }
+            enterTransition = { expressiveSlideIn() },
+            exitTransition = { expressiveSlideOut() },
+            popEnterTransition = { expressivePopEnter() },
+            popExitTransition = { expressivePopExit() }
         ) {
             RulesHubScreen( // ✨ Call our NEW unified hub screen here ✨
                 onBack = { navController.popBackStack() },
@@ -88,22 +63,10 @@ fun MainNavHost(
         }
         composable(
             "archived_transactions",
-            enterTransition = {
-                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            exitTransition = {
-                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            },
-            popEnterTransition = {
-                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
-                fadeIn(animationSpec = tween(300))
-            },
-            popExitTransition = {
-                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
-                fadeOut(animationSpec = tween(300))
-            }
+            enterTransition = { expressiveSlideIn() },
+            exitTransition = { expressiveSlideOut() },
+            popEnterTransition = { expressivePopEnter() },
+            popExitTransition = { expressivePopExit() }
         ) {
             ArchivedTransactionsScreen(
                 mainViewModel = mainViewModel,
@@ -113,22 +76,10 @@ fun MainNavHost(
 
         composable(
             "category_management", // ✨ ADD THIS NEW ROUTE
-            enterTransition = {
-                slideInHorizontally(initialOffsetX = { 1000 }, animationSpec = tween(300)) +
-                        fadeIn(animationSpec = tween(300))
-            },
-            exitTransition = {
-                slideOutHorizontally(targetOffsetX = { -1000 }, animationSpec = tween(300)) +
-                        fadeOut(animationSpec = tween(300))
-            },
-            popEnterTransition = {
-                slideInHorizontally(initialOffsetX = { -1000 }, animationSpec = tween(300)) +
-                        fadeIn(animationSpec = tween(300))
-            },
-            popExitTransition = {
-                slideOutHorizontally(targetOffsetX = { 1000 }, animationSpec = tween(300)) +
-                        fadeOut(animationSpec = tween(300))
-            }
+            enterTransition = { expressiveSlideIn() },
+            exitTransition = { expressiveSlideOut() },
+            popEnterTransition = { expressivePopEnter() },
+            popExitTransition = { expressivePopExit() }
         ) {
             // This will call the screen we create in the next step
             CategoryManagementScreen(

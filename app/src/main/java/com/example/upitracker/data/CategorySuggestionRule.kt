@@ -17,6 +17,11 @@ enum class RuleMatcher {
     ENDS_WITH
 }
 
+enum class RuleLogic {
+    ANY, // Corresponds to OR
+    ALL  // Corresponds to AND
+}
+
 @Entity(tableName = "category_suggestion_rules")
 data class CategorySuggestionRule(
     @PrimaryKey(autoGenerate = true)
@@ -24,7 +29,8 @@ data class CategorySuggestionRule(
 
     val fieldToMatch: RuleField,
     val matcher: RuleMatcher,
-    val keyword: String, // The text to look for (e.g., "zomato", "amazon")
-    val categoryName: String, // The category to apply (e.g., "Food", "Shopping")
-    val priority: Int = 0 // For future use to decide which rule wins if multiple match
+    val keyword: String,
+    val categoryName: String,
+    val priority: Int = 0,
+    val logic: RuleLogic = RuleLogic.ANY
 )

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.CategorySuggestionRule
+import com.example.upitracker.data.RuleLogic
 
 @Composable
 fun RuleCard(
@@ -47,6 +48,13 @@ fun RuleCard(
                         }
                     },
                     style = MaterialTheme.typography.bodyLarge
+                )
+
+                val logicText = if (rule.logic == RuleLogic.ALL) "AND" else "OR"
+                Text(
+                    text = "Logic applies to keywords using: $logicText",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 // The "THEN" condition is also a single Text composable.

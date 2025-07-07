@@ -27,4 +27,7 @@ interface RecurringRuleDao {
 
     @Query("SELECT * FROM recurring_rules WHERE id = :id")
     suspend fun getRuleById(id: Int): RecurringRule?
+
+    @Query("SELECT * FROM recurring_rules WHERE nextDueDate > :startTime AND nextDueDate <= :endTime")
+    suspend fun getUpcomingRules(startTime: Long, endTime: Long): List<RecurringRule>
 }
