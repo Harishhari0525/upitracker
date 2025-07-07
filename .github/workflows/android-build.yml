@@ -77,6 +77,6 @@ jobs:
           body: |
             Release of version ${{ steps.extract_version.outputs.APP_VERSION }}.
             APK attached as "UPI Expense Tracker.apk".
-          files: "releases/UPI Expense Tracker.apk"
+          files: "releases/UPIExpenseTracker.apk"
           draft: false
           prerelease: false
