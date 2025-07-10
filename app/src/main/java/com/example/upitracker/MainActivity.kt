@@ -99,12 +99,16 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (!isGranted) {
-                mainViewModel.postSnackbarMessage("SMS permission is required to import transactions.")
-            } else {
+    private val multiplePermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
+            val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
+
+            if (readSmsGranted && receiveSmsGranted) {
+                // Both permissions granted, proceed with import
                 importOldUpiSms()
+            } else {
+                mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required for full functionality.")
             }
         }
 
@@ -126,15 +130,9 @@ class MainActivity : FragmentActivity() {
         splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        // Use a short delay to prevent the splash screen from disappearing too quickly.
-        // In a real app, you might wait for initial data to load here.
         Handler(Looper.getMainLooper()).postDelayed({
             keepSplashOnScreen = false
         }, 500L) // A 500 millisecond delay
-
-        // The exit animation listener remains the same.
-        // It will now be triggered correctly after our condition becomes false.
         splashScreen.setOnExitAnimationListener { splashScreenView ->
             val fadeOut = ObjectAnimator.ofFloat(
                 splashScreenView.iconView,
@@ -346,17 +344,25 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun requestSmsPermissionAndImport() {
+        val permissionsToRequest = arrayOf(
+            Manifest.permission.READ_SMS,
+            Manifest.permission.RECEIVE_SMS
+        )
         when {
             ContextCompat.checkSelfPermission(
                 this, Manifest.permission.READ_SMS
+            ) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+                this, Manifest.permission.RECEIVE_SMS
             ) == PackageManager.PERMISSION_GRANTED -> {
                 importOldUpiSms()
             }
             else -> {
-                requestPermissionLauncher.launch(Manifest.permission.READ_SMS)
+                // Launch the new multiple permissions launcher
+                multiplePermissionsLauncher.launch(permissionsToRequest)
             }
         }
     }
+
 
     // Add this new private function inside your MainActivity
     private fun processSmsInbox(
@@ -559,6 +565,12 @@ class MainActivity : FragmentActivity() {
             budgetCheckRequest
         )
         Log.d("MainActivity", "Periodic budget checker worker scheduled.")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // When the app is resumed, perform a quick check for new transactions.
+        mainViewModel.performQuickSync()
     }
 
     override fun onDestroy() {

@@ -22,6 +22,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // These properties will be passed in securely by the GitHub Actions workflow.
+            // You can also place them in a local gradle.properties file for local builds.
+            val storeFile = file(System.getProperty("android.injected.signing.store.file", "none"))
+            if (storeFile.exists()) {
+                this.storeFile = storeFile
+                this.storePassword = System.getProperty("android.injected.signing.store.password")
+                this.keyAlias = System.getProperty("android.injected.signing.key.alias")
+                this.keyPassword = System.getProperty("android.injected.signing.key.password")
+            }
+        }
+    }
+
+
     buildTypes {
         release {
             isMinifyEnabled = false

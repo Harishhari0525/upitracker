@@ -39,6 +39,7 @@ import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.NotificationHelper
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -228,6 +229,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiEvents = MutableSharedFlow<UiEvent>()
     val uiEvents = _uiEvents.asSharedFlow()
+
+    private val _selectedTransactionIds = MutableStateFlow<Set<Int>>(emptySet())
+    val selectedTransactionIds: StateFlow<Set<Int>> = _selectedTransactionIds.asStateFlow()
+
+    private val _isSelectionModeActive = MutableStateFlow(false)
+    val isSelectionModeActive: StateFlow<Boolean> = _isSelectionModeActive.asStateFlow()
 
     // --- UI State Flows (Public) ---
     private val _snackbarEvents = MutableSharedFlow<SnackbarMessage>()
@@ -1390,10 +1397,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
 
                         isMatch = if (rule.logic == RuleLogic.ALL) {
-                            // AND logic: all keywords must match
                             keywords.all { checkMatch(it) }
                         } else {
-                            // OR logic: any keyword can match
                             keywords.any { checkMatch(it) }
                         }
                     }
@@ -1410,18 +1415,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val finalTransaction = if (bestMatch != null) {
-                    Log.i("AutoCategorize", "SUCCESS: Best rule found! Keyword='${bestMatch.keyword}', Category='${bestMatch.categoryName}'. Applying to transaction.")
                     transaction.copy(category = bestMatch.categoryName)
                 } else {
-                    Log.d("AutoCategorize", "No matching rule found for this transaction.")
                     transaction
                 }
 
                 transactionDao.insert(finalTransaction)
+                checkBudgetForNewTransaction(finalTransaction)
 
             } else {
-                Log.d("AutoCategorize", "Transaction already has category '${transaction.category}', skipping rule check.")
                 transactionDao.insert(transaction)
+                checkBudgetForNewTransaction(transaction)
             }
         }
     }
@@ -1577,6 +1581,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun toggleSelection(transactionId: Int) {
+        val currentSelection = _selectedTransactionIds.value.toMutableSet()
+        if (currentSelection.contains(transactionId)) {
+            currentSelection.remove(transactionId)
+        } else {
+            currentSelection.add(transactionId)
+        }
+        _selectedTransactionIds.value = currentSelection
+
+        // ✨ This is the fix: If the user deselects the last item, exit selection mode
+        if (currentSelection.isEmpty()) {
+            _isSelectionModeActive.value = false
+        } else {
+            // Ensure we are in selection mode if any item is selected
+            _isSelectionModeActive.value = true
+        }
+    }
+
+    fun clearSelection() {
+        _selectedTransactionIds.value = emptySet()
+        _isSelectionModeActive.value = false
+    }
+
+    fun categorizeSelectedTransactions(categoryName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val selectedIds = _selectedTransactionIds.value
+            if (selectedIds.isEmpty()) return@launch
+
+            // Fetch all transactions and find the ones that are selected
+            val allTransactions = _transactions.value // Use the already loaded transactions
+            val transactionsToUpdate = allTransactions.filter { selectedIds.contains(it.id) }
+
+            transactionsToUpdate.forEach { transaction ->
+                // Update each transaction with the new category
+                val updatedTransaction = transaction.copy(category = categoryName)
+                transactionDao.update(updatedTransaction)
+            }
+
+            // Post a message and clear the selection
+            postPlainSnackbarMessage("${selectedIds.size} transactions categorized as '$categoryName'.")
+            withContext(Dispatchers.Main) {
+                clearSelection()
+            }
+        }
+    }
+
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
             val transactionToMark = transaction.copy(
@@ -1621,6 +1671,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSmsImportingState(isImporting: Boolean) {
         _isImportingSms.value = isImporting
+    }
+
+    fun enterSelectionMode() {
+        _isSelectionModeActive.value = true
     }
 
     fun markOnboardingComplete() {
@@ -1757,6 +1811,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
         val yearEnd = calendar.timeInMillis
         return yearStart to yearEnd
+    }
+
+    private suspend fun checkBudgetForNewTransaction(transaction: Transaction) {
+        // Only check for non-refund debit transactions
+        if (transaction.type != "DEBIT" || transaction.category.equals(refundKeyword.first(), ignoreCase = true)) {
+            return
+        }
+
+        // Get all active budgets and find one that matches the transaction's category
+        val activeBudgets = _budgets.first() // Use the collected flow
+        val relevantBudget = activeBudgets.find { it.categoryName.equals(transaction.category, ignoreCase = true) }
+
+        relevantBudget?.let { budget ->
+            val (periodStart, periodEnd) = when (budget.periodType) {
+                BudgetPeriod.WEEKLY -> getCurrentWeekRange()
+                BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
+                BudgetPeriod.YEARLY -> getCurrentYearRange()
+            }
+
+            // Only proceed if a notification hasn't already been sent for the current period
+            if (budget.lastNotificationTimestamp < periodStart) {
+                // Get all debits for this category within the current period
+                val allDebitsForCategoryInPeriod = _transactions.first()
+                    .filter {
+                        it.type == "DEBIT" &&
+                                !it.category.equals(refundKeyword.first(), ignoreCase = true) &&
+                                it.category.equals(budget.categoryName, true) &&
+                                it.date in periodStart..periodEnd
+                    }
+
+                val spentInCurrentPeriod = allDebitsForCategoryInPeriod.sumOf { it.amount }
+
+                // Check if the spending has crossed the budget threshold
+                if (spentInCurrentPeriod > budget.budgetAmount) {
+                    NotificationHelper.showBudgetExceededNotification(
+                        context = getApplication(),
+                        budget = budget,
+                        spentAmount = spentInCurrentPeriod
+                    )
+
+                    // Update the budget's timestamp to prevent sending duplicate notifications for this period
+                    val updatedBudget = budget.copy(lastNotificationTimestamp = System.currentTimeMillis())
+                    budgetDao.update(updatedBudget)
+                }
+            }
+        }
+    }
+
+    fun performQuickSync() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val lastTransactionTimestamp = transactionDao.getAllTransactions().first().firstOrNull()?.date ?: 0L
+            Log.d("QuickSync", "Quick sync triggered. Last transaction was at $lastTransactionTimestamp.")
+            setIsRefreshingSmsArchive(true) // Show a silent loading indicator
+        }
     }
 
     sealed class UiEvent {

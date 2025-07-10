@@ -36,6 +36,9 @@ fun ArchivedTransactionsScreen(
 
     val allCategories by mainViewModel.allCategories.collectAsState()
 
+    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
+    val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -83,21 +86,30 @@ fun ArchivedTransactionsScreen(
                         }
                         val categoryIcon = getCategoryIcon(categoryDetails)
 
+                        val isSelected = selectedIds.contains(transaction.id)
+
 
                         TransactionCardWithMenu(
                             transaction = transaction,
-                            onClick = { /* No action on simple click */ },
+                            // Pass the state flags directly
+                            isSelectionMode = isSelectionMode,
+                            isSelected = isSelected,
+                            showCheckbox = isSelectionMode,
+                            // Provide the new callbacks
+                            onToggleSelection = { mainViewModel.toggleSelection(transaction.id) },
+                            onShowDetails = {
+                                // A regular tap in the archive doesn't do anything if not in selection mode
+                            },
                             onDelete = { transactionToDelete = transaction },
                             // Pass the restore action
                             onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, archive = false) },
                             // Pass the correct text and icon
                             archiveActionText = "Restore",
                             archiveActionIcon = Icons.Default.Restore,
+                            // Other parameters
                             categoryColor = categoryColor,
                             categoryIcon = categoryIcon,
-                            onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
-                                mainViewModel.toggleCategoryFilter(categoryName)
-                            }
+                            onCategoryClick = { /* No category filtering from archive */ },
                         )
                     }
                 }

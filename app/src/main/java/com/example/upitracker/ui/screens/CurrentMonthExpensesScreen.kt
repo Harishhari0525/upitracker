@@ -76,7 +76,6 @@ fun CurrentMonthExpensesScreen(
 
     val allCategories by mainViewModel.allCategories.collectAsState()
 
-
     // --- UI Layout with Showcase ---
     IntroShowcase(
         showIntroShowCase = showAppIntro,
@@ -191,21 +190,22 @@ fun CurrentMonthExpensesScreen(
 
                                         TransactionCardWithMenu(
                                             transaction = item.transaction,
-                                            onClick = { /* ... */ },
+                                            isSelectionMode = false, // Selection mode is not active on the home screen
+                                            isSelected = false,
+                                            showCheckbox = false,
+                                            // Callbacks
+                                            onToggleSelection = {},
+                                            onShowDetails = { },
                                             onDelete = { mainViewModel.deleteTransaction(it) },
-                                            onArchiveAction = {
-                                                mainViewModel.toggleTransactionArchiveStatus(
-                                                    it,
-                                                    true
-                                                )
-                                            },
-                                            // Add the missing parameters
+                                            onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
+                                            // Other parameters
                                             archiveActionText = "Archive",
                                             archiveActionIcon = Icons.Default.Archive,
                                             categoryColor = categoryColor,
                                             categoryIcon = categoryIcon,
-                                            onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
+                                            onCategoryClick = { categoryName ->
                                                 mainViewModel.toggleCategoryFilter(categoryName)
+                                                onViewAllClick()
                                             }
                                         )
                                     }

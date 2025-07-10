@@ -2,8 +2,13 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -23,7 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,6 +43,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
+import com.example.upitracker.data.Category
+import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
@@ -56,35 +66,67 @@ fun TransactionHistoryScreen(
     var showDetailSheet by remember { mutableStateOf(false) }
     val showFilterSheet by mainViewModel.showHistoryFilterSheet.collectAsState()
 
+    var showCategorizeDialog by remember { mutableStateOf(false) }
+
     // State for our new Filter Bottom Sheet
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val tabIcons = if (isUpiLiteEnabled) listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize) else listOf(Icons.Filled.AccountBalanceWallet)
-
-    val tabTitles = if (isUpiLiteEnabled) {
-        listOf("UPI", "UPI Lite")
-    } else {
-        listOf("UPI")
-    }
 
     // Collect all necessary state from ViewModel
     val filters by mainViewModel.filters.collectAsState()
 
-    Column(
+    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
+    val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
+
+    Scaffold(
+        topBar = {
+
+            AnimatedContent(
+                targetState = isSelectionMode,
+                transitionSpec = {
+                    (slideInVertically { h -> -h } + fadeIn()) togetherWith
+                            (slideOutVertically { h -> -h } + fadeOut())
+                },
+                label = "history_top_bar_animation"
+            ) { isInSelectionMode ->
+                if (isInSelectionMode) {
+                    SelectionModeTopAppBar(
+                        selectionCount = selectedIds.size,
+                        onCancelClick = { mainViewModel.clearSelection() },
+                        onCategorizeClick = { showCategorizeDialog = true }
+                    )
+                } else {
+                    // In normal mode, we show the search bar as the TopAppBar
+                    TopAppBar(
+                        title = {
+                            OutlinedTextField(
+                                value = filters.searchQuery,
+                                onValueChange = { mainViewModel.setSearchQuery(it) },
+                                label = { Text(stringResource(R.string.search_hint)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent
+                                )
+                            )
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                        ),
+                        windowInsets = WindowInsets(0)
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        // The main content of the screen goes here
+        Column(
             modifier = modifier
                 .fillMaxSize()
+                .padding(paddingValues) // Apply padding from the Scaffold
         ) {
-            // Search bar remains at the top
-            OutlinedTextField(
-                value = filters.searchQuery,
-                onValueChange = { mainViewModel.setSearchQuery(it) },
-                label = { Text(stringResource(R.string.search_hint)) },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            // A new row to display currently active filters
+            // The ActiveFiltersRow is now part of the main content Column
             ActiveFiltersRow(
                 filters = filters,
                 onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
@@ -98,33 +140,39 @@ fun TransactionHistoryScreen(
                 onClearBankFilter = { mainViewModel.setBankFilter(null) }
             )
 
-            // Tabs and Pager for content
-        if (isUpiLiteEnabled) {
-            SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
-                // ✨ FIX: The code that uses the 'tabTitles' variable ✨
-                tabTitles.forEachIndexed { index, title ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(title) },
-                        icon = { Icon(tabIcons[index], contentDescription = title) }
-                    )
+            val tabTitles = if (isUpiLiteEnabled) listOf("UPI", "UPI Lite") else listOf("UPI")
+            val tabIcons = if (isUpiLiteEnabled) listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize) else listOf(Icons.Filled.AccountBalanceWallet)
+
+            if (isUpiLiteEnabled) {
+                SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
+                    tabTitles.forEachIndexed { index, title ->
+                        Tab(
+                            selected = pagerState.currentPage == index,
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                            text = { Text(title) },
+                            icon = { Icon(tabIcons[index], contentDescription = title) }
+                        )
+                    }
                 }
+                HorizontalDivider()
             }
-            HorizontalDivider()
-        }
 
-
-        HorizontalPager(
+            HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
             ) { pageIndex ->
                 when (pageIndex) {
-                    0 -> UpiTransactionsList(mainViewModel, onShowDetails = { showDetailSheet = true })
+                    0 -> UpiTransactionsList(
+                        mainViewModel,
+                        onShowDetails = { showDetailSheet = true },
+                        isSelectionMode = isSelectionMode,
+                        selectedIds = selectedIds
+                    )
                     1 -> if (isUpiLiteEnabled) UpiLiteSummariesList(mainViewModel)
                 }
             }
         }
+    }
 
     // The BottomSheet for Filters
     if (showFilterSheet) {
@@ -161,22 +209,33 @@ fun TransactionHistoryScreen(
             )
         }
     }
+    if (showCategorizeDialog) {
+        val allCategories by mainViewModel.allCategories.collectAsState()
+        BulkCategorizeDialog(
+            categories = allCategories,
+            onDismiss = { showCategorizeDialog = false },
+            onCategorySelected = { categoryName ->
+                mainViewModel.categorizeSelectedTransactions(categoryName)
+                showCategorizeDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () -> Unit) {
-    val filteredUpiTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
+private fun UpiTransactionsList(
+    mainViewModel: MainViewModel,
+    onShowDetails: () -> Unit,
+    isSelectionMode: Boolean,
+    selectedIds: Set<Int>
+) {
     val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
-
     val listState = rememberLazyListState()
-
     val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
-
     val allCategories by mainViewModel.allCategories.collectAsState()
 
-// And change it to this (just add the new key):
     LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
         listState.animateScrollToItem(index = 0)
     }
@@ -189,134 +248,108 @@ private fun UpiTransactionsList(mainViewModel: MainViewModel, onShowDetails: () 
         }
     }
 
-
     Column(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier.align(Alignment.CenterStart),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                UpiTransactionTypeFilter.entries.forEach { filterType ->
-                    FilterChip(
-                        selected = selectedUpiFilterType == filterType,
-                        onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                        label = {
-                            Text(
-                                filterType.name.replace("_", " ")
-                                    .replaceFirstChar { it.titlecase(Locale.getDefault()) })
-                        },
-                        leadingIcon = if (selectedUpiFilterType == filterType) {
-                            { Icon(Icons.Filled.Check, contentDescription = null) }
-                        } else null
-                    )
-                }
-            }
 
-            // This IconButton is aligned to the end of the Box
-            IconButton(
-                onClick = { mainViewModel.onFilterClick() },
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FilterList,
-                    contentDescription = "Show Filters"
+        // This single AnimatedVisibility block will hide all controls during selection mode,
+        // matching the behavior shown in your screenshots.
+        AnimatedVisibility(visible = !isSelectionMode) {
+            Column {
+                // 1. A single Row for Filter Chips and the Select/Filter Icons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    UpiTransactionTypeFilter.entries.forEach { filterType ->
+                        FilterChip(
+                            modifier = Modifier.padding(end = 8.dp),
+                            selected = selectedUpiFilterType == filterType,
+                            onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
+                            label = { Text(filterType.name.replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
+                            leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
+                        )
+                    }
+                    Spacer(Modifier.weight(1f)) // This pushes the icons to the end
+                    IconButton(onClick = { mainViewModel.enterSelectionMode() }) {
+                        Icon(Icons.Default.Checklist, contentDescription = "Enter Selection Mode")
+                    }
+                    IconButton(onClick = { mainViewModel.onFilterClick() }) {
+                        Icon(Icons.Default.FilterList, contentDescription = "Show Filters")
+                    }
+                }
+                SortControls(
+                    currentSortField = upiSortField,
+                    currentSortOrder = upiSortOrder,
+                    onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
                 )
             }
         }
 
-        SortControls(
-            currentSortField = upiSortField,
-            currentSortOrder = upiSortOrder,
-            onSortFieldSelected = { field -> mainViewModel.setUpiTransactionSort(field) }
-        )
-
-        if (filteredUpiTransactions.isEmpty() && groupedTransactions.isEmpty()) {
+        if (groupedTransactions.isEmpty()) {
             EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
         } else {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    bottom = 16.dp,
-                    top = 8.dp
-                ),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
-                // Step 2: Check for empty state.
-                if (groupedTransactions.isEmpty()) {
-                    item {
-                        EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
-                    }
-                } else {
-                    // Step 3: Display sticky headers and items as before.
-                    groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
-                        stickyHeader(key = monthYear) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 0.dp) // Give it space from the items above/below
-                                    .background(MaterialTheme.colorScheme.surface), // Match screen background
-                                contentAlignment = Alignment.Center // Center the pill
+                groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
+                    stickyHeader(key = monthYear)
+                    {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 0.dp) // Give it space from the items above/below
+                                .background(MaterialTheme.colorScheme.surface), // Match screen background
+                            contentAlignment = Alignment.Center // Center the pill
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                tonalElevation = 3.dp // Give it a subtle lift
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    tonalElevation = 3.dp // Give it a subtle lift
-                                ) {
-                                    Text(
-                                        text = monthYear,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 100.dp),
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
+                                Text(
+                                    text = monthYear,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.padding(vertical = 9.dp, horizontal = 100.dp),
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
                             }
                         }
+                    }
+                    items(items = transactionsInMonth, key = { "txn-${it.id}" }) { transaction ->
+                        val isSelected = selectedIds.contains(transaction.id)
+                        val categoryDetails = allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
+                        val categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080")
+                        val categoryIcon = getCategoryIcon(categoryDetails)
 
-                        items(
-                            items = transactionsInMonth,
-                            key = { "txn-${it.id}" }
-                        ) { transaction ->
-                            val categoryDetails = remember(transaction.category, allCategories) {
-                                allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
+                        // ✨ FIX: The `onClick` in this card now has the correct logic
+                        TransactionCardWithMenu(
+                            modifier = Modifier.padding(bottom = 4.dp),
+                            transaction = transaction,
+                            // Pass the state flags directly
+                            isSelectionMode = isSelectionMode,
+                            isSelected = isSelected,
+                            showCheckbox = isSelectionMode,
+                            // Pass the callbacks
+                            onToggleSelection = { mainViewModel.toggleSelection(transaction.id) },
+                            onShowDetails = {
+                                mainViewModel.selectTransaction(transaction.id)
+                                onShowDetails()
+                            },
+                            // The rest of the parameters remain the same
+                            onDelete = { mainViewModel.deleteTransaction(it) },
+                            onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
+                            archiveActionText = "Archive",
+                            archiveActionIcon = Icons.Default.Archive,
+                            categoryColor = categoryColor,
+                            categoryIcon = categoryIcon,
+                            onCategoryClick = { categoryName ->
+                                if (!isSelectionMode) mainViewModel.toggleCategoryFilter(categoryName)
                             }
-                            val categoryColor = remember(categoryDetails) {
-                                parseColor(categoryDetails?.colorHex ?: "#808080") // Default to Gray
-                            }
-                            val categoryIcon = getCategoryIcon(categoryDetails)
-
-                            TransactionCardWithMenu(
-                                modifier = Modifier.animateItem(tween(300))
-                                    .padding(bottom = 4.dp),
-                                transaction = transaction,
-                                onClick = {
-                                    mainViewModel.selectTransaction(it.id)
-                                    onShowDetails()
-                                },
-                                onDelete = { mainViewModel.deleteTransaction(it) },
-                                onArchiveAction = {
-                                    mainViewModel.toggleTransactionArchiveStatus(
-                                        it,
-                                        true
-                                    )
-                                },
-                                archiveActionText = "Archive",
-                                archiveActionIcon = Icons.Default.Archive,
-                                categoryColor = categoryColor,
-                                categoryIcon = categoryIcon,
-                                onCategoryClick = { categoryName -> // ✨ ADD THIS LAMBDA
-                                    mainViewModel.toggleCategoryFilter(categoryName)
-                                }
-                            )
-                        }
+                        )
                     }
                 }
             }
@@ -477,11 +510,11 @@ private fun ActiveFiltersRow(
 
     AnimatedVisibility(visible = showRow) {
         LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             if (filters.startDate != null) {
                 item {
                     val formatter = remember {
@@ -917,4 +950,63 @@ fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+@Composable
+private fun BulkCategorizeDialog(
+    categories: List<Category>,
+    onDismiss: () -> Unit,
+    onCategorySelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Apply a Category") },
+        text = {
+            LazyColumn {
+                items(categories) { category ->
+                    ListItem(
+                        headlineContent = { Text(category.name) },
+                        modifier = Modifier.clickable { onCategorySelected(category.name) },
+                        leadingContent = {
+                            val categoryIcon = getCategoryIcon(category)
+                            when (categoryIcon) {
+                                is CategoryIcon.VectorIcon -> Icon(categoryIcon.image, null, tint = parseColor(category.colorHex))
+                                is CategoryIcon.LetterIcon -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = categoryIcon.letter.toString(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+@Composable
+private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Unit, onCategorizeClick: () -> Unit) {
+    TopAppBar(
+        title = { Text("$selectionCount selected") },
+        navigationIcon = { IconButton(onClick = onCancelClick) { Icon(Icons.Filled.Close, contentDescription = "Cancel selection") } },
+        actions = { TextButton(onClick = onCategorizeClick) { Text("CATEGORIZE") } },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        windowInsets = WindowInsets(0)
+    )
 }

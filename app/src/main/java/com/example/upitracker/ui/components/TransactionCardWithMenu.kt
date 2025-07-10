@@ -25,9 +25,13 @@ import com.example.upitracker.util.CategoryIcon
 fun TransactionCardWithMenu(
     modifier: Modifier = Modifier,
     transaction: Transaction,
-    onClick: (Transaction) -> Unit,
     onArchiveAction: (Transaction) -> Unit,
     onDelete: (Transaction) -> Unit,
+    onToggleSelection: () -> Unit,
+    onShowDetails: () -> Unit,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    showCheckbox: Boolean,
     archiveActionText: String,
     archiveActionIcon: ImageVector,
     categoryColor: Color,
@@ -35,7 +39,6 @@ fun TransactionCardWithMenu(
     onCategoryClick: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    // ✨ 1. State to store the width of the card in pixels ✨
     var cardWidth by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
 
@@ -43,16 +46,25 @@ fun TransactionCardWithMenu(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            // ✨ 2. Measure the size of the Box and save the width ✨
             .onSizeChanged {
                 cardWidth = it.width
             }
-            .pointerInput(true) {
+            .pointerInput(isSelectionMode) { // Keyed to isSelectionMode to re-evaluate gestures
                 detectTapGestures(
                     onLongPress = {
-                        showMenu = true
+                        // Don't show context menu if in selection mode
+                        if (!isSelectionMode) {
+                            showMenu = true
+                        }
                     },
-                    onTap = { onClick(transaction) }
+                    onTap = {
+                        // The logic is now inside the component
+                        if (isSelectionMode) {
+                            onToggleSelection()
+                        } else {
+                            onShowDetails()
+                        }
+                    }
                 )
             }
     ) {
@@ -60,13 +72,14 @@ fun TransactionCardWithMenu(
             transaction = transaction,
             categoryColor = categoryColor,
             categoryIcon = categoryIcon,
-            onCategoryClick = onCategoryClick
+            onCategoryClick = onCategoryClick,
+            isSelected = isSelected,
+            showCheckbox = showCheckbox
         )
 
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false },
-            // ✨ 3. Use the measured width to create a horizontal offset ✨
             offset = DpOffset(x = with(density) { cardWidth.toDp() } - 127.dp, y = (-50).dp)
         ) {
             DropdownMenuItem(
@@ -77,7 +90,6 @@ fun TransactionCardWithMenu(
                 },
                 leadingIcon = { Icon(archiveActionIcon, contentDescription = archiveActionText) }
             )
-            // The Delete item remains the same
             DropdownMenuItem(
                 text = { Text("Delete") },
                 onClick = {
