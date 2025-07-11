@@ -15,13 +15,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Category
 import com.example.upitracker.ui.components.AddEditCategoryDialog
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.ui.components.LottieEmptyState
+import com.example.upitracker.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,9 +56,11 @@ fun CategoryManagementScreen(
         }
     ) { paddingValues ->
         if (categories.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text("No custom categories found.", textAlign = TextAlign.Center)
-            }
+            LottieEmptyState(
+                modifier = Modifier.padding(paddingValues),
+                message = "No custom categories found.\nTap '+' to create your own.",
+                lottieResourceId = R.raw.empty_box_animation
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),

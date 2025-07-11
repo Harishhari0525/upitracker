@@ -55,17 +55,46 @@ fun TransactionCard(
             modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Consistent spacing for all items
+            ) {
+                // Top Row: Type and Amount
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(text = transaction.type.uppercase(Locale.getDefault()), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(text = "₹${"%.2f".format(transaction.amount)}", style = MaterialTheme.typography.titleMedium, color = amountColor)
+                    Text(text = "₹${"%.2f".format(transaction.amount)}", style = MaterialTheme.typography.titleMedium, color = amountColor, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.height(6.dp))
-                Text(text = transaction.description.trim(), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                AnimatedVisibility(visible = transaction.category != null) {
-                    Column {
-                        Spacer(Modifier.height(8.dp))
+                // Middle: Description
+                Text(text = transaction.description.trim(), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
+
+                // ✨ START: NEW BOTTOM ROW LAYOUT ✨
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Column for Date and Sender on the left
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (transaction.linkedTransactionId != null) {
+                                Icon(imageVector = Icons.Filled.Link, contentDescription = "Linked Transaction", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            Text(text = displayDate, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        }
+
+                        if (transaction.senderOrReceiver != "Manual Entry" && transaction.senderOrReceiver.isNotBlank()) {
+                            Text(
+                                text = transaction.senderOrReceiver,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    AnimatedVisibility(visible = transaction.category != null) {
                         AssistChip(
                             onClick = { onCategoryClick(transaction.category!!) },
                             label = { Text(transaction.category ?: "", fontWeight = FontWeight.SemiBold) },
@@ -75,28 +104,9 @@ fun TransactionCard(
                         )
                     }
                 }
-
-                if (transaction.senderOrReceiver != "Manual Entry" && transaction.senderOrReceiver.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = transaction.senderOrReceiver,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (transaction.linkedTransactionId != null) {
-                        Icon(imageVector = Icons.Filled.Link, contentDescription = "Linked Transaction", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text(text = displayDate, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-                }
             }
 
+            // Checkbox for selection mode
             AnimatedVisibility(visible = showCheckbox, enter = fadeIn(), exit = fadeOut()) {
                 Checkbox(checked = isSelected, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
             }

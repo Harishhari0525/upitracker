@@ -77,6 +77,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.upitracker.R
 import com.example.upitracker.ui.components.CategoryLegend
 import com.example.upitracker.ui.components.CategorySpendingPieChart
+import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.MonthlyExpense
 import com.example.upitracker.viewmodel.GraphPeriod
@@ -236,9 +237,11 @@ private fun PageContent(
                     }
                 }
                 if (dailyTrendExpenses.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.graph_daily_trend_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    LottieEmptyState(
+                        modifier = Modifier.fillMaxWidth().height(300.dp),
+                        message = stringResource(R.string.graph_daily_trend_no_data),
+                        lottieResourceId = R.raw.empty_box_animation
+                    )
                 } else {
                     ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize(),shape = chartCardShape) {
                         SimpleDailyExpenseLineChart(
@@ -249,9 +252,9 @@ private fun PageContent(
                     }
                     val dailyStats by mainViewModel.dailyTrendSummaryStats.collectAsState()
                     val statsList = listOf(
-                        Triple("Total Spend", currencyFormatter.format(dailyStats.totalAmount), Icons.Default.Summarize),
-                        Triple("Daily Avg", currencyFormatter.format(dailyStats.dailyAverage), Icons.Default.Functions),
-                        Triple("Highest Day", dailyStats.highestDay?.let { currencyFormatter.format(it.totalAmount) } ?: "N/A",
+                        Triple("Total Spent Amount", currencyFormatter.format(dailyStats.totalAmount), Icons.Default.Summarize),
+                        Triple("Daily Avg Amount", currencyFormatter.format(dailyStats.dailyAverage), Icons.Default.Functions),
+                        Triple("Highest in a Day", dailyStats.highestDay?.let { currencyFormatter.format(it.totalAmount) } ?: "N/A",
                             Icons.AutoMirrored.Filled.TrendingUp)
                     )
                     Spacer(Modifier.height(24.dp))
@@ -314,12 +317,11 @@ private fun PageContent(
                     }
                 }
                 if (lastNMonthsExpenses.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.graph_no_data),
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    LottieEmptyState(
+                        modifier = Modifier.fillMaxWidth().height(300.dp),
+                        message = stringResource(R.string.graph_no_data),
+                        lottieResourceId = R.raw.empty_box_animation
+                    )
                 } else {
                     Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                         ElevatedCard(modifier = Modifier.fillMaxSize().animateContentSize(),shape = chartCardShape) {
@@ -391,9 +393,9 @@ private fun PageContent(
                         }
                     }
                     val statsList = listOf(
-                        Triple("Total Spend", currencyFormatter.format(summaryStats.totalAmount), Icons.Default.Summarize),
-                        Triple("Monthly Avg", currencyFormatter.format(summaryStats.averageAmount), Icons.Default.Functions),
-                        Triple("Highest Month", summaryStats.highestMonth?.let { currencyFormatter.format(it.totalAmount) } ?: "N/A",
+                        Triple("Total Spent in Last ${selectedGraphPeriod.months} Months", currencyFormatter.format(summaryStats.totalAmount), Icons.Default.Summarize),
+                        Triple("Monthly Avg Amount", currencyFormatter.format(summaryStats.averageAmount), Icons.Default.Functions),
+                        Triple("Highest in a Month", summaryStats.highestMonth?.let { currencyFormatter.format(it.totalAmount) } ?: "N/A",
                             Icons.AutoMirrored.Filled.TrendingUp)
                     )
                     Spacer(Modifier.height(15.dp))
@@ -432,9 +434,11 @@ private fun PageContent(
                     }
                 }
                 if (categoryData.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(300.dp + 100.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.graph_category_pie_no_data), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    LottieEmptyState(
+                        modifier = Modifier.fillMaxWidth().height(400.dp), // Taller for pie chart area
+                        message = stringResource(R.string.graph_category_pie_no_data),
+                        lottieResourceId = R.raw.empty_box_animation
+                    )
                 } else {
                     ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize(),shape = chartCardShape) {
                         CategorySpendingPieChart(
@@ -502,13 +506,11 @@ private fun PageContent(
                 }
 
                 if (incomeExpenseData.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(300.dp),
-                        contentAlignment = Alignment.Center) {
-                        Text("No income or expense data for this period.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    LottieEmptyState(
+                        modifier = Modifier.fillMaxWidth().height(350.dp),
+                        message = "No income or expense data for this period.",
+                        lottieResourceId = R.raw.empty_box_animation
+                    )
                 } else {
                     ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize(),shape = chartCardShape) {
                         // ✨ 3. PASS the selection lambda to the chart ✨

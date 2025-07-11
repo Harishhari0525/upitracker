@@ -174,6 +174,11 @@ data class TransactionFilters(
 
 data class BankMessageCount(val bankName: String, val count: Int)
 
+data class FilteredTotals(
+    val totalDebit: Double = 0.0,
+    val totalCredit: Double = 0.0
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
@@ -1814,58 +1819,84 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun checkBudgetForNewTransaction(transaction: Transaction) {
-        // Only check for non-refund debit transactions
+        Log.d("BudgetCheck", "Function started for transaction: ${transaction.description}")
         if (transaction.type != "DEBIT" || transaction.category.equals(refundKeyword.first(), ignoreCase = true)) {
+            Log.d("BudgetCheck", "Transaction is not a valid debit. Exiting.")
             return
         }
 
-        // Get all active budgets and find one that matches the transaction's category
-        val activeBudgets = _budgets.first() // Use the collected flow
+        val activeBudgets = _budgets.first()
         val relevantBudget = activeBudgets.find { it.categoryName.equals(transaction.category, ignoreCase = true) }
 
-        relevantBudget?.let { budget ->
+        if (relevantBudget == null) {
+            Log.d("BudgetCheck", "No budget found for category: ${transaction.category}. Exiting.")
+            return
+        }
+
+        Log.d("BudgetCheck", "Found relevant budget: ${relevantBudget.categoryName} with amount ${relevantBudget.budgetAmount}")
+
+        relevantBudget.let { budget ->
             val (periodStart, periodEnd) = when (budget.periodType) {
                 BudgetPeriod.WEEKLY -> getCurrentWeekRange()
                 BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
                 BudgetPeriod.YEARLY -> getCurrentYearRange()
             }
 
-            // Only proceed if a notification hasn't already been sent for the current period
+            Log.d("BudgetCheck", "Checking if notification was already sent. Last sent: ${budget.lastNotificationTimestamp}, Period starts: $periodStart")
             if (budget.lastNotificationTimestamp < periodStart) {
-                // Get all debits for this category within the current period
-                val allDebitsForCategoryInPeriod = _transactions.first()
-                    .filter {
-                        it.type == "DEBIT" &&
-                                !it.category.equals(refundKeyword.first(), ignoreCase = true) &&
-                                it.category.equals(budget.categoryName, true) &&
-                                it.date in periodStart..periodEnd
-                    }
+                Log.d("BudgetCheck", "Notification not sent yet for this period. Proceeding with check.")
+
+                // ✨ START OF THE FIX: Directly query the DAO for the most current data ✨
+                val allDebitsForCategoryInPeriod = transactionDao.getTransactionsForBudgetCheck(
+                    categoryName = budget.categoryName,
+                    startDate = periodStart,
+                    endDate = periodEnd,
+                    refundCategory = refundKeyword.first()
+                )
+                // ✨ END OF THE FIX ✨
 
                 val spentInCurrentPeriod = allDebitsForCategoryInPeriod.sumOf { it.amount }
+                Log.d("BudgetCheck", "Calculated spent: $spentInCurrentPeriod. Budget amount: ${budget.budgetAmount}")
 
-                // Check if the spending has crossed the budget threshold
                 if (spentInCurrentPeriod > budget.budgetAmount) {
+                    Log.d("BudgetCheck", "SPENT > BUDGET. Attempting to show notification...")
                     NotificationHelper.showBudgetExceededNotification(
                         context = getApplication(),
                         budget = budget,
                         spentAmount = spentInCurrentPeriod
                     )
+                    Log.d("BudgetCheck", "Notification call finished. Updating budget timestamp.")
 
-                    // Update the budget's timestamp to prevent sending duplicate notifications for this period
                     val updatedBudget = budget.copy(lastNotificationTimestamp = System.currentTimeMillis())
                     budgetDao.update(updatedBudget)
+                } else {
+                    Log.d("BudgetCheck", "Spent amount is not over budget. No notification needed.")
                 }
+            } else {
+                Log.d("BudgetCheck", "Notification was already sent for this period. Exiting.")
             }
         }
     }
 
-    fun performQuickSync() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val lastTransactionTimestamp = transactionDao.getAllTransactions().first().firstOrNull()?.date ?: 0L
-            Log.d("QuickSync", "Quick sync triggered. Last transaction was at $lastTransactionTimestamp.")
-            setIsRefreshingSmsArchive(true) // Show a silent loading indicator
+    val filteredTotals: StateFlow<FilteredTotals> = filteredUpiTransactions
+        .map { groupedTransactions ->
+            // Flatten the map of monthly groups into a single list of transactions
+            val transactions = groupedTransactions.values.flatten()
+
+            // Calculate the sums
+            val totalDebit = transactions.filter { it.type == "DEBIT" }.sumOf { it.amount }
+            val totalCredit = transactions.filter { it.type == "CREDIT" }.sumOf { it.amount }
+
+            FilteredTotals(totalDebit = totalDebit, totalCredit = totalCredit)
         }
-    }
+        .stateIn(viewModelScope, SharingStarted.Lazily, FilteredTotals())
+
+    val latestTransactionTimestamp: StateFlow<Long> = _transactions
+        .map { transactions -> transactions.maxOfOrNull { it.date } ?: 0L }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    private val _isDataReady = MutableStateFlow(false)
+    val isDataReady: StateFlow<Boolean> = _isDataReady.asStateFlow()
 
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()
@@ -1875,5 +1906,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch { _transactions.collect() }
         viewModelScope.launch { _upiLiteSummaries.collect() }
+
+        viewModelScope.launch {
+            // Data is considered "ready" once the initial transaction list has been loaded.
+            _transactions.collect {
+                _isDataReady.value = true
+            }
+        }
     }
 }

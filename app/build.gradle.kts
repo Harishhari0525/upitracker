@@ -6,6 +6,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.0"
     id("com.google.protobuf") version "0.9.5"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.0"
 }
 
 android {
@@ -124,4 +125,8 @@ dependencies {
     {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
     }
+    implementation(libs.lottie.compose)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 }

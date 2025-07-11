@@ -67,4 +67,7 @@ interface TransactionDao {
     @Query("UPDATE transactions SET category = NULL WHERE category = :categoryName")
     suspend fun clearCategoryForTransactions(categoryName: String)
 
+    @Query("SELECT * FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
+    suspend fun getTransactionsForBudgetCheck(categoryName: String, startDate: Long, endDate: Long, refundCategory: String): List<Transaction>
+
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import com.example.upitracker.R
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -16,7 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
@@ -27,17 +27,12 @@ import com.example.upitracker.viewmodel.BudgetStatus
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.ui.components.LottieEmptyState
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import com.example.upitracker.util.getCategoryIcon
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import com.example.upitracker.util.NotificationHelper
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -56,24 +51,6 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
     var showRecurringHelpDialog by remember { mutableStateOf(false) }
 
     var ruleForForecast by remember { mutableStateOf<RecurringRule?>(null) }
-
-    val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            if (!isGranted) {
-                mainViewModel.postPlainSnackbarMessage("Notifications for upcoming payments will not be shown.")
-            }
-        }
-    )
-
-    LaunchedEffect(Unit) {
-        NotificationHelper.createNotificationChannels(context)
-        // Request permission if on Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 
 
     if (showAddBudgetDialog) {
@@ -202,7 +179,10 @@ private fun BudgetList(mainViewModel: MainViewModel, onEditBudget: (BudgetStatus
     val allCategories by mainViewModel.allCategories.collectAsState()
 
     if (budgetStatuses.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { /*...*/ }
+        LottieEmptyState(
+            message = "You haven't set any budgets yet.\nTap '+' to create one!",
+            lottieResourceId = R.raw.empty_box_animation
+        )
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -240,9 +220,10 @@ private fun RecurringList(
     val recurringRules by mainViewModel.recurringRules.collectAsState()
 
     if (recurringRules.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-            Text("You have no recurring transactions.\nTap the '+' button to add subscriptions, rent, or other regular payments.", textAlign = TextAlign.Center)
-        }
+        LottieEmptyState(
+            message = "You have no recurring transactions.\nTap '+' to add subscriptions, rent, or other regular payments.",
+            lottieResourceId = R.raw.empty_box_animation
+        )
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

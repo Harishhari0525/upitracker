@@ -10,14 +10,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.DeleteTransactionConfirmationDialog
+import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
@@ -58,17 +57,10 @@ fun ArchivedTransactionsScreen(
         // It contains the list and ONE dialog.
         Box(modifier = Modifier.padding(paddingValues)) {
             if (mainViewModel.archivedUpiTransactions.collectAsState().value.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.archived_empty_state),
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                LottieEmptyState(
+                    message = stringResource(R.string.archived_empty_state),
+                    lottieResourceId = R.raw.empty_box_animation
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),

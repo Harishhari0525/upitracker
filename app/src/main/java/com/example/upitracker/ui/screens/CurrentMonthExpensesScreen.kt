@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.upitracker.R
 import com.example.upitracker.data.RecurringRule
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import com.example.upitracker.ui.components.TransactionCardWithMenu
@@ -42,6 +43,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.upitracker.ui.components.LottieEmptyState
 import java.text.SimpleDateFormat
 
 
@@ -164,17 +166,11 @@ fun CurrentMonthExpensesScreen(
                         Spacer(Modifier.height(8.dp))
 
                         if (recentTransactions.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "No transactions this month yet.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            LottieEmptyState(
+                                modifier = Modifier.fillMaxWidth().height(350.dp),
+                                message = "No Transactions in this month yet.",
+                                lottieResourceId = R.raw.empty_box_animation
+                            )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 recentTransactions.take(3).forEach { item ->

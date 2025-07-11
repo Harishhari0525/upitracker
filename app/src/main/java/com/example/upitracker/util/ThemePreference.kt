@@ -32,6 +32,8 @@ object ThemePreference {
 
     private val REFUND_KEYWORD_KEY = stringPreferencesKey("refund_keyword")
 
+    private val LAST_SEEN_VERSION_KEY = stringPreferencesKey("last_seen_version")
+
     /**
      * Retrieves the Flow for the dark mode preference.
      * Emits false (light mode) if not set or if there's an error.
@@ -89,6 +91,17 @@ object ThemePreference {
     suspend fun setRefundKeyword(context: Context, keyword: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[REFUND_KEYWORD_KEY] = keyword
+        }
+    }
+
+    fun getLastSeenVersionFlow(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[LAST_SEEN_VERSION_KEY] ?: ""
+        }
+
+    suspend fun setLastSeenVersion(context: Context, versionName: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[LAST_SEEN_VERSION_KEY] = versionName
         }
     }
 

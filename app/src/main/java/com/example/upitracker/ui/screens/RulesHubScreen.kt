@@ -13,9 +13,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import com.example.upitracker.R
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.ui.components.AddRuleDialog
+import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.RuleCard
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -73,12 +74,10 @@ private fun CategorizationRulesContent(mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (rules.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "You have no custom category rules.\nTap '+' to create one.",
-                    textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp), style = MaterialTheme.typography.titleMedium
-                )
-            }
+            LottieEmptyState(
+                message = "You have no custom category rules.\nTap '+' to create one.",
+                lottieResourceId = R.raw.empty_box_animation
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

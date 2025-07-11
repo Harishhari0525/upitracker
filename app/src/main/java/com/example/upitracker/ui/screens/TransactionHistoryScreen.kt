@@ -32,7 +32,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.ui.components.TransactionCardWithMenu
@@ -41,10 +40,10 @@ import com.example.upitracker.viewmodel.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.data.Category
+import com.example.upitracker.ui.components.FilteredTotalsBar
+import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.util.getCategoryIcon
@@ -236,6 +235,21 @@ private fun UpiTransactionsList(
     val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
     val allCategories by mainViewModel.allCategories.collectAsState()
 
+    val totals by mainViewModel.filteredTotals.collectAsState()
+
+    val filters by mainViewModel.filters.collectAsState()
+    val areFiltersActive = remember(filters) {
+        filters.searchQuery.isNotBlank() ||
+                filters.type != UpiTransactionTypeFilter.ALL ||
+                filters.startDate != null ||
+                filters.endDate != null ||
+                filters.amountType != AmountFilterType.ALL ||
+                filters.showUncategorized ||
+                filters.showOnlyLinked ||
+                filters.selectedCategories.isNotEmpty() ||
+                filters.bankNameFilter != null
+    }
+
     LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
         listState.animateScrollToItem(index = 0)
     }
@@ -286,8 +300,19 @@ private fun UpiTransactionsList(
             }
         }
 
+        AnimatedVisibility(visible = groupedTransactions.isNotEmpty() && areFiltersActive) {
+            FilteredTotalsBar(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                totalDebit = totals.totalDebit,
+                totalCredit = totals.totalCredit
+            )
+        }
+
         if (groupedTransactions.isEmpty()) {
-            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered))
+            LottieEmptyState(
+                message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered),
+                lottieResourceId = R.raw.empty_box_animation
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -378,7 +403,10 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
         )
 
         if (filteredUpiLiteSummaries.isEmpty()) {
-            EmptyStateHistoryView(message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered))
+            LottieEmptyState(
+                message = stringResource(R.string.empty_state_no_upi_lite_summaries_history_filtered),
+                lottieResourceId = R.raw.empty_box_animation
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -913,41 +941,6 @@ fun AdvancedFilterControls(
                     modifier = Modifier.weight(1f)
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun EmptyStateHistoryView(message: String, modifier: Modifier = Modifier) {
-    // Determine which icon to show based on the message
-    val iconResId = if (message.contains("filter", ignoreCase = true)) {
-        R.drawable.ic_search_off
-    } else {
-        R.drawable.ic_empty_box
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = ImageVector.vectorResource(id = iconResId),
-                contentDescription = "Empty State",
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
