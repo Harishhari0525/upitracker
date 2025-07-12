@@ -3,7 +3,9 @@ package com.example.upitracker.util
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -11,15 +13,20 @@ import androidx.core.app.NotificationManagerCompat
 import com.example.upitracker.R
 import com.example.upitracker.data.Budget
 import com.example.upitracker.data.RecurringRule
+import com.example.upitracker.network.GitHubRelease
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import android.net.Uri
+import androidx.core.net.toUri
 
 object NotificationHelper {
 
     // Define Channel IDs as constants to prevent typos
     private const val UPCOMING_PAYMENT_CHANNEL_ID = "upcoming_payments_channel"
     private const val BUDGET_ALERTS_CHANNEL_ID = "budget_alerts_channel"
+
+    private const val APP_UPDATES_CHANNEL_ID = "app_updates_channel"
 
     fun createNotificationChannels(context: Context) {
         val notificationManager: NotificationManager =
@@ -44,6 +51,15 @@ object NotificationHelper {
             description = "Notifications for when spending exceeds the allocated budget."
         }
         notificationManager.createNotificationChannel(budgetAlertsChannel)
+
+        val appUpdatesChannel = NotificationChannel(
+            APP_UPDATES_CHANNEL_ID,
+            "App Updates",
+            NotificationManager.IMPORTANCE_LOW // Low importance is fine for update checks
+        ).apply {
+            description = "Notifications for new app versions available."
+        }
+        notificationManager.createNotificationChannel(appUpdatesChannel)
     }
 
     fun showUpcomingPaymentNotification(context: Context, rule: RecurringRule) {
@@ -83,6 +99,27 @@ object NotificationHelper {
                 .bigText("You've spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}', overspending by ${currencyFormatter.format(overspendAmount)}."))
             .setPriority(NotificationCompat.PRIORITY_HIGH) // High priority to make it pop up
             .setAutoCancel(true)
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    }
+    fun showUpdateAvailableNotification(context: Context, release: GitHubRelease) {
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        // Create an intent that will open the release URL in a browser
+        val intent = Intent(Intent.ACTION_VIEW, release.htmlUrl.toUri())
+        val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notificationId = 99 // A fixed ID for the update notification
+
+        val builder = NotificationCompat.Builder(context, APP_UPDATES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setContentTitle("Update Available: ${release.name}")
+            .setContentText("Tap to download and install the latest version.")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pendingIntent) // This makes the notification clickable
+            .setAutoCancel(true) // Dismiss the notification when tapped
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }

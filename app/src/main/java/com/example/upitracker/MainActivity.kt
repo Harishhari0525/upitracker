@@ -331,6 +331,17 @@ class MainActivity : FragmentActivity() {
         workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
         val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS).build()
         workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
+
+        val updateCheckRequest =
+            PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS) // Check every 6 hours
+                .build()
+        workManager.enqueueUniquePeriodicWork(
+            UpdateCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP, // Keep the existing worker if it's already scheduled
+            updateCheckRequest
+        )
+        Log.d("MainActivity", "Periodic update check worker scheduled.")
+
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
