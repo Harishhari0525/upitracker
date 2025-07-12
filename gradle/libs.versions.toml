@@ -1,11 +1,13 @@
 [versions]
 # UPDATED: All core Compose libraries are now aligned to a new, compatible version
 animation = "1.9.0-beta02"
+appUpdateKtx = "2.1.0"
+coilCompose = "2.7.0"
 coreSplashscreen = "1.0.1"
 desugar_jdk_libs = "2.1.5"
 foundation = "1.9.0-beta02"
 compose = "1.9.0-beta02"
-gradle = "8.11.0"
+gradle = "8.11.1"
 introshowcaseview = "2.0.2"
 kotlinGradlePlugin = "2.0.21"
 ktorClientAndroid = "3.2.1"
@@ -19,7 +21,7 @@ material3 = "1.4.0-alpha17"
 
 # The rest of your versions remain the same
 kotlin = "2.2.0"
-agp = "8.11.0"
+agp = "8.11.1"
 datastorePreferences = "1.1.7"
 iconscompose = "1.7.8"
 room = "2.7.2"
@@ -65,6 +67,8 @@ androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview
 androidx-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "compose" }
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "iconscompose" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
+app-update-ktx = { module = "com.google.android.play:app-update-ktx", version.ref = "appUpdateKtx" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
 compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
 desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 google-protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobufJava" }

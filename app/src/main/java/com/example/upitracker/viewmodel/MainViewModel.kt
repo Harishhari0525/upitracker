@@ -40,6 +40,8 @@ import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.NotificationHelper
+import java.io.File
+import java.io.FileOutputStream
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -177,6 +179,12 @@ data class BankMessageCount(val bankName: String, val count: Int)
 data class FilteredTotals(
     val totalDebit: Double = 0.0,
     val totalCredit: Double = 0.0
+)
+
+data class GroupedUpiLiteSummaries(
+    val monthYear: String,
+    val summaries: List<UpiLiteSummary>,
+    val monthlyTotal: Double
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -1307,6 +1315,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val groupedUpiLiteSummaries: StateFlow<List<GroupedUpiLiteSummaries>> = filteredUpiLiteSummaries
+        .map { summaries ->
+            val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+            summaries
+                .groupBy { summary ->
+                    Instant.ofEpochMilli(summary.date)
+                        .atZone(ZoneId.systemDefault())
+                        .format(formatter)
+                }
+                .map { (monthYear, summariesInMonth) ->
+                    GroupedUpiLiteSummaries(
+                        monthYear = monthYear,
+                        summaries = summariesInMonth,
+                        monthlyTotal = summariesInMonth.sumOf { it.totalAmount }
+                    )
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+
     private suspend fun findAndLinkRefund(refund: Transaction) {
         val potentialMatches = transactionDao.findPotentialDebitsForRefund(refund.senderOrReceiver)
 
@@ -1325,12 +1353,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun saveReceiptImage(uri: Uri): String? {
+        return try {
+            val context = getApplication<Application>().applicationContext
+            val inputStream = context.contentResolver.openInputStream(uri)
+            // Create a unique file name
+            val fileName = "receipt_${System.currentTimeMillis()}.jpg"
+            val file = File(context.filesDir, fileName)
+            val outputStream = FileOutputStream(file)
+            inputStream?.copyTo(outputStream)
+            inputStream?.close()
+            outputStream.close()
+            file.absolutePath // Return the absolute path to the saved file
+        } catch (e: Exception) {
+            Log.e("ImageSave", "Failed to save receipt image", e)
+            null
+        }
+    }
+
 
     fun updateTransactionDetails(
         transactionId: Int,
         newDescription: String,
         newAmount: Double,
-        newCategory: String?
+        newCategory: String?,
+        newNote: String, // Changed to non-nullable
+        newReceiptPath: String?
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val originalTransaction = _transactions.value.find { it.id == transactionId }
@@ -1342,11 +1390,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         description = newDescription.trim(),
                         amount = newAmount,
-                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true },
+                        note = newNote.trim(),
+                        receiptImagePath = newReceiptPath ?: it.receiptImagePath
                     )
                 } else {
                     it.copy(
-                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true }
+                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true },
+                        note = newNote.trim(),
+                        receiptImagePath = newReceiptPath ?: it.receiptImagePath
                     )
                 }
                 transactionDao.update(updatedTransaction)

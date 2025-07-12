@@ -2,7 +2,11 @@
 
 package com.example.upitracker.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -28,7 +32,15 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.upitracker.util.getCategoryIcon
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.example.upitracker.util.CategoryIcon
+import java.io.File
 
 @Composable
 fun TransactionDetailSheetContent(
@@ -43,6 +55,17 @@ fun TransactionDetailSheetContent(
     var descriptionText by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     var categoryText by remember { mutableStateOf("") }
+    var noteText by remember { mutableStateOf("") }
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var receiptPath by remember { mutableStateOf<String?>(null) }
+
+    var showFullScreenImage by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        imageUri = uri
+    }
 
     // This effect syncs the local state with the selected transaction
     // whenever the transaction changes or we enter edit mode.
@@ -51,6 +74,9 @@ fun TransactionDetailSheetContent(
             descriptionText = it.description
             amountText = it.amount.toString()
             categoryText = it.category ?: ""
+            noteText = it.note
+            receiptPath = it.receiptImagePath
+            imageUri = null
         }
     }
 
@@ -77,12 +103,12 @@ fun TransactionDetailSheetContent(
             OutlinedTextField(
                 value = categoryText,
                 onValueChange = { categoryText = it.filter { char ->
-                    char.isLetterOrDigit() || char.isWhitespace()
-                } },
+                    char.isLetterOrDigit() || char.isWhitespace() } },
                 label = { Text("Category") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+
             Spacer(Modifier.height(8.dp))
 
             val filteredSuggestions = remember(key1 = categoryText, key2 = userCategories) {
@@ -163,6 +189,32 @@ fun TransactionDetailSheetContent(
                 DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
                 DetailRow(label = stringResource(R.string.detail_label_amount), value = "₹${"%.2f".format(transaction!!.amount)}")
             }
+
+            OutlinedTextField(
+                value = noteText,
+                onValueChange = { noteText = it },
+                label = { Text("Note") },
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+            )
+
+            Spacer(Modifier.height(16.dp))
+            val imageToShow = imageUri ?: receiptPath?.let { Uri.fromFile(File(it)) }
+            if (imageToShow != null) {
+                AsyncImage(
+                    model = imageToShow,
+                    contentDescription = "Receipt",
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(MaterialTheme.shapes.medium),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Button(onClick = { imagePickerLauncher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                Text(if (imageToShow != null) "Change Receipt" else "Add Receipt")
+            }
+
+
             Spacer(Modifier.height(24.dp))
 
             // Action buttons for Edit Mode
@@ -173,12 +225,15 @@ fun TransactionDetailSheetContent(
                 Button(
                     onClick = {
                         val newAmount = amountText.toDoubleOrNull()
+                        val newReceiptPath = imageUri?.let { mainViewModel.saveReceiptImage(it) }
                         if (newAmount != null) {
                             mainViewModel.updateTransactionDetails(
                                 transactionId = transaction!!.id,
                                 newDescription = descriptionText,
                                 newAmount = newAmount,
-                                newCategory = categoryText
+                                newCategory = categoryText,
+                                newNote = noteText,
+                                newReceiptPath = newReceiptPath
                             )
                             onDismiss()
                         }
@@ -200,7 +255,35 @@ fun TransactionDetailSheetContent(
             if (transaction!!.note.isNotBlank()) {
                 DetailRow(label = stringResource(R.string.detail_label_note), value = transaction!!.note)
             }
+
+            if (!transaction!!.receiptImagePath.isNullOrBlank()) {
+                Spacer(Modifier.height(16.dp))
+                Text("Receipt", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                AsyncImage(
+                    model = File(transaction!!.receiptImagePath!!),
+                    contentDescription = "Receipt",
+                    modifier = Modifier.fillMaxWidth().height(200.dp).clip(MaterialTheme.shapes.large).clickable { showFullScreenImage = true },
+                    contentScale = ContentScale.Crop
+                )
+            }
+
             Spacer(Modifier.height(24.dp))
+
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { isEditMode = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Edit Note / Receipt")
+                }
+            }
+
+            if (showFullScreenImage) {
+                FullScreenImageViewer(
+                    imagePath = transaction!!.receiptImagePath!!,
+                    onDismiss = { showFullScreenImage = false }
+                )
+            }
 
             // Action Buttons for View Mode
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -274,5 +357,37 @@ private fun formatFullDateTime(timestamp: Long): String {
         sdf.format(Date(timestamp))
     } catch (_: Exception) {
         "Invalid Date"
+    }
+}
+@Composable
+private fun FullScreenImageViewer(imagePath: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false) // Important for fullscreen
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.8f))
+                .clickable { onDismiss() }, // Click anywhere on the background to dismiss
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = File(imagePath),
+                contentDescription = "Fullscreen Receipt",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentScale = ContentScale.Fit // Fit ensures the whole image is visible
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+            }
+        }
     }
 }

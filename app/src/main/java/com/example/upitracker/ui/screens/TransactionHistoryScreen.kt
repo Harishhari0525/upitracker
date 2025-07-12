@@ -48,6 +48,7 @@ import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
+import java.text.NumberFormat
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -382,11 +383,13 @@ private fun UpiTransactionsList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
     val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
+    val groupedSummaries by mainViewModel.groupedUpiLiteSummaries.collectAsState()
 
     val listState = rememberLazyListState()
 
@@ -414,8 +417,16 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
                 contentPadding = PaddingValues(all = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(filteredUpiLiteSummaries, key = { "lite-${it.id}" }) { summary ->
-                    UpiLiteSummaryCard(summary = summary)
+                groupedSummaries.forEach { group ->
+                    stickyHeader(key = group.monthYear) {
+                        MonthlyHeader(
+                            title = group.monthYear,
+                            total = group.monthlyTotal
+                        )
+                    }
+                    items(group.summaries, key = { "lite-${it.id}" }) { summary ->
+                        UpiLiteSummaryCard(summary = summary)
+                    }
                 }
             }
         }
@@ -1002,4 +1013,24 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         windowInsets = WindowInsets(0)
     )
+}
+@Composable
+private fun MonthlyHeader(title: String, total: Double) {
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp), // Space between header and first card
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = currencyFormatter.format(total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.secondary)
+        }
+    }
 }
