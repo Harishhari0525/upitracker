@@ -107,8 +107,10 @@ object NotificationHelper {
             return
         }
 
-        // Create an intent that will open the release URL in a browser
-        val intent = Intent(Intent.ACTION_VIEW, release.htmlUrl.toUri())
+        // Create an explicit intent that opens the release URL in the app's WebViewActivity
+        val intent = Intent(context, WebViewActivity::class.java).apply {
+            putExtra("url", release.htmlUrl)
+        }
         val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val notificationId = 99 // A fixed ID for the update notification
