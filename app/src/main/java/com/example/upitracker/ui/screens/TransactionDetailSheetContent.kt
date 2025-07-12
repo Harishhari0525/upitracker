@@ -270,13 +270,6 @@ fun TransactionDetailSheetContent(
 
             Spacer(Modifier.height(24.dp))
 
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { isEditMode = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Edit Note / Receipt")
-                }
-            }
 
             if (showFullScreenImage) {
                 FullScreenImageViewer(
@@ -290,7 +283,7 @@ fun TransactionDetailSheetContent(
                 Button(onClick = { isEditMode = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    val buttonText = if (isManualEntry) "Edit Transaction" else "Edit Category"
+                    val buttonText = if (isManualEntry) "Edit Transaction Details" else "Edit Category"
                     Text(buttonText)
                 }
                 OutlinedButton(

@@ -530,7 +530,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
 private fun AboutDialog(onDismiss: () -> Unit) {
     val aboutText = buildAnnotatedString {
         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-            append("UPI Expense Tracker - Version 1.7\n\n")
+            append("UPI Expense Tracker - Version 1.8\n\n")
         }
         append("Effortlessly manage your spending with UPI Expense Tracker, a powerful tool designed to give you a clear and complete picture of your finances.\n\n")
         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {

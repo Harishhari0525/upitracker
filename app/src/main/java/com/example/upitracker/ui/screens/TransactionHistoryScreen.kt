@@ -237,6 +237,7 @@ private fun UpiTransactionsList(
     val allCategories by mainViewModel.allCategories.collectAsState()
 
     val totals by mainViewModel.filteredTotals.collectAsState()
+    val isLoading by mainViewModel.isHistoryLoading.collectAsState()
 
     val filters by mainViewModel.filters.collectAsState()
     val areFiltersActive = remember(filters) {
@@ -309,73 +310,94 @@ private fun UpiTransactionsList(
             )
         }
 
-        if (groupedTransactions.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else if (groupedTransactions.isEmpty()) {
             LottieEmptyState(
                 message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered),
                 lottieResourceId = R.raw.empty_box_animation
             )
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
-                    stickyHeader(key = monthYear)
-                    {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 0.dp) // Give it space from the items above/below
-                                .background(MaterialTheme.colorScheme.surface), // Match screen background
-                            contentAlignment = Alignment.Center // Center the pill
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                tonalElevation = 3.dp // Give it a subtle lift
+            } else {
+                LazyColumn(
+                    state = rememberLazyListState(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
+                        stickyHeader(key = monthYear)
+                        {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 0.dp) // Give it space from the items above/below
+                                    .background(MaterialTheme.colorScheme.surface), // Match screen background
+                                contentAlignment = Alignment.Center // Center the pill
                             ) {
-                                Text(
-                                    text = monthYear,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.padding(vertical = 9.dp, horizontal = 100.dp),
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    tonalElevation = 3.dp // Give it a subtle lift
+                                ) {
+                                    Text(
+                                        text = monthYear,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(
+                                            vertical = 9.dp,
+                                            horizontal = 100.dp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
                             }
                         }
-                    }
-                    items(items = transactionsInMonth, key = { "txn-${it.id}" }) { transaction ->
-                        val isSelected = selectedIds.contains(transaction.id)
-                        val categoryDetails = allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
-                        val categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080")
-                        val categoryIcon = getCategoryIcon(categoryDetails)
-
-                        // ✨ FIX: The `onClick` in this card now has the correct logic
-                        TransactionCardWithMenu(
-                            modifier = Modifier.padding(bottom = 4.dp),
-                            transaction = transaction,
-                            // Pass the state flags directly
-                            isSelectionMode = isSelectionMode,
-                            isSelected = isSelected,
-                            showCheckbox = isSelectionMode,
-                            // Pass the callbacks
-                            onToggleSelection = { mainViewModel.toggleSelection(transaction.id) },
-                            onShowDetails = {
-                                mainViewModel.selectTransaction(transaction.id)
-                                onShowDetails()
-                            },
-                            // The rest of the parameters remain the same
-                            onDelete = { mainViewModel.deleteTransaction(it) },
-                            onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
-                            archiveActionText = "Archive",
-                            archiveActionIcon = Icons.Default.Archive,
-                            categoryColor = categoryColor,
-                            categoryIcon = categoryIcon,
-                            onCategoryClick = { categoryName ->
-                                if (!isSelectionMode) mainViewModel.toggleCategoryFilter(categoryName)
+                        items(
+                            items = transactionsInMonth,
+                            key = { "txn-${it.id}" }) { transaction ->
+                            val isSelected = selectedIds.contains(transaction.id)
+                            val categoryDetails = allCategories.find { c ->
+                                c.name.equals(
+                                    transaction.category,
+                                    ignoreCase = true
+                                )
                             }
-                        )
+                            val categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080")
+                            val categoryIcon = getCategoryIcon(categoryDetails)
+
+                            // ✨ FIX: The `onClick` in this card now has the correct logic
+                            TransactionCardWithMenu(
+                                modifier = Modifier.padding(bottom = 4.dp),
+                                transaction = transaction,
+                                // Pass the state flags directly
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                showCheckbox = isSelectionMode,
+                                // Pass the callbacks
+                                onToggleSelection = { mainViewModel.toggleSelection(transaction.id) },
+                                onShowDetails = {
+                                    mainViewModel.selectTransaction(transaction.id)
+                                    onShowDetails()
+                                },
+                                // The rest of the parameters remain the same
+                                onDelete = { mainViewModel.deleteTransaction(it) },
+                                onArchiveAction = {
+                                    mainViewModel.toggleTransactionArchiveStatus(
+                                        it,
+                                        true
+                                    )
+                                },
+                                archiveActionText = "Archive",
+                                archiveActionIcon = Icons.Default.Archive,
+                                categoryColor = categoryColor,
+                                categoryIcon = categoryIcon,
+                                onCategoryClick = { categoryName ->
+                                    if (!isSelectionMode) mainViewModel.toggleCategoryFilter(
+                                        categoryName
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -421,7 +443,8 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
                     stickyHeader(key = group.monthYear) {
                         MonthlyHeader(
                             title = group.monthYear,
-                            total = group.monthlyTotal
+                            total = group.monthlyTotal,
+                            count = group.summaries.size
                         )
                     }
                     items(group.summaries, key = { "lite-${it.id}" }) { summary ->
@@ -1015,22 +1038,67 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
     )
 }
 @Composable
-private fun MonthlyHeader(title: String, total: Double) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
-    Surface(
+private fun MonthlyHeader(title: String, total: Double, count: Int) {
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(
+            Locale.Builder().setLanguage("en").setRegion("IN").build()
+        )
+    }
+    // Use a Box to center the pill, similar to the UPI transaction header
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp), // Space between header and first card
-        shape = MaterialTheme.shapes.medium,
-        tonalElevation = 1.dp
+            .padding(bottom = 2.dp), // Spacing below the header
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            shape = RoundedCornerShape(100), // This creates the "pill" shape
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            tonalElevation = 3.dp
         ) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(text = currencyFormatter.format(total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.padding(horizontal = 35.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. Title
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                // Separator
+                Text(
+                    text = " - ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                // 2. Amount
+                Text(
+                    text = currencyFormatter.format(total),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                // Separator
+                Text(
+                    text = " - ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                // 3. Count
+                Text(
+                    text = "$count item(s)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }

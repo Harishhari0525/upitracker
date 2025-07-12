@@ -2,6 +2,7 @@ package com.example.upitracker
 
 import android.Manifest
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Telephony
 import android.util.Log
@@ -9,14 +10,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -25,18 +29,23 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage
+import com.example.upitracker.data.Transaction
 import com.example.upitracker.network.GitHubRelease
 import com.example.upitracker.network.UpdateService
 import com.example.upitracker.sms.SmsReceiver
 import com.example.upitracker.sms.parseUpiLiteSummarySms
 import com.example.upitracker.sms.parseUpiSms
+import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.ui.components.PinLockScreen
 import com.example.upitracker.ui.components.WhatsNewDialog
+import com.example.upitracker.ui.screens.BottomNavItem
 import com.example.upitracker.ui.screens.LottieSplashScreen
 import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.ui.screens.OnboardingScreen
@@ -55,14 +64,13 @@ class MainActivity : FragmentActivity() {
     private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
 
-    // Correctly requests multiple permissions at once.
     private val multiplePermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
             val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
 
             if (readSmsGranted && receiveSmsGranted) {
-                importOldUpiSms()
+                startFullSmsSync(isInitialImport = true)
             } else {
                 mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required.")
             }
@@ -84,33 +92,24 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-    private lateinit var inAppUpdateManager: InAppUpdateManager
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 1. Splash Screen Setup
-        installSplashScreen().setKeepOnScreenCondition {
-            !mainViewModel.isDataReady.value
-        }
-
-        // 2. App Initialization
+        installSplashScreen().setKeepOnScreenCondition { !mainViewModel.isDataReady.value }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         CryptoManager.initialize(this)
         NotificationHelper.createNotificationChannels(this)
-        inAppUpdateManager = InAppUpdateManager(this)
         scheduleAllWorkers()
         registerSmsReceiver()
 
-        // 3. Setting UI Content
         setContent {
-            var showLottieSplash by remember { mutableStateOf(true) }
-
             Theme(mainViewModel = mainViewModel) {
+                var showLottieSplash by remember { mutableStateOf(true) }
+
                 if (showLottieSplash) {
-                    LottieSplashScreen(onAnimationFinished = {
-                        showLottieSplash = false
-                    })
+                    LottieSplashScreen(
+                        mainViewModel = mainViewModel,
+                        onAnimationFinished = { showLottieSplash = false }
+                    )
                 } else {
                     MainAppRouter()
                 }
@@ -122,51 +121,88 @@ class MainActivity : FragmentActivity() {
     private fun MainAppRouter() {
         val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
         var pinUnlocked by rememberSaveable { mutableStateOf(false) }
-        var pinIsActuallySet by rememberSaveable { mutableStateOf(false) }
+        var pinIsActuallySet by rememberSaveable { mutableStateOf<Boolean?>(null) }
         val coroutineScope = rememberCoroutineScope()
 
         LaunchedEffect(onboardingCompleted, pinUnlocked) {
             if (onboardingCompleted) {
                 pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
-                if (!pinIsActuallySet) pinUnlocked = true
+                if (pinIsActuallySet == false) pinUnlocked = true
             }
         }
 
-        when {
-            !onboardingCompleted -> {
-                OnboardingScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onOnboardingComplete = { isUpiLiteEnabled ->
-                        mainViewModel.markOnboardingComplete()
-                        mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            when {
+                !onboardingCompleted -> {
+                    OnboardingScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onOnboardingComplete = { isUpiLiteEnabled ->
+                            mainViewModel.markOnboardingComplete()
+                            mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+                        }
+                    )
+                }
+                pinIsActuallySet == null -> {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        CircularProgressIndicator()
                     }
-                )
-            }
-            !pinUnlocked && pinIsActuallySet -> {
-                PinLockScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onUnlock = { pinUnlocked = true },
-                    onSetPin = { coroutineScope.launch { pinIsActuallySet = PinStorage.isPinSet(this@MainActivity); pinUnlocked = true } },
-                    onAttemptBiometricUnlock = { handleBiometricUnlock { pinUnlocked = true } }
-                )
-            }
-            else -> {
-                MainUserInterface()
+                }
+                !pinUnlocked && pinIsActuallySet == true -> {
+                    PinLockScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onUnlock = { pinUnlocked = true },
+                        onSetPin = { coroutineScope.launch { pinIsActuallySet = PinStorage.isPinSet(this@MainActivity); pinUnlocked = true } },
+                        onAttemptBiometricUnlock = { handleBiometricUnlock { pinUnlocked = true } }
+                    )
+                }
+                else -> {
+                    MainAppScreen()
+                }
             }
         }
     }
 
     @Composable
-    private fun MainUserInterface() {
+    private fun MainAppScreen() {
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
+        val snackbarHostState = remember { SnackbarHostState() }
+        val rootNavController = rememberNavController()
         var latestReleaseInfo by remember { mutableStateOf<GitHubRelease?>(null) }
         var showRestartDialog by remember { mutableStateOf(false) }
         var restartDialogMessage by remember { mutableStateOf("") }
 
-        // This effect runs once when the main UI is first shown.
+        var showAddTransactionDialog by remember { mutableStateOf(false) }
+
         LaunchedEffect(Unit) {
-            // 1. Check for new app version
+            mainViewModel.snackbarEvents.collectLatest { snackbarMessageData ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = snackbarMessageData.message,
+                        actionLabel = snackbarMessageData.actionLabel,
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            // ✨ THIS IS THE FIX: Call the correct function on startup ✨
+            val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
+            if (lastTimestamp > 0) {
+                val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
+                if (newSmsList.isNotEmpty()) {
+                    processSmsInbox(
+                        smsList = newSmsList,
+                        setLoadingState = { /* This is a silent sync, so we do nothing to the UI state */ },
+                        onComplete = { newTxnCount, _, _ ->
+                            if (newTxnCount > 0) mainViewModel.postSnackbarMessage("Found $newTxnCount new transaction(s).")
+                        }
+                    )
+                }
+            }
+
+            // Check for new app version
             try {
                 val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
                 val lastSeenVersion = ThemePreference.getLastSeenVersionFlow(context).first()
@@ -179,11 +215,6 @@ class MainActivity : FragmentActivity() {
             } catch (e: Exception) {
                 Log.e("VersionCheck", "Error checking for new version", e)
             }
-
-            // 2. Trigger the SMS import
-            importOldUpiSms()
-
-            inAppUpdateManager.checkForUpdate()
         }
 
         LaunchedEffect(Unit) {
@@ -196,12 +227,24 @@ class MainActivity : FragmentActivity() {
         }
 
         Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            floatingActionButton = {
+                // This button will only appear on the History screen.
+                val navBackStackEntry by rootNavController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+                if (currentRoute == BottomNavItem.History.route) {
+                    FloatingActionButton(onClick = { showAddTransactionDialog = true }) {
+                        Icon(Icons.Filled.Add, "Add new transaction")
+                    }
+                }
+            }
         ) { innerPadding ->
             MainNavHost(
+                rootNavController = rootNavController,
                 modifier = Modifier.padding(innerPadding),
-                onImportOldSms = { requestSmsPermissionAndImport() },
-                onRefreshSmsArchive = { performSmsArchiveRefresh() },
+                onImportOldSms = { requestSmsPermissionAndThenSync(isInitialImport = true) },
+                onRefreshSmsArchive = { requestSmsPermissionAndThenSync(isInitialImport = false) },
                 onBackupDatabase = { backupDatabaseLauncher.launch("upi_tracker_backup.db") },
                 onRestoreDatabase = { restoreDatabaseLauncher.launch(arrayOf("application/octet-stream")) },
                 mainViewModel = mainViewModel
@@ -214,9 +257,7 @@ class MainActivity : FragmentActivity() {
                 onDismiss = {
                     coroutineScope.launch {
                         val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                        if (currentVersion != null) {
-                            ThemePreference.setLastSeenVersion(context, currentVersion)
-                        }
+                        if (currentVersion != null) ThemePreference.setLastSeenVersion(context, currentVersion)
                     }
                     latestReleaseInfo = null
                 }
@@ -225,6 +266,16 @@ class MainActivity : FragmentActivity() {
 
         if (showRestartDialog) {
             ForceRestartDialog(message = restartDialogMessage, onConfirm = { RestartUtil.restartApp(this@MainActivity) })
+        }
+        if (showAddTransactionDialog) {
+            AddTransactionDialog(
+                onDismiss = { showAddTransactionDialog = false },
+                onConfirm = { amount, type, description, category ->
+                    // This calls the function we just added back
+                    addManualTransaction(amount, type, description, category)
+                    showAddTransactionDialog = false
+                }
+            )
         }
     }
 
@@ -237,17 +288,13 @@ class MainActivity : FragmentActivity() {
             )
             val biometricPrompt = BiometricHelper.getBiometricPrompt(
                 activity = this@MainActivity,
-                onAuthenticationSucceeded = {
-                    onSuccess()
-                },
+                onAuthenticationSucceeded = { onSuccess() },
                 onAuthenticationError = { errorCode, errString ->
                     if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON && errorCode != BiometricPrompt.ERROR_USER_CANCELED) {
                         mainViewModel.postSnackbarMessage(getString(R.string.biometric_auth_error_generic, errString))
                     }
                 },
-                onAuthenticationFailed = {
-                    mainViewModel.postSnackbarMessage(getString(R.string.biometric_auth_failed))
-                }
+                onAuthenticationFailed = { mainViewModel.postSnackbarMessage(getString(R.string.biometric_auth_failed)) }
             )
             biometricPrompt.authenticate(promptInfo)
         } else {
@@ -338,7 +385,6 @@ class MainActivity : FragmentActivity() {
                         processedSummaries++
                     } else if (existing.transactionCount != summary.transactionCount || existing.totalAmount != summary.totalAmount) {
                         liteDao.update(existing.copy(transactionCount = summary.transactionCount, totalAmount = summary.totalAmount))
-                        processedSummaries++
                     }
                 }
 
@@ -370,54 +416,77 @@ class MainActivity : FragmentActivity() {
             sender.uppercase().contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
             sender.uppercase().contains("AXIS") -> "Axis Bank"
             sender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
-            sender.uppercase().contains("CITIBANK") -> "Citibank"
             sender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
-            sender.uppercase().contains("AMAZON") -> "Amazon Pay"
-            sender.uppercase().contains("GOOGLE") -> "Google Pay"
-            sender.uppercase().contains("PHONEPE") -> "PhonePe"
-            sender.uppercase().contains("BHIM") -> "BHIM"
-            sender.uppercase().contains("MOBIKWIK") -> "MobiKwik"
-            sender.uppercase().contains("FREECHARGE") -> "Freecharge"
-            sender.uppercase().contains("UNION") -> "Union Bank of India"
-            sender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
+            sender.uppercase().contains("CITI") -> "Citibank"
+            sender.uppercase().contains("YES") -> "Yes Bank"
             sender.uppercase().contains("IDFC") -> "IDFC FIRST Bank"
+            sender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
+            sender.uppercase().contains("BANK OF BARODA") -> "Bank of Baroda"
+            sender.uppercase().contains("PNB") || sender.uppercase().contains("PUNJAB NATIONAL BANK") -> "Punjab National Bank"
+            sender.uppercase().contains("UNION BANK") -> "Union Bank of India"
+            sender.uppercase().contains("CANARA") -> "Canara Bank"
+            sender.uppercase().contains("AU SMALL FINANCE BANK") -> "AU Small Finance Bank"
             sender.uppercase().contains("FEDERAL") -> "Federal Bank"
             sender.uppercase().contains("RBL") -> "RBL Bank"
-            sender.uppercase().contains("YES") -> "YES Bank"
+            sender.uppercase().contains("IDBI") -> "IDBI Bank"
             else -> null
         }
     }
 
-    private fun importOldUpiSms() {
+    private fun addManualTransaction(
+        amount: Double,
+        type: String,
+        description: String,
+        category: String
+    ) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val newTransaction = Transaction(
+                amount = amount,
+                type = type,
+                description = description.trim(),
+                category = category.trim().takeIf { it.isNotEmpty() },
+                date = System.currentTimeMillis(),
+                senderOrReceiver = "Manual Entry",
+                isArchived = false,
+                note = ""
+            )
+            mainViewModel.processAndInsertTransaction(newTransaction)
+
+            // Post a snackbar message to confirm
+            mainViewModel.postSnackbarMessage("Transaction saved successfully!")
+        }
+    }
+
+    private fun startFullSmsSync(isInitialImport: Boolean) {
+        if (mainViewModel.isImportingSms.value || mainViewModel.isRefreshingSmsArchive.value) {
+            mainViewModel.postSnackbarMessage("Sync is already in progress.")
+            return
+        }
+
         lifecycleScope.launch {
             val allSms = getAllSms()
+            val loadingStateSetter = if(isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
+            val onCompleteMessage = if(isInitialImport) "Import" else "Refresh"
+
             processSmsInbox(
                 smsList = allSms,
-                setLoadingState = { mainViewModel.setSmsImportingState(it) },
-                onComplete = { txnCount, summaryCount, _ ->
-                    val message = if (txnCount > 0 || summaryCount > 0) "Imported $txnCount new transactions." else "No new transactions found."
-                    if (txnCount > 0 || summaryCount > 0) mainViewModel.postSnackbarMessage(message)
+                setLoadingState = loadingStateSetter,
+                onComplete = { txnCount, _, _ ->
+                    val message = if (txnCount > 0) "$onCompleteMessage complete: Found $txnCount new transactions." else "$onCompleteMessage complete: No new transactions found."
+                    mainViewModel.postSnackbarMessage(message)
                 }
             )
         }
     }
 
-    private fun performSmsArchiveRefresh() {
-        lifecycleScope.launch {
-            val allSms = getAllSms()
-            processSmsInbox(
-                smsList = allSms,
-                setLoadingState = { mainViewModel.setIsRefreshingSmsArchive(it) },
-                onComplete = { newTxns, newSummaries, totalArchived ->
-                    mainViewModel.postSnackbarMessage(getString(R.string.sms_archive_refreshed_message, totalArchived, newTxns, newSummaries))
-                }
-            )
+    private fun requestSmsPermissionAndThenSync(isInitialImport: Boolean) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED) {
+            startFullSmsSync(isInitialImport = isInitialImport)
+        } else {
+            val permissionsToRequest = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
+            multiplePermissionsLauncher.launch(permissionsToRequest)
         }
-    }
-
-    private fun requestSmsPermissionAndImport() {
-        val permissionsToRequest = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
-        multiplePermissionsLauncher.launch(permissionsToRequest)
     }
 
     override fun onDestroy() {

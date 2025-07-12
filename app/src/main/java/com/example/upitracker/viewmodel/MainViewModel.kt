@@ -40,6 +40,7 @@ import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.NotificationHelper
+import com.example.upitracker.util.PinStorage
 import java.io.File
 import java.io.FileOutputStream
 
@@ -184,7 +185,8 @@ data class FilteredTotals(
 data class GroupedUpiLiteSummaries(
     val monthYear: String,
     val summaries: List<UpiLiteSummary>,
-    val monthlyTotal: Double
+    val monthlyTotal: Double,
+    val count: Int
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -1328,7 +1330,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     GroupedUpiLiteSummaries(
                         monthYear = monthYear,
                         summaries = summariesInMonth,
-                        monthlyTotal = summariesInMonth.sumOf { it.totalAmount }
+                        monthlyTotal = summariesInMonth.sumOf { it.totalAmount },
+                        count = summariesInMonth.sumOf { it.transactionCount }
                     )
                 }
         }
@@ -1950,20 +1953,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isDataReady = MutableStateFlow(false)
     val isDataReady: StateFlow<Boolean> = _isDataReady.asStateFlow()
 
+    private val _isHistoryLoading = MutableStateFlow(true)
+    val isHistoryLoading: StateFlow<Boolean> = _isHistoryLoading.asStateFlow()
+
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()
         object ScrollToTop : UiEvent()
     }
 
     init {
-        viewModelScope.launch { _transactions.collect() }
-        viewModelScope.launch { _upiLiteSummaries.collect() }
+        viewModelScope.launch {
+            // First, wait for the initial list of transactions to load.
+            _transactions.first()
+            val onboardingCompleted = OnboardingPreference.isOnboardingCompletedFlow(getApplication()).first()
+            if (onboardingCompleted) {
+                PinStorage.isPinSet(getApplication())
+            }
+            _isDataReady.value = true
+        }
 
         viewModelScope.launch {
-            // Data is considered "ready" once the initial transaction list has been loaded.
-            _transactions.collect {
-                _isDataReady.value = true
-            }
+            // Start with the loading indicator visible.
+            _isHistoryLoading.value = true
+            filteredUpiTransactions.drop(1).first()
+            _isHistoryLoading.value = false
         }
     }
 }
