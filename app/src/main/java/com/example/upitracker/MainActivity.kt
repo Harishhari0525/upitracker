@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,14 +28,12 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage
-import com.example.upitracker.data.Transaction
 import com.example.upitracker.network.GitHubRelease
 import com.example.upitracker.network.UpdateService
 import com.example.upitracker.sms.SmsReceiver
@@ -45,7 +42,6 @@ import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.ui.components.PinLockScreen
 import com.example.upitracker.ui.components.WhatsNewDialog
-import com.example.upitracker.ui.screens.BottomNavItem
 import com.example.upitracker.ui.screens.LottieSplashScreen
 import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.ui.screens.OnboardingScreen
@@ -167,11 +163,10 @@ class MainActivity : FragmentActivity() {
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
-        val rootNavController = rememberNavController()
+        val rootNavController = rememberNavController() // The single NavController for the entire app
         var latestReleaseInfo by remember { mutableStateOf<GitHubRelease?>(null) }
         var showRestartDialog by remember { mutableStateOf(false) }
         var restartDialogMessage by remember { mutableStateOf("") }
-
         var showAddTransactionDialog by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
@@ -187,22 +182,30 @@ class MainActivity : FragmentActivity() {
         }
 
         LaunchedEffect(Unit) {
-            // ✨ THIS IS THE FIX: Call the correct function on startup ✨
+            // SILENT and FAST sync for messages that arrived while app was closed.
             val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
             if (lastTimestamp > 0) {
                 val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
                 if (newSmsList.isNotEmpty()) {
                     processSmsInbox(
                         smsList = newSmsList,
-                        setLoadingState = { /* This is a silent sync, so we do nothing to the UI state */ },
+                        setLoadingState = { /* Silent */ },
                         onComplete = { newTxnCount, _, _ ->
-                            if (newTxnCount > 0) mainViewModel.postSnackbarMessage("Found $newTxnCount new transaction(s).")
+                            if (newTxnCount > 0) {
+                                mainViewModel.postSnackbarMessage("Silently synced $newTxnCount new transaction(s).")
+                            } else {
+                                // ✅ ADD THIS BLOCK
+                                mainViewModel.postSnackbarMessage("No new transactions found.")
+                            }
                         }
                     )
                 }
+                else {
+                    // ✅ ADD THIS BLOCK for the case where there are no new SMS messages at all
+                    mainViewModel.postPlainSnackbarMessage("No new transactions found.")
+                }
             }
 
-            // Check for new app version
             try {
                 val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
                 val lastSeenVersion = ThemePreference.getLastSeenVersionFlow(context).first()
@@ -228,17 +231,7 @@ class MainActivity : FragmentActivity() {
 
         Scaffold(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            floatingActionButton = {
-                // This button will only appear on the History screen.
-                val navBackStackEntry by rootNavController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
-                if (currentRoute == BottomNavItem.History.route) {
-                    FloatingActionButton(onClick = { showAddTransactionDialog = true }) {
-                        Icon(Icons.Filled.Add, "Add new transaction")
-                    }
-                }
-            }
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { innerPadding ->
             MainNavHost(
                 rootNavController = rootNavController,
@@ -247,7 +240,18 @@ class MainActivity : FragmentActivity() {
                 onRefreshSmsArchive = { requestSmsPermissionAndThenSync(isInitialImport = false) },
                 onBackupDatabase = { backupDatabaseLauncher.launch("upi_tracker_backup.db") },
                 onRestoreDatabase = { restoreDatabaseLauncher.launch(arrayOf("application/octet-stream")) },
+                onShowAddTransactionDialog = { showAddTransactionDialog = true },
                 mainViewModel = mainViewModel
+            )
+        }
+
+        if (showAddTransactionDialog) {
+            AddTransactionDialog(
+                onDismiss = { showAddTransactionDialog = false },
+                onConfirm = { amount, type, description, category ->
+                    mainViewModel.addManualTransaction(amount, type, description, category)
+                    showAddTransactionDialog = false
+                }
             )
         }
 
@@ -266,16 +270,6 @@ class MainActivity : FragmentActivity() {
 
         if (showRestartDialog) {
             ForceRestartDialog(message = restartDialogMessage, onConfirm = { RestartUtil.restartApp(this@MainActivity) })
-        }
-        if (showAddTransactionDialog) {
-            AddTransactionDialog(
-                onDismiss = { showAddTransactionDialog = false },
-                onConfirm = { amount, type, description, category ->
-                    // This calls the function we just added back
-                    addManualTransaction(amount, type, description, category)
-                    showAddTransactionDialog = false
-                }
-            )
         }
     }
 
@@ -331,17 +325,6 @@ class MainActivity : FragmentActivity() {
         workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
         val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS).build()
         workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
-
-        val updateCheckRequest =
-            PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS) // Check every 6 hours
-                .build()
-        workManager.enqueueUniquePeriodicWork(
-            UpdateCheckWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, // Keep the existing worker if it's already scheduled
-            updateCheckRequest
-        )
-        Log.d("MainActivity", "Periodic update check worker scheduled.")
-
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
@@ -386,7 +369,7 @@ class MainActivity : FragmentActivity() {
 
             for ((sender, body, smsDate) in smsList) {
                 var isUpiRelated = false
-                val bankName = getBankName(sender)
+                val bankName = BankIdentifier.getBankName(sender)
 
                 parseUpiLiteSummarySms(body)?.let { summary ->
                     isUpiRelated = true
@@ -417,54 +400,6 @@ class MainActivity : FragmentActivity() {
                 setLoadingState(false)
                 onComplete(newTxnCount, processedSummaries, archivedCount)
             }
-        }
-    }
-
-    private fun getBankName(sender: String): String? {
-        return when {
-            sender.uppercase().contains("HDFC") -> "HDFC Bank"
-            sender.uppercase().contains("ICICI") -> "ICICI Bank"
-            sender.uppercase().contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
-            sender.uppercase().contains("AXIS") -> "Axis Bank"
-            sender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
-            sender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
-            sender.uppercase().contains("CITI") -> "Citibank"
-            sender.uppercase().contains("YES") -> "Yes Bank"
-            sender.uppercase().contains("IDFC") -> "IDFC FIRST Bank"
-            sender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
-            sender.uppercase().contains("BANK OF BARODA") -> "Bank of Baroda"
-            sender.uppercase().contains("PNB") || sender.uppercase().contains("PUNJAB NATIONAL BANK") -> "Punjab National Bank"
-            sender.uppercase().contains("UNION BANK") -> "Union Bank of India"
-            sender.uppercase().contains("CANARA") -> "Canara Bank"
-            sender.uppercase().contains("AU SMALL FINANCE BANK") -> "AU Small Finance Bank"
-            sender.uppercase().contains("FEDERAL") -> "Federal Bank"
-            sender.uppercase().contains("RBL") -> "RBL Bank"
-            sender.uppercase().contains("IDBI") -> "IDBI Bank"
-            else -> null
-        }
-    }
-
-    private fun addManualTransaction(
-        amount: Double,
-        type: String,
-        description: String,
-        category: String
-    ) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val newTransaction = Transaction(
-                amount = amount,
-                type = type,
-                description = description.trim(),
-                category = category.trim().takeIf { it.isNotEmpty() },
-                date = System.currentTimeMillis(),
-                senderOrReceiver = "Manual Entry",
-                isArchived = false,
-                note = ""
-            )
-            mainViewModel.processAndInsertTransaction(newTransaction)
-
-            // Post a snackbar message to confirm
-            mainViewModel.postSnackbarMessage("Transaction saved successfully!")
         }
     }
 

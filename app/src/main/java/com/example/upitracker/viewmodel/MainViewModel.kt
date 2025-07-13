@@ -39,6 +39,7 @@ import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.BankIdentifier
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
 import java.io.File
@@ -336,26 +337,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         archivedSmsDao.getAllArchivedSms()
             .map { allMessages ->
                 allMessages
-                    .mapNotNull { msg ->
-                        val sender = msg.originalSender.uppercase()
-                        when {
-                            sender.contains("HDFC") -> "HDFC Bank"
-                            sender.contains("ICICI") -> "ICICI Bank"
-                            sender.contains("SBI") || sender.contains("SBIN") -> "State Bank of India"
-                            sender.contains("AXIS") -> "Axis Bank"
-                            sender.contains("KOTAK") -> "Kotak Mahindra Bank"
-                            sender.contains("PNB") -> "Punjab National Bank"
-                            sender.contains("CANARA") -> "Canara Bank"
-                            sender.contains("IDBI") -> "IDBI Bank"
-                            sender.contains("UNION") -> "Union Bank of India"
-                            sender.contains("BANK OF BARODA") -> "Bank of Baroda"
-                            sender.contains("YES") -> "Yes Bank"
-                            sender.contains("FEDERAL") -> "Federal Bank"
-                            sender.contains("CITI") -> "Citi Bank"
-                            sender.contains("RBL") -> "RBL Bank"
-                            else -> null
-                        }
-                    }
+                    .mapNotNull { msg -> BankIdentifier.getBankName(msg.originalSender) }
                     .groupingBy { it }
                     .eachCount()
                     .map { (bankName, count) -> BankMessageCount(bankName, count) }
@@ -647,6 +629,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _upiTransactionSortField,
             _upiTransactionSortOrder
         ) { currentFilters, sortField, sortOrder ->
+            // This Pair helps us pass both filters and sort info to flatMapLatest
             Pair(currentFilters, Pair(sortField, sortOrder))
         }.flatMapLatest { (currentFilters, sortInfo) ->
             val (sortField, sortOrder) = sortInfo
@@ -654,6 +637,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val queryBuilder = StringBuilder("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL")
             val args = mutableListOf<Any>()
 
+            // ... (The entire query building logic remains unchanged) ...
             if (currentFilters.type != UpiTransactionTypeFilter.ALL) {
                 queryBuilder.append(" AND type = ?")
                 args.add(currentFilters.type.name)
@@ -679,9 +663,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (currentFilters.showOnlyLinked) {
                 queryBuilder.append(" AND linkedTransactionId IS NOT NULL")
             }
-
             if (currentFilters.selectedCategories.isNotEmpty()) {
-                // Creates a placeholder string like "(?, ?, ?)"
                 val placeholders = currentFilters.selectedCategories.joinToString { "?" }
                 queryBuilder.append(" AND category IN ($placeholders)")
                 args.addAll(currentFilters.selectedCategories)
@@ -690,7 +672,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 queryBuilder.append(" AND bankName = ?")
                 args.add(bankName)
             }
-
             when (currentFilters.amountType) {
                 AmountFilterType.GREATER_THAN -> currentFilters.amountValue1?.let {
                     queryBuilder.append(" AND amount > ?")
@@ -711,7 +692,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 AmountFilterType.ALL -> { /* No-op */ }
             }
-
             val sortColumn = when (sortField) {
                 SortableTransactionField.DATE -> "date"
                 SortableTransactionField.AMOUNT -> "amount"
@@ -722,13 +702,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val sqliteQuery = SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray())
             transactionDao.getFilteredTransactions(sqliteQuery)
-        }.map { transactions ->
-            val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-            transactions.groupBy { transaction ->
-                Instant.ofEpochMilli(transaction.date)
-                    .atZone(ZoneId.systemDefault())
-                    .format(formatter)
-            }
+                .map { transactions ->
+                    // Now 'sortField' is available in this scope
+                    if (sortField == SortableTransactionField.CATEGORY) {
+                        if (transactions.isNotEmpty()) {
+                            mapOf("Sorted by Category" to transactions)
+                        } else {
+                            emptyMap()
+                        }
+                    } else {
+                        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+                        transactions.groupBy { transaction ->
+                            Instant.ofEpochMilli(transaction.date)
+                                .atZone(ZoneId.systemDefault())
+                                .format(formatter)
+                        }
+                    }
+                }
         }
             .flowOn(Dispatchers.IO)
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
@@ -803,6 +793,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val (monthStart, monthEnd) = getCurrentMonthDateRange()
             val combinedItems = mutableListOf<HistoryListItem>()
 
+            // Add debit transactions
             val debitTransactions = transactions.filter {
                 it.type.equals("DEBIT", ignoreCase = true)
                         && !it.category.equals(refundCategory, ignoreCase = true)
@@ -810,22 +801,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             combinedItems.addAll(debitTransactions.map { TransactionHistoryItem(it) })
 
+            // Add lite summaries only if enabled
             if (upiLiteEnabled) {
                 val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
                 combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
             }
-
-            val liteSummaries = summaries.filter { it.date in monthStart..monthEnd }
-            val sortedList = combinedItems.sortedByDescending { it.displayDate }
-            combinedItems.addAll(liteSummaries.map { SummaryHistoryItem(it) })
-
-            combinedItems.sortedByDescending { it.displayDate }
-            sortedList.distinctBy { item ->
+            // ✅ FIX: Use the result of distinctBy and sort once at the end
+            combinedItems.distinctBy { item ->
                 when (item) {
                     is TransactionHistoryItem -> "txn-${item.transaction.id}"
                     is SummaryHistoryItem -> "summary-${item.summary.id}"
                 }
-            }
+            }.sortedByDescending { it.displayDate }
         }
             .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -1163,29 +1150,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Create a lookup map from SMS messages for efficiency
             val smsBankLookup = allSms.associateBy(
                 keySelector = { it.originalBody.trim() }, // Use the SMS body as a key
-                valueTransform = {
-                    when {
-                        it.originalSender.uppercase().contains("HDFC") -> "HDFC Bank"
-                        it.originalSender.uppercase().contains("ICICI") -> "ICICI Bank"
-                        it.originalSender.uppercase().contains("SBI") || it.originalSender.contains("SBIN") -> "State Bank of India"
-                        it.originalSender.uppercase().contains("AXIS") -> "Axis Bank"
-                        it.originalSender.uppercase().contains("KOTAK") -> "Kotak Mahindra Bank"
-                        it.originalSender.uppercase().contains("PNB") -> "Punjab National Bank"
-                        it.originalSender.uppercase().contains("UNION") -> "Union Bank of India"
-                        it.originalSender.uppercase().contains("CITI") -> "Citibank"
-                        it.originalSender.uppercase().contains("PAYTM") -> "Paytm Payments Bank"
-                        it.originalSender.uppercase().contains("IDBI") -> "IDBI Bank"
-                        it.originalSender.uppercase().contains("BANK OF BARODA") -> "Bank of Baroda"
-                        it.originalSender.uppercase().contains("YES BANK") -> "Yes Bank"
-                        it.originalSender.uppercase().contains("INDUSIND") -> "IndusInd Bank"
-                        it.originalSender.uppercase().contains("FEDERAL") -> "Federal Bank"
-                        it.originalSender.uppercase().contains("RBL") -> "RBL Bank"
-                        it.originalSender.uppercase().contains("AU SMALL FINANCE BANK") -> "AU Small Finance Bank"
-                        else -> null
-                    }
-                }
+                valueTransform = { BankIdentifier.getBankName(it.originalSender) }
             )
-
             transactionsToUpdate.forEach { transaction ->
                 // Find the matching SMS and get its bank name
                 val bankName = smsBankLookup[transaction.description.trim()]
@@ -1955,6 +1921,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isHistoryLoading = MutableStateFlow(true)
     val isHistoryLoading: StateFlow<Boolean> = _isHistoryLoading.asStateFlow()
+
+    fun updateCategoryRule(
+        ruleId: Int, // ✨ We need the ID to update the correct rule
+        field: RuleField,
+        matcher: RuleMatcher,
+        keyword: String,
+        category: String,
+        priority: Int,
+        logic: RuleLogic
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (keyword.isNotBlank() && category.isNotBlank()) {
+                val updatedRule = CategorySuggestionRule(
+                    id = ruleId, // ✨ Pass the ID here
+                    fieldToMatch = field,
+                    matcher = matcher,
+                    keyword = keyword,
+                    categoryName = category,
+                    priority = priority,
+                    logic = logic
+                )
+                categorySuggestionRuleDao.update(updatedRule)
+                postPlainSnackbarMessage("Rule updated successfully.")
+            }
+        }
+    }
 
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()

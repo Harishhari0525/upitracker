@@ -16,27 +16,29 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.upitracker.data.RuleLogic
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import com.example.upitracker.data.CategorySuggestionRule
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddRuleDialog(
+fun AddEditRuleDialog(
+    ruleToEdit: CategorySuggestionRule?,
     onDismiss: () -> Unit,
     onConfirm: (field: RuleField, matcher: RuleMatcher, keyword: String, category: String, priority: Int, logic: RuleLogic) -> Unit
 ) {
-    var keyword by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var selectedField by remember { mutableStateOf(RuleField.DESCRIPTION) }
-    var selectedMatcher by remember { mutableStateOf(RuleMatcher.CONTAINS) }
+    var keyword by remember { mutableStateOf(ruleToEdit?.keyword ?: "") }
+    var category by remember { mutableStateOf(ruleToEdit?.categoryName ?: "") }
+    var selectedField by remember { mutableStateOf(ruleToEdit?.fieldToMatch ?: RuleField.DESCRIPTION) }
+    var selectedMatcher by remember { mutableStateOf(ruleToEdit?.matcher ?: RuleMatcher.CONTAINS) }
 
     var isFieldExpanded by remember { mutableStateOf(false) }
     var isMatcherExpanded by remember { mutableStateOf(false) }
-    var priorityText by remember { mutableStateOf("0") }
-    var selectedLogic by remember { mutableStateOf(RuleLogic.ANY) }
+    var priorityText by remember { mutableStateOf(ruleToEdit?.priority?.toString() ?: "0") }
+    var selectedLogic by remember { mutableStateOf(ruleToEdit?.logic ?: RuleLogic.ANY) }
 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add New Rule") },
+        title = { Text(if (ruleToEdit == null) "Add New Rule" else "Edit Rule") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -12,17 +12,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import com.example.upitracker.R
 import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.viewmodel.BudgetStatus
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -38,6 +33,7 @@ fun AddEditBudgetDialog(
     var isCategoryError by remember { mutableStateOf(false) }
     var isAmountError by remember { mutableStateOf(false) }
     val isEditing = budgetStatus != null
+    var showHelpDialog by remember { mutableStateOf(false) }
 
     // ✨ State to control if the dropdown menu is expanded ✨
     var isPeriodDropdownExpanded by remember { mutableStateOf(false) }
@@ -51,7 +47,7 @@ fun AddEditBudgetDialog(
             {
                     ExposedDropdownMenuBox(
                         expanded = isPeriodDropdownExpanded,
-                        onExpandedChange = { isPeriodDropdownExpanded = it },
+                        onExpandedChange = { if (!isEditing) isPeriodDropdownExpanded = it },
                     ) {
                         OutlinedTextField(
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
@@ -106,38 +102,24 @@ fun AddEditBudgetDialog(
                         supportingText = { if (isAmountError) Text("Please enter a valid amount") },
                         visualTransformation = DecimalInputVisualTransformation()
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 8.dp) // Add some padding if needed
-                    ) {
-                        Text("Enable Rollover", modifier = Modifier.weight(1f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("Enable Rollover", modifier = Modifier.weight(1f))
 
-                        // This is the correct way to implement a tooltip with composable content
-                        val tooltipState = rememberTooltipState()
-                        val scope = rememberCoroutineScope()
-
-                        TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
-                            tooltip = {
-                                PlainTooltip {
-                                    Text("If enabled, any amount leftover (or overspent) from the previous period will be added / deducted to this period's budget.")
-                                }
-                            },
-                            state = tooltipState
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                                contentDescription = "Help about rollover budgets",
-                                // You can optionally make the icon clickable to show the tooltip
-                                modifier = Modifier.clickable { scope.launch { tooltipState.show() } },
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Spacer(Modifier.width(8.dp))
-                        Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
+                    // This IconButton will open our help dialog
+                    IconButton(onClick = { showHelpDialog = true }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = "Help about rollover budgets",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = allowRollover, onCheckedChange = { allowRollover = it })
+                }
             }
         },
         confirmButton = {
@@ -153,5 +135,27 @@ fun AddEditBudgetDialog(
             ) { Text(stringResource(R.string.button_save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_button_cancel)) } }
+    )
+    if (showHelpDialog) {
+        RolloverHelpDialog(onDismiss = { showHelpDialog = false })
+    }
+}
+@Composable
+private fun RolloverHelpDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null) },
+        title = { Text("About Rollover Budgets") },
+        text = {
+            Text(
+                "When enabled, any amount leftover from the previous period is added to this period's budget.\n\n" +
+                        "If you overspent, the deficit will be deducted from the new period's budget, giving you a true picture of your available funds."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Got it")
+            }
+        }
     )
 }

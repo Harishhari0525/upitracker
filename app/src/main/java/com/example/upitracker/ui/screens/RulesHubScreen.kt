@@ -15,7 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.upitracker.R
 import androidx.compose.ui.unit.dp
-import com.example.upitracker.ui.components.AddRuleDialog
+import com.example.upitracker.data.CategorySuggestionRule
+import com.example.upitracker.ui.components.AddEditRuleDialog
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.RuleCard
 import com.example.upitracker.viewmodel.MainViewModel
@@ -70,7 +71,8 @@ fun RulesHubScreen(
 @Composable
 private fun CategorizationRulesContent(mainViewModel: MainViewModel) {
     val rules by mainViewModel.categorySuggestionRules.collectAsState()
-    var showAddRuleDialog by remember { mutableStateOf(false) }
+    var ruleToEdit by remember { mutableStateOf<CategorySuggestionRule?>(null) }
+    var showAddEditDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (rules.isEmpty()) {
@@ -87,26 +89,41 @@ private fun CategorizationRulesContent(mainViewModel: MainViewModel) {
                 items(rules, key = { it.id }) { rule ->
                     RuleCard(
                         rule = rule,
-                        onDelete = { mainViewModel.deleteCategoryRule(rule) }
+                        onDelete = { mainViewModel.deleteCategoryRule(rule) },
+                        onEdit = {
+                            // ✨ Set the rule to edit and show the dialog ✨
+                            ruleToEdit = rule
+                            showAddEditDialog = true
+                        }
                     )
                 }
             }
         }
         FloatingActionButton(
-            onClick = { showAddRuleDialog = true },
+            onClick = {
+                // ✨ Clear rule to edit (for "Add" mode) and show dialog ✨
+                ruleToEdit = null
+                showAddEditDialog = true
+            },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add new category rule")
         }
     }
 
-    if (showAddRuleDialog) {
-
-        AddRuleDialog(
-            onDismiss = { showAddRuleDialog = false },
-            onConfirm = { field, matcher, keyword, category , priority, logic ->
-                mainViewModel.addCategoryRule(field, matcher, keyword, category, priority, logic)
-                showAddRuleDialog = false
+    if (showAddEditDialog) {
+        AddEditRuleDialog(
+            ruleToEdit = ruleToEdit,
+            onDismiss = { showAddEditDialog = false },
+            onConfirm = { field, matcher, keyword, category, priority, logic ->
+                if (ruleToEdit == null) {
+                    // Add new rule
+                    mainViewModel.addCategoryRule(field, matcher, keyword, category, priority, logic)
+                } else {
+                    // Update existing rule
+                    mainViewModel.updateCategoryRule(ruleToEdit!!.id, field, matcher, keyword, category, priority, logic)
+                }
+                showAddEditDialog = false
             }
         )
     }

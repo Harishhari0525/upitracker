@@ -1,3 +1,9 @@
+@file:OptIn(
+    ExperimentalAnimationApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalAnimationGraphicsApi::class
+)
+
 package com.example.upitracker.ui.screens
 
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -5,177 +11,118 @@ import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.example.upitracker.util.expressivePopEnter
 import com.example.upitracker.util.expressivePopExit
 import com.example.upitracker.util.expressiveSlideIn
 import com.example.upitracker.util.expressiveSlideOut
 import com.example.upitracker.viewmodel.MainViewModel
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MainNavHost(
-    rootNavController: NavController,
+    rootNavController: NavHostController,
     modifier: Modifier = Modifier,
-    mainViewModel: MainViewModel = viewModel(),
-    onImportOldSms: () -> Unit,
-    onRefreshSmsArchive: () -> Unit,
-    onBackupDatabase: () -> Unit,
-    onRestoreDatabase: () -> Unit
-) {
-    // This NavHost now correctly handles the top-level navigation,
-    // and we re-introduce the animations here.
-    NavHost(
-        navController = rootNavController as NavHostController,
-        startDestination = "main_app_shell",
-        modifier = modifier
-    ) {
-        composable(
-            route = "main_app_shell"
-        ) {
-            BottomNavScaffold(
-                rootNavController = rootNavController, // Pass the root controller down
-                mainViewModel = mainViewModel,
-                onImportOldSms = onImportOldSms,
-                onRefreshSmsArchive = onRefreshSmsArchive,
-                onBackupDatabase = onBackupDatabase,
-                onRestoreDatabase = onRestoreDatabase
-            )
-        }
-        composable(
-            "rule_management",
-            enterTransition = { expressiveSlideIn() },
-            exitTransition = { expressiveSlideOut() },
-            popEnterTransition = { expressivePopEnter() },
-            popExitTransition = { expressivePopExit() }
-        ) {
-            RulesHubScreen(
-                onBack = { rootNavController.popBackStack() },
-                mainViewModel = mainViewModel
-            )
-        }
-        composable(
-            "archived_transactions",
-            enterTransition = { expressiveSlideIn() },
-            exitTransition = { expressiveSlideOut() },
-            popEnterTransition = { expressivePopEnter() },
-            popExitTransition = { expressivePopExit() }
-        ) {
-            ArchivedTransactionsScreen(
-                mainViewModel = mainViewModel,
-                onBack = { rootNavController.popBackStack() }
-            )
-        }
-        composable(
-            "category_management",
-            enterTransition = { expressiveSlideIn() },
-            exitTransition = { expressiveSlideOut() },
-            popEnterTransition = { expressivePopEnter() },
-            popExitTransition = { expressivePopExit() }
-        ) {
-            CategoryManagementScreen(
-                mainViewModel = mainViewModel,
-                onBack = { rootNavController.popBackStack() }
-            )
-        }
-    }
-}
-
-
-@OptIn(ExperimentalAnimationGraphicsApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
-@Composable
-private fun BottomNavScaffold(
-    rootNavController: NavController,
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
     onBackupDatabase: () -> Unit,
     onRestoreDatabase: () -> Unit,
+    onShowAddTransactionDialog: () -> Unit
 ) {
     val bottomNavItems = listOf(
-        BottomNavItem.Home,
-        BottomNavItem.Graphs,
-        BottomNavItem.Budget,
-        BottomNavItem.History,
-        BottomNavItem.AppSettings
+        BottomNavItem.Home, BottomNavItem.Graphs, BottomNavItem.Budget,
+        BottomNavItem.History, BottomNavItem.AppSettings
     )
-    val contentNavController = rememberNavController()
+
+    val navBackStackEntry by rootNavController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val showBottomBar = bottomNavItems.any { it.route == currentRoute }
 
     Scaffold(
+        modifier = modifier,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-                tonalElevation = 8.dp
-            ) {
-                val navBackStackEntry by contentNavController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-
-                bottomNavItems.forEach { screen ->
-                    val isSelected = currentDestination?.route == screen.route
-                    NavigationBarItem(
-                        icon = {
-                            if (screen.animatedIconRes != null) {
-                                val painter = rememberAnimatedVectorPainter(
-                                    animatedImageVector = AnimatedImageVector.animatedVectorResource(id = screen.animatedIconRes),
-                                    atEnd = isSelected
-                                )
-                                Icon(painter, contentDescription = stringResource(screen.labelResId))
-                            } else {
-                                Icon(screen.icon, contentDescription = stringResource(screen.labelResId))
-                            }
-                        },
-                        label = { Text(stringResource(screen.labelResId), style = MaterialTheme.typography.labelSmall) },
-                        selected = isSelected,
-                        onClick = {
-                            if (currentDestination?.route != screen.route) {
-                                contentNavController.navigate(screen.route) {
-                                    popUpTo(contentNavController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                ) {
+                    bottomNavItems.forEach { screen ->
+                        val isSelected = currentRoute == screen.route
+                        NavigationBarItem(
+                            icon = {
+                                if (screen.animatedIconRes != null) {
+                                    val painter = rememberAnimatedVectorPainter(
+                                        AnimatedImageVector.animatedVectorResource(id = screen.animatedIconRes),
+                                        atEnd = isSelected
+                                    )
+                                    Icon(painter, contentDescription = stringResource(screen.labelResId))
+                                } else {
+                                    Icon(screen.icon, contentDescription = stringResource(screen.labelResId))
                                 }
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            label = {
+                                Text(stringResource(screen.labelResId), style = MaterialTheme.typography.labelSmall)
+                            },
+                            selected = isSelected,
+                            onClick = {
+                                if (currentRoute != screen.route) {
+                                    rootNavController.navigate(screen.route) {
+                                        popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            )
                         )
-                    )
+                    }
+                }
+            }
+        },
+        floatingActionButton = {
+            if (currentRoute == BottomNavItem.History.route) {
+                FloatingActionButton(onClick = onShowAddTransactionDialog) {
+                    Icon(Icons.Filled.Add, "Add new transaction")
                 }
             }
         }
     ) { innerPadding ->
         NavHost(
-            navController = contentNavController,
+            navController = rootNavController,
             startDestination = BottomNavItem.Home.route,
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
+            modifier = Modifier.padding(innerPadding)
         ) {
+            // Home screen with unified navigation builder for “View All”
             composable(BottomNavItem.Home.route) {
                 CurrentMonthExpensesScreen(
                     mainViewModel = mainViewModel,
-                    onViewAllClick = { contentNavController.navigate(BottomNavItem.History.route) },
+                    onViewAllClick = {
+                        rootNavController.navigate(BottomNavItem.History.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onRefresh = onRefreshSmsArchive
                 )
             }
+
             composable(BottomNavItem.Graphs.route) {
                 GraphsScreen(mainViewModel = mainViewModel)
             }
@@ -196,6 +143,31 @@ private fun BottomNavScaffold(
                     onBackupDatabase = onBackupDatabase,
                     onRestoreDatabase = onRestoreDatabase
                 )
+            }
+
+            // Non-bottom screens with slide animations
+            composable(
+                "rule_management",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                RulesHubScreen(onBack = { rootNavController.popBackStack() }, mainViewModel = mainViewModel)
+            }
+
+            composable(
+                "archived_transactions",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                ArchivedTransactionsScreen(mainViewModel = mainViewModel, onBack = { rootNavController.popBackStack() })
+            }
+
+            composable(
+                "category_management",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                CategoryManagementScreen(mainViewModel = mainViewModel, onBack = { rootNavController.popBackStack() })
             }
         }
     }

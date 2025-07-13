@@ -12,7 +12,11 @@ private val defaultRegexList = listOf(
 
 private val rejectionKeywords = listOf(
     "outstanding", "o/s", "available balance", "a/c bal", "statement", "is rs.", "is inr", "offer", "reward",
-    "cashback", "revoked", "declined", "rejected", "failed", "cancelled", "not processed", "not completed", "unblocked"
+    "cashback", "revoked", "declined", "rejected", "failed", "cancelled", "not processed", "not completed", "unblocked", "will be debited",
+    "will be credited",
+    "due on",
+    "scheduled for",
+    "mandate", "standing instruction", "standing order", "recurring payment", "recurring transfer"
 )
 
 fun parseUpiSms(

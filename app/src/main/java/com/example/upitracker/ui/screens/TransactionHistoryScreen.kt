@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -15,8 +16,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,7 +30,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
@@ -48,6 +50,7 @@ import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
+import kotlinx.coroutines.flow.drop
 import java.text.NumberFormat
 
 
@@ -232,7 +235,6 @@ private fun UpiTransactionsList(
     val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
-    val listState = rememberLazyListState()
     val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
     val allCategories by mainViewModel.allCategories.collectAsState()
 
@@ -252,8 +254,17 @@ private fun UpiTransactionsList(
                 filters.bankNameFilter != null
     }
 
-    LaunchedEffect(upiSortField, upiSortOrder, selectedUpiFilterType) {
-        listState.animateScrollToItem(index = 0)
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState) {
+        snapshotFlow { Triple(filters, upiSortField, upiSortOrder) }
+            .drop(1)
+            .collect { (currentFilters, currentSortField, currentSortOrder) ->
+                // ✅ ADD THIS LOG
+                Log.d("SortTest", "Sort state changed! Field: $currentSortField, Order: $currentSortOrder. Scrolling to top.")
+
+                listState.animateScrollToItem(0)
+            }
     }
 
     LaunchedEffect(Unit) {
@@ -265,9 +276,6 @@ private fun UpiTransactionsList(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
-        // This single AnimatedVisibility block will hide all controls during selection mode,
-        // matching the behavior shown in your screenshots.
         AnimatedVisibility(visible = !isSelectionMode) {
             Column {
                 // 1. A single Row for Filter Chips and the Select/Filter Icons
@@ -320,7 +328,7 @@ private fun UpiTransactionsList(
             )
             } else {
                 LazyColumn(
-                    state = rememberLazyListState(),
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -412,12 +420,10 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
     val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
     val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
     val groupedSummaries by mainViewModel.groupedUpiLiteSummaries.collectAsState()
+    val filters by mainViewModel.filters.collectAsState()
 
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(upiLiteSortField, upiLiteSortOrder) {
-        // Scroll to the top of the list
-        listState.animateScrollToItem(index = 0)
+    val listState = remember(filters, upiLiteSortField, upiLiteSortOrder) {
+        LazyListState()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {

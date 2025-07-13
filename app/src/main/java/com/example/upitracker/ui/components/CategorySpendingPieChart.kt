@@ -44,7 +44,6 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 import androidx.core.graphics.get
-import kotlin.math.roundToInt
 
 
 val pieChartColorsDefaults = listOf(
@@ -237,9 +236,9 @@ private fun DrawScope.drawPie(
             val labelRadius = outerRadius * 0.65f
             val xPos = currentCenter.x + (cos(angleMiddleRad) * labelRadius).toFloat()
             val yPos = currentCenter.y + (sin(angleMiddleRad) * labelRadius).toFloat()
-            val percentage = (expense.totalAmount / totalAmount * 100).roundToInt()
+            val percentageDouble = (expense.totalAmount / totalAmount * 100)
+            val label = String.format(Locale.US, "%.2f%%", percentageDouble)
             val textBounds = Rect()
-            val label = "$percentage%"
             textPaint.getTextBounds(label, 0, label.length, textBounds)
             drawContext.canvas.nativeCanvas.drawText(label, xPos, yPos + textBounds.height() / 2f, textPaint)
         }
@@ -265,7 +264,8 @@ fun CategoryLegend(
         val itemsToShow = categoryExpenses.take(6)
         itemsToShow.forEachIndexed { index, expense ->
             val color = sliceColors[index % sliceColors.size]
-            val percentage = if (totalAmount > 0) (expense.totalAmount / totalAmount * 100) else 0.0
+            val percentageDouble = (expense.totalAmount / totalAmount * 100)
+            val label = String.format(Locale.US, "%.2f%%", percentageDouble)
             val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
             val isSelected = expense.categoryName == selectedCategoryName
 
@@ -294,7 +294,7 @@ fun CategoryLegend(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "(${percentage.roundToInt()}%)",
+                    text = "(${label})",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
