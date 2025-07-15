@@ -66,6 +66,7 @@ fun SettingsScreen(
     onBackupDatabase: () -> Unit,
     onRestoreDatabase: () -> Unit,
     onNavigateToArchive: () -> Unit,
+    onNavigateToPassbook: () -> Unit,
     onNavigateToCategories: () -> Unit
 ) {
     val context = LocalContext.current
@@ -196,6 +197,16 @@ fun SettingsScreen(
                 }
             ) { if (isExportingCsv) CircularProgressIndicator(Modifier.size(24.dp)) }
         }
+
+        item {
+            SettingItemRow(
+                icon = Icons.Filled.Description,
+                title = "Passbook / Statements",
+                summary = "Generate transaction statements as PDF",
+                onClick = onNavigateToPassbook
+            )
+        }
+
         item {
             SettingItemRow(
                 icon = Icons.Filled.Save,

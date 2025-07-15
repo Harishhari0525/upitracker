@@ -100,14 +100,17 @@ fun AddEditRecurringRuleDialog(
                     val amountDouble = amount.toDoubleOrNull()
                     val dayInt = dayOfMonth.toIntOrNull()
 
-                    // Individual validation checks
+                    // Calculate the validity of each field
                     val descInvalid = description.isBlank()
                     val catInvalid = category.isBlank()
-                    isAmountError = amountDouble == null || amountDouble <= 0
-                    isDayOfMonthError = dayInt == null || dayInt !in 1..31
-
-                    if (!descInvalid && !catInvalid && !isAmountError && !isDayOfMonthError) {
-                        onConfirm(description, amountDouble!!, category, selectedPeriod, dayInt!!)
+                    val amountInvalid = amountDouble == null || amountDouble <= 0
+                    val dayInvalid = dayInt == null || dayInt !in 1..31
+                    isDescriptionError = descInvalid
+                    isCategoryError = catInvalid
+                    isAmountError = amountInvalid
+                    isDayOfMonthError = dayInvalid
+                    if (!descInvalid && !catInvalid && !amountInvalid && !dayInvalid) {
+                        onConfirm(description, amountDouble, category, selectedPeriod, dayInt)
                     }
                 }
             ) {

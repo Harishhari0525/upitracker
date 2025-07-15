@@ -142,6 +142,7 @@ fun MainNavHost(
                     onNavigateToRules = { rootNavController.navigate("rule_management") },
                     onNavigateToArchive = { rootNavController.navigate("archived_transactions") },
                     onNavigateToCategories = { rootNavController.navigate("category_management") },
+                    onNavigateToPassbook = { rootNavController.navigate("passbook_screen") },
                     onBackupDatabase = onBackupDatabase,
                     onRestoreDatabase = onRestoreDatabase
                 )
@@ -170,6 +171,16 @@ fun MainNavHost(
                 popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
             ) {
                 CategoryManagementScreen(mainViewModel = mainViewModel, onBack = { rootNavController.popBackStack() })
+            }
+            composable(
+                "passbook_screen",
+                enterTransition = { expressiveSlideIn() },
+                exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() },
+                popExitTransition = { expressivePopExit() }
+            ) {
+                // We will create this composable in the next step
+                PassbookScreen(onBack = { rootNavController.popBackStack() })
             }
         }
     }
