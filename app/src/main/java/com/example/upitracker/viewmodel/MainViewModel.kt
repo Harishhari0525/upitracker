@@ -201,7 +201,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Base Data Flows (Private) ---
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _budgets = budgetDao.getAllActiveBudgets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -219,7 +219,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
         upiLiteSummaryDao.getAllSummaries()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val refundCategory = "Refund"
 
@@ -267,13 +267,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isRefreshingSmsArchive: StateFlow<Boolean> = _isRefreshingSmsArchive.asStateFlow()
 
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "Refund")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Refund")
 
 
     fun confirmRefundKeywordUpdate() {
@@ -314,7 +314,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 it.type.equals("DEBIT", ignoreCase = true) &&
                         !it.category.equals(keyword, ignoreCase = true) && it.linkedTransactionId == null
             }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTransaction: StateFlow<Transaction?> = _selectedTransactionId.flatMapLatest { id ->
@@ -327,7 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val categorySuggestionRules: StateFlow<List<CategorySuggestionRule>> =
         categorySuggestionRuleDao.getAllRules()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
 
@@ -387,7 +387,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userCategories: StateFlow<List<Category>> =
         combine(_transactions, allCategories) { transactions, allCategories ->
@@ -501,7 +501,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.DEFAULT)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.DEFAULT)
 
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
@@ -509,10 +509,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val archivedUpiTransactions: StateFlow<List<Transaction>> =
         transactionDao.getArchivedTransactions()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val incomeVsExpenseData: StateFlow<List<IncomeExpensePoint>> =
-        combine(_transactions, _upiLiteSummaries, _nonRefundDebits, _selectedGraphPeriod) { allTrans, summaries, nonRefundDebits, period ->
+        combine(_transactions, _upiLiteSummaries, _nonRefundDebits, _selectedGraphPeriod, isUpiLiteEnabled) { allTrans, summaries, nonRefundDebits, period, upiLiteEnabled ->
             if (allTrans.isEmpty()) return@combine emptyList()
 
             val monthDisplayFormat = SimpleDateFormat("MMM yy", Locale.getDefault())
@@ -535,7 +535,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val income = incomeByMonth[yearMonthKey]?.sumOf { it.amount } ?: 0.0
                 val regularExpense = expenseByMonth[yearMonthKey]?.sumOf { it.amount } ?: 0.0
-                val liteExpense = summariesByMonth[yearMonthKey]?.sumOf { it.totalAmount } ?: 0.0
+
+                // ✅ STEP 2: Only include liteExpense if the feature is enabled
+                val liteExpense = if (upiLiteEnabled) {
+                    summariesByMonth[yearMonthKey]?.sumOf { it.totalAmount } ?: 0.0
+                } else {
+                    0.0
+                }
 
                 reportData.add(
                     IncomeExpensePoint(
@@ -772,7 +778,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
     private fun getCurrentMonthDateRange(): Pair<Long, Long> {
@@ -832,7 +838,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // In MainViewModel.kt
 
@@ -893,42 +899,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             monthlyExpensesData.reversed() // Sort from oldest to newest for the chart
         }
             .flowOn(Dispatchers.Default) // Keep the work on a background thread
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
-    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> = _nonRefundDebits
-        .map { allTransactions ->
+    val dailyExpensesTrend: StateFlow<List<DailyExpensePoint>> =
+        combine(
+            _nonRefundDebits,
+            _upiLiteSummaries,
+            isUpiLiteEnabled
+        ) { allTransactions, allSummaries, upiLiteEnabled ->
             val (rangeStart, rangeEnd) = getDailyTrendDateRange(7)
-            val relevantTransactions = allTransactions.filter {
-                it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(refundCategory, ignoreCase = true) &&
-                        it.date in rangeStart..rangeEnd
-            }
-            val expensesByDayTimestamp = relevantTransactions
-                .groupBy { transaction ->
-                    val cal = Calendar.getInstance(); cal.timeInMillis = transaction.date
-                    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(
-                    Calendar.MINUTE,
-                    0
-                ); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                    cal.timeInMillis
-                }.mapValues { entry -> entry.value.sumOf { it.amount } }
-            val trendData = mutableListOf<DailyExpensePoint>()
             val dayLabelFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
-            val currentDayCal = Calendar.getInstance(); currentDayCal.timeInMillis = rangeStart
+            val calendar = Calendar.getInstance()
+
+            // 1. Group regular debit transactions by day
+            val regularExpensesByDay = allTransactions
+                .filter { it.date in rangeStart..rangeEnd }
+                .groupBy { transaction ->
+                    calendar.timeInMillis = transaction.date
+                    calendar.set(Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(Calendar.MINUTE, 0)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    calendar.timeInMillis
+                }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+
+            // 2. Group UPI Lite summaries by day (if enabled)
+            val liteExpensesByDay = if (upiLiteEnabled) {
+                allSummaries
+                    .filter { it.date in rangeStart..rangeEnd }
+                    .groupBy { summary ->
+                        // The summary date is already at the start of the day
+                        summary.date
+                    }
+                    .mapValues { entry -> entry.value.sumOf { it.totalAmount } }
+            } else {
+                emptyMap()
+            }
+
+            // 3. Build the final list of daily points
+            val trendData = mutableListOf<DailyExpensePoint>()
+            val currentDayCal = Calendar.getInstance().apply { timeInMillis = rangeStart }
             while (currentDayCal.timeInMillis <= rangeEnd) {
                 val dayTimestamp = currentDayCal.timeInMillis
+
+                // 4. Sum expenses from both sources for the current day
+                val totalAmountForDay = (regularExpensesByDay[dayTimestamp] ?: 0.0) + (liteExpensesByDay[dayTimestamp] ?: 0.0)
+
                 trendData.add(
                     DailyExpensePoint(
                         dayTimestamp = dayTimestamp,
-                        totalAmount = expensesByDayTimestamp[dayTimestamp] ?: 0.0,
+                        totalAmount = totalAmountForDay,
                         dayLabel = dayLabelFormat.format(Date(dayTimestamp))
                     )
                 )
                 currentDayCal.add(Calendar.DAY_OF_YEAR, 1)
             }
             trendData
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val dailyTrendSummaryStats: StateFlow<DailyTrendSummaryStats> = dailyExpensesTrend
         .map { dailyPoints ->
@@ -1051,7 +1080,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .sortedByDescending { it.totalAmount }
         }
             .flowOn(Dispatchers.Default)
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
 
@@ -1676,6 +1705,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Log.d("DeleteBug", "Snackbar event emitted successfully.")
         }
     }
+
+    val isDashboardLoading: StateFlow<Boolean> = combine(
+        currentMonthExpenseItems,
+        bankMessageCounts,
+        recurringRules
+    ) { recent, banks, rules ->
+        // If the main data sources are still in their initial empty state, we are loading.
+        recent.isEmpty() && banks.isEmpty() && rules.isEmpty()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     fun deleteAllTransactions() {
         viewModelScope.launch {

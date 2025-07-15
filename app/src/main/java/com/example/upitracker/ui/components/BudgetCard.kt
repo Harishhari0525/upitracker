@@ -22,26 +22,54 @@ import java.util.*
 @Composable
 fun BudgetCard(
     status: BudgetStatus,
-    categoryIcon: CategoryIcon, // ✨ FIX 1: It now accepts the new CategoryIcon object
+    categoryIcon: CategoryIcon,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
     var showMenu by remember { mutableStateOf(false) }
-    val progressColor = if (status.progress >= 1.0f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    val rolloverColor = if (status.rolloverAmount >= 0) Color(0xFF006D3D) else MaterialTheme.colorScheme.error
 
-    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+    val cardColors = when {
+        status.progress >= 1.0f -> CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        )
+        status.progress > 0.85f -> CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+        )
+        else -> CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        )
+    }
+
+    val progressColor = when {
+        status.progress >= 1.0f -> MaterialTheme.colorScheme.error
+        status.progress > 0.85f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val rolloverColor = if (status.rolloverAmount >= 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+
+    // ✅ APPLY the new dynamic colors to the Card composable
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = cardColors
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // This Row now contains the icon and title, properly aligned
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    // ✨ FIX 2: Use the new CategoryIconView helper ✨
                     CategoryIconView(categoryIcon = categoryIcon, size = 24.dp)
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(text = status.categoryName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(text = status.periodType.name.lowercase().replaceFirstChar { it.titlecase() }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+                        Text(
+                            text = status.periodType.name.lowercase().replaceFirstChar { it.titlecase() },
+                            style = MaterialTheme.typography.labelMedium,
+                            // Use the card's content color for the subtitle
+                            color = LocalContentColor.current.copy(alpha = 0.7f)
+                        )
                     }
                 }
                 Box {
@@ -72,7 +100,7 @@ fun BudgetCard(
             LinearProgressIndicator(
                 progress = { status.progress },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = progressColor,
+                color = progressColor, // Use the new progress color
                 trackColor = progressColor.copy(alpha = 0.2f)
             )
             Spacer(Modifier.height(4.dp))
@@ -84,14 +112,13 @@ fun BudgetCard(
             Text(
                 text = remainingText,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (status.remainingAmount < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (status.remainingAmount < 0) MaterialTheme.colorScheme.error else LocalContentColor.current.copy(alpha = 0.7f),
                 modifier = Modifier.align(Alignment.End)
             )
         }
     }
 }
 
-// ✨ FIX 3: Add this helper composable at the bottom of the file ✨
 @Composable
 private fun CategoryIconView(categoryIcon: CategoryIcon, size: androidx.compose.ui.unit.Dp) {
     when (categoryIcon) {

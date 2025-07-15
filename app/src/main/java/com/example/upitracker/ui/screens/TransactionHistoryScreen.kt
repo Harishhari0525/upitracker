@@ -2,9 +2,11 @@
 
 package com.example.upitracker.ui.screens
 
-import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -259,10 +261,7 @@ private fun UpiTransactionsList(
     LaunchedEffect(listState) {
         snapshotFlow { Triple(filters, upiSortField, upiSortOrder) }
             .drop(1)
-            .collect { (currentFilters, currentSortField, currentSortOrder) ->
-                // ✅ ADD THIS LOG
-                Log.d("SortTest", "Sort state changed! Field: $currentSortField, Order: $currentSortOrder. Scrolling to top.")
-
+            .collect {
                 listState.animateScrollToItem(0)
             }
     }
@@ -375,19 +374,22 @@ private fun UpiTransactionsList(
 
                             // ✨ FIX: The `onClick` in this card now has the correct logic
                             TransactionCardWithMenu(
-                                modifier = Modifier.padding(bottom = 4.dp),
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(durationMillis = 300),
+                                    placementSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMedium
+                                    )
+                                ),
                                 transaction = transaction,
-                                // Pass the state flags directly
                                 isSelectionMode = isSelectionMode,
                                 isSelected = isSelected,
                                 showCheckbox = isSelectionMode,
-                                // Pass the callbacks
                                 onToggleSelection = { mainViewModel.toggleSelection(transaction.id) },
                                 onShowDetails = {
                                     mainViewModel.selectTransaction(transaction.id)
                                     onShowDetails()
                                 },
-                                // The rest of the parameters remain the same
                                 onDelete = { mainViewModel.deleteTransaction(it) },
                                 onArchiveAction = {
                                     mainViewModel.toggleTransactionArchiveStatus(

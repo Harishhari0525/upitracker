@@ -10,6 +10,7 @@ import com.example.upitracker.R
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
@@ -125,7 +126,8 @@ fun BudgetScreen(mainViewModel: MainViewModel) {
                     } else {
                         showAddRecurringDialog = true
                     }
-                }
+                },
+                shape = RoundedCornerShape(16.dp)
             ) { Icon(Icons.Filled.Add, contentDescription = "Add new item") }
         }
     ) { paddingValues ->

@@ -117,42 +117,62 @@ class MainActivity : FragmentActivity() {
     private fun MainAppRouter() {
         val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
         var pinUnlocked by rememberSaveable { mutableStateOf(false) }
-        var pinIsActuallySet by rememberSaveable { mutableStateOf<Boolean?>(null) }
-        val coroutineScope = rememberCoroutineScope()
+        val pinIsActuallySet by produceState<Boolean?>(initialValue = null) {
+            value = PinStorage.isPinSet(this@MainActivity)
+        }
 
-        LaunchedEffect(onboardingCompleted, pinUnlocked) {
-            if (onboardingCompleted) {
-                pinIsActuallySet = PinStorage.isPinSet(this@MainActivity)
-                if (pinIsActuallySet == false) pinUnlocked = true
+        val isDataReady by mainViewModel.isDataReady.collectAsState()
+
+        LaunchedEffect(pinIsActuallySet) {
+            if (pinIsActuallySet == false) {
+                pinUnlocked = true
             }
         }
 
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            when {
-                !onboardingCompleted -> {
-                    OnboardingScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onOnboardingComplete = { isUpiLiteEnabled ->
-                            mainViewModel.markOnboardingComplete()
-                            mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
-                        }
-                    )
+            if (!isDataReady) {
+                // While the splash screen is dismissing and data is loading, show a centered spinner.
+                // This prevents the "flash".
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    CircularProgressIndicator()
                 }
-                pinIsActuallySet == null -> {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        CircularProgressIndicator()
+            } else {
+                when {
+                    !onboardingCompleted -> {
+                        OnboardingScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onOnboardingComplete = { isUpiLiteEnabled ->
+                                mainViewModel.markOnboardingComplete()
+                                mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+                            }
+                        )
                     }
-                }
-                !pinUnlocked && pinIsActuallySet == true -> {
-                    PinLockScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onUnlock = { pinUnlocked = true },
-                        onSetPin = { coroutineScope.launch { pinIsActuallySet = PinStorage.isPinSet(this@MainActivity); pinUnlocked = true } },
-                        onAttemptBiometricUnlock = { handleBiometricUnlock { pinUnlocked = true } }
-                    )
-                }
-                else -> {
-                    MainAppScreen()
+
+                    pinIsActuallySet == null -> {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    !pinUnlocked && pinIsActuallySet == true -> {
+                        PinLockScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onUnlock = { pinUnlocked = true },
+                            onSetPin = { pinUnlocked = true },
+                            onAttemptBiometricUnlock = {
+                                handleBiometricUnlock {
+                                    pinUnlocked = true
+                                }
+                            }
+                        )
+                    }
+
+                    else -> {
+                        MainAppScreen()
+                    }
                 }
             }
         }
@@ -190,18 +210,27 @@ class MainActivity : FragmentActivity() {
                     processSmsInbox(
                         smsList = newSmsList,
                         setLoadingState = { /* Silent */ },
-                        onComplete = { newTxnCount, _, _ ->
+                        onComplete = { newTxnCount, summaryCount, _ ->
+                            val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
+                            val messageParts = mutableListOf<String>()
+
                             if (newTxnCount > 0) {
-                                mainViewModel.postSnackbarMessage("Silently synced $newTxnCount new transaction(s).")
-                            } else {
-                                // ✅ ADD THIS BLOCK
-                                mainViewModel.postSnackbarMessage("No new transactions found.")
+                                messageParts.add("$newTxnCount new transaction(s)")
                             }
+                            if (isUpiLiteEnabled && summaryCount > 0) {
+                                messageParts.add("$summaryCount new UPI Lite summary(s)")
+                            }
+                            val message = if (messageParts.isNotEmpty()) {
+                                "Silently synced " + messageParts.joinToString(" and ") + "."
+                            } else {
+                                "No new transactions found."
+                            }
+                            mainViewModel.postSnackbarMessage(message)
                         }
+
                     )
                 }
                 else {
-                    // ✅ ADD THIS BLOCK for the case where there are no new SMS messages at all
                     mainViewModel.postPlainSnackbarMessage("No new transactions found.")
                 }
             }
@@ -417,9 +446,23 @@ class MainActivity : FragmentActivity() {
             processSmsInbox(
                 smsList = allSms,
                 setLoadingState = loadingStateSetter,
-                onComplete = { txnCount, _, _ ->
-                    val message = if (txnCount > 0) "$onCompleteMessage complete: Found $txnCount new transactions." else "$onCompleteMessage complete: No new transactions found."
-                    mainViewModel.postSnackbarMessage(message)
+                onComplete = { txnCount, summaryCount, _ ->
+                    val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
+                    val messageParts = mutableListOf<String>()
+
+                    if (txnCount > 0) {
+                        messageParts.add("$txnCount new transaction(s)")
+                    }
+                    // Only mention UPI Lite if it's enabled and summaries were found
+                    if (isUpiLiteEnabled && summaryCount > 0) {
+                        messageParts.add("$summaryCount UPI Lite summary(s)")
+                    }
+                    val finalMessage = if (messageParts.isEmpty()) {
+                        "$onCompleteMessage complete: No new items found."
+                    } else {
+                        "$onCompleteMessage complete: Found " + messageParts.joinToString(" and ") + "."
+                    }
+                    mainViewModel.postSnackbarMessage(finalMessage)
                 }
             )
         }

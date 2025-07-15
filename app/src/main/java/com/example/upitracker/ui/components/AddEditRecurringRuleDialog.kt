@@ -42,7 +42,7 @@ fun AddEditRecurringRuleDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = category,
-                    onValueChange = { category = it },
+                    onValueChange = { category = it; isCategoryError = false },
                     label = { Text("Category (e.g., Insurance)") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true,
@@ -69,7 +69,7 @@ fun AddEditRecurringRuleDialog(
                 )
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = { description = it; isDescriptionError = false },
                     label = { Text("Description") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true,
@@ -101,10 +101,12 @@ fun AddEditRecurringRuleDialog(
                     val dayInt = dayOfMonth.toIntOrNull()
 
                     // Individual validation checks
+                    val descInvalid = description.isBlank()
+                    val catInvalid = category.isBlank()
                     isAmountError = amountDouble == null || amountDouble <= 0
                     isDayOfMonthError = dayInt == null || dayInt !in 1..31
 
-                    if (description.isNotBlank() && category.isNotBlank() && !isAmountError && !isDayOfMonthError) {
+                    if (!descInvalid && !catInvalid && !isAmountError && !isDayOfMonthError) {
                         onConfirm(description, amountDouble!!, category, selectedPeriod, dayInt!!)
                     }
                 }

@@ -12,6 +12,7 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -97,7 +98,8 @@ fun MainNavHost(
         },
         floatingActionButton = {
             if (currentRoute == BottomNavItem.History.route) {
-                FloatingActionButton(onClick = onShowAddTransactionDialog) {
+                FloatingActionButton(onClick = onShowAddTransactionDialog,
+                    shape = RoundedCornerShape(16.dp) ) {
                     Icon(Icons.Filled.Add, "Add new transaction")
                 }
             }
@@ -119,7 +121,7 @@ fun MainNavHost(
                             restoreState = true
                         }
                     },
-                    onRefresh = onRefreshSmsArchive
+                    onRefresh = onImportOldSms
                 )
             }
 

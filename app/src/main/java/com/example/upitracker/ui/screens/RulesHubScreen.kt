@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -105,7 +106,8 @@ private fun CategorizationRulesContent(mainViewModel: MainViewModel) {
                 ruleToEdit = null
                 showAddEditDialog = true
             },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add new category rule")
         }

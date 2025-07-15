@@ -61,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -1052,7 +1054,6 @@ private fun StatsCard(
     stats: List<Triple<String, String, ImageVector>>,
     currencyFormatter: NumberFormat
 ) {
-    // The StatItem helper composable does not need any changes
     @Composable
     fun StatItem(label: String, value: String, icon: ImageVector) {
         Column(
@@ -1061,21 +1062,36 @@ private fun StatsCard(
         ) {
             Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.secondary)
             Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+
+            // This AnimatedContent block will animate the text change
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    // Creates a nice slide + fade effect
+                    (slideInVertically { height -> height } + fadeIn())
+                        .togetherWith(slideOutVertically { height -> -height } + fadeOut())
+                },
+                label = "statValueAnimation"
+            ) { targetValue ->
+                Text(
+                    text = targetValue,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
         }
     }
 
     OutlinedCard(
-        modifier = Modifier.fillMaxWidth(), // Removed top padding here to be controlled by the Spacer outside
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large
     ) {
-        // The root layout is now a Column to arrange items vertically
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp) // Space between the row and the centered item
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Top Row for the first two stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -1087,8 +1103,6 @@ private fun StatsCard(
                     StatItem(label = label, value = value, icon = icon)
                 }
             }
-
-            // Bottom, centered item for the third stat
             stats.getOrNull(2)?.let { (label, value, icon) ->
                 StatItem(label = label, value = value, icon = icon)
             }

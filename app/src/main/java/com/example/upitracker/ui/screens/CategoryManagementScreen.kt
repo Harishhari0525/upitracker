@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -50,7 +51,9 @@ fun CategoryManagementScreen(
             FloatingActionButton(onClick = {
                 categoryToEdit = null
                 showDialog = true
-            }) {
+            },
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Category")
             }
         }

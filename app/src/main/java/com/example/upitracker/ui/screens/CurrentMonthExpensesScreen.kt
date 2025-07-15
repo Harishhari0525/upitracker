@@ -42,7 +42,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.upitracker.ui.components.LottieEmptyState
 import java.text.SimpleDateFormat
 
@@ -77,6 +79,9 @@ fun CurrentMonthExpensesScreen(
     val pullRefreshState = rememberPullToRefreshState()
 
     val allCategories by mainViewModel.allCategories.collectAsState()
+    val isDashboardLoading by mainViewModel.isDashboardLoading.collectAsState()
+
+    val listState = rememberLazyListState()
 
     // --- UI Layout with Showcase ---
     IntroShowcase(
@@ -103,107 +108,128 @@ fun CurrentMonthExpensesScreen(
             }
         ) {
 
-            LazyColumn(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 4.dp)
-            ) {
-                stickyHeader {
-                    Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                        TotalExpensesHeroCard(
-                            total = currentMonthExpensesTotal,
-                            // The .introShowcaseTarget modifier is now correctly used within the scope
-                            modifier = Modifier.introShowCaseTarget(
-                                index = 0,
-                                content = {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Monthly Snapshot", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                                        Spacer(Modifier.height(8.dp))
-                                        Text("Please swipe down from the top to import old SMS's and this card shows your total" +
-                                                " spending for the current month at a glance.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            if (isDashboardLoading) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 4.dp)
+                ) {
+                    stickyHeader {
+                        Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
+                            TotalExpensesHeroCard(
+                                total = currentMonthExpensesTotal,
+                                modifier = Modifier.introShowCaseTarget(
+                                    index = 0,
+                                    content = {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                "Monthly Snapshot",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                "Please swipe down from the top to import old SMS's and this card shows your total" +
+                                                        " spending for the current month at a glance.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                ).graphicsLayer {
+                                    // We only apply the effect when the top of the list is visible
+                                    if (listState.firstVisibleItemIndex == 0) {
+                                        // Move the card up at half the speed of the scroll
+                                        translationY = listState.firstVisibleItemScrollOffset * 0.5f
                                     }
                                 }
                             )
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-                }
-
-                item {
-                    SectionHeader(title = "Bank Activity")
-                    Spacer(Modifier.height(8.dp))
-                    BankActivityCard(
-                        counts = bankMessageCounts,
-                        onBankClick = { bankName ->
-                            mainViewModel.setBankFilter(bankName) // Set the filter
-                            onViewAllClick() // Navigate to the history screen
+                            Spacer(Modifier.height(8.dp))
                         }
-                    )
-                }
+                    }
 
-                item {
-                    UpcomingPaymentsSection(rules = recurringRules)
-                }
-
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        RecentTransactionsHeader(
-                            onViewAllClick = onViewAllClick,
-                            modifier = Modifier.introShowCaseTarget(
-                                index = 1,
-                                content = {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Full History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                                        Spacer(Modifier.height(8.dp))
-                                        Text("Tap on View All to see your complete transaction history with powerful sorting and filtering options.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                                    }
-                                }
-                            )
-                        )
-
+                    item {
+                        SectionHeader(title = "Bank Activity")
                         Spacer(Modifier.height(8.dp))
+                        BankActivityCard(
+                            counts = bankMessageCounts,
+                            onBankClick = { bankName ->
+                                mainViewModel.setBankFilter(bankName) // Set the filter
+                                onViewAllClick() // Navigate to the history screen
+                            }
+                        )
+                    }
 
-                        if (recentTransactions.isEmpty()) {
-                            LottieEmptyState(
-                                modifier = Modifier.fillMaxWidth().height(350.dp),
-                                message = "No Transactions in this month yet.",
-                                lottieResourceId = R.raw.empty_box_animation
+                    item {
+                        UpcomingPaymentsSection(rules = recurringRules)
+                    }
+
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            RecentTransactionsHeader(
+                                onViewAllClick = onViewAllClick,
+                                modifier = Modifier.introShowCaseTarget(
+                                    index = 1,
+                                    content = {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Full History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Spacer(Modifier.height(8.dp))
+                                            Text("Tap on View All to see your complete transaction history with powerful sorting and filtering options.", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                        }
+                                    }
+                                )
                             )
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                recentTransactions.take(3).forEach { item ->
-                                    if (item is TransactionHistoryItem) {
-                                        val transaction = item.transaction
-                                        val categoryDetails = remember(transaction.category, allCategories) {
-                                            allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
-                                        }
-                                        val categoryColor = remember(categoryDetails) {
-                                            parseColor(categoryDetails?.colorHex ?: "#808080")
-                                        }
-                                        val categoryIcon = getCategoryIcon(categoryDetails)
 
-                                        TransactionCardWithMenu(
-                                            transaction = item.transaction,
-                                            isSelectionMode = false, // Selection mode is not active on the home screen
-                                            isSelected = false,
-                                            showCheckbox = false,
-                                            // Callbacks
-                                            onToggleSelection = {},
-                                            onShowDetails = { },
-                                            onDelete = { mainViewModel.deleteTransaction(it) },
-                                            onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
-                                            // Other parameters
-                                            archiveActionText = "Archive",
-                                            archiveActionIcon = Icons.Default.Archive,
-                                            categoryColor = categoryColor,
-                                            categoryIcon = categoryIcon,
-                                            onCategoryClick = { categoryName ->
-                                                mainViewModel.toggleCategoryFilter(categoryName)
-                                                onViewAllClick()
+                            Spacer(Modifier.height(8.dp))
+
+                            if (recentTransactions.isEmpty()) {
+                                LottieEmptyState(
+                                    modifier = Modifier.fillMaxWidth().height(350.dp),
+                                    message = "No Transactions in this month yet.",
+                                    lottieResourceId = R.raw.empty_box_animation
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    recentTransactions.take(3).forEach { item ->
+                                        if (item is TransactionHistoryItem) {
+                                            val transaction = item.transaction
+                                            val categoryDetails = remember(transaction.category, allCategories) {
+                                                allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
                                             }
-                                        )
+                                            val categoryColor = remember(categoryDetails) {
+                                                parseColor(categoryDetails?.colorHex ?: "#808080")
+                                            }
+                                            val categoryIcon = getCategoryIcon(categoryDetails)
+
+                                            TransactionCardWithMenu(
+                                                transaction = item.transaction,
+                                                isSelectionMode = false, // Selection mode is not active on the home screen
+                                                isSelected = false,
+                                                showCheckbox = false,
+                                                // Callbacks
+                                                onToggleSelection = {},
+                                                onShowDetails = { },
+                                                onDelete = { mainViewModel.deleteTransaction(it) },
+                                                onArchiveAction = { mainViewModel.toggleTransactionArchiveStatus(it, true) },
+                                                // Other parameters
+                                                archiveActionText = "Archive",
+                                                archiveActionIcon = Icons.Default.Archive,
+                                                categoryColor = categoryColor,
+                                                categoryIcon = categoryIcon,
+                                                onCategoryClick = { categoryName ->
+                                                    mainViewModel.toggleCategoryFilter(categoryName)
+                                                    onViewAllClick()
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
