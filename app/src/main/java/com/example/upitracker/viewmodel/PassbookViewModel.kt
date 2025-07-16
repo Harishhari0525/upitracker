@@ -154,16 +154,20 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
         calendar.set(Calendar.MILLISECOND, 0)
     }
 
-    fun setPreviousYear() {
+    fun setPreviousFinancialYear() {
         val calendar = Calendar.getInstance()
-        calendar.add(Calendar.YEAR, -1) // Go to the previous year
-        val prevYear = calendar.get(Calendar.YEAR)
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
 
-        calendar.set(prevYear, Calendar.JANUARY, 1) // First day of the previous year
+        // Go back one year from the current financial year's logic
+        val startYear = (if (currentMonth >= Calendar.APRIL) currentYear else currentYear - 1) - 1
+        val endYear = startYear + 1
+
+        calendar.set(startYear, Calendar.APRIL, 1)
         setDayToStart(calendar)
         val start = calendar.timeInMillis
 
-        calendar.set(prevYear, Calendar.DECEMBER, 31) // Last day of the previous year
+        calendar.set(endYear, Calendar.MARCH, 31)
         setDayToEnd(calendar)
         val end = calendar.timeInMillis
         setDateRange(start, end)
@@ -201,9 +205,7 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
                 context = context,
                 transactions = transactionsToExport,
                 statementPeriod = statementPeriod,
-                targetUri = uri,
-                primaryColor = primaryColor,
-                textColor = textColor
+                targetUri = uri
             )
         }
     }

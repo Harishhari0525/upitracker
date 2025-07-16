@@ -1986,6 +1986,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun clearAllHistoryFilters() {
+        _selectedUpiTransactionType.value = UpiTransactionTypeFilter.ALL
+        _selectedDateRangeStart.value = null
+        _selectedDateRangeEnd.value = null
+        _searchQuery.value = ""
+        _showUncategorized.value = false
+        _amountFilterType.value = AmountFilterType.ALL
+        _amountFilterValue1.value = null
+        _amountFilterValue2.value = null
+        _showOnlyLinked.value = false
+        _categoryFilter.value = emptySet()
+        _bankFilter.value = null
+    }
+
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()
         object ScrollToTop : UiEvent()

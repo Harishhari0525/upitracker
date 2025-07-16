@@ -6,6 +6,8 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
@@ -19,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -31,6 +34,9 @@ import com.example.upitracker.util.expressivePopExit
 import com.example.upitracker.util.expressiveSlideIn
 import com.example.upitracker.util.expressiveSlideOut
 import com.example.upitracker.viewmodel.MainViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MainNavHost(
@@ -83,6 +89,7 @@ fun MainNavHost(
                                         popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
+                                        restoreState = screen.route != BottomNavItem.History.route
                                     }
                                 }
                             },
@@ -137,14 +144,7 @@ fun MainNavHost(
             composable(BottomNavItem.AppSettings.route) {
                 SettingsScreen(
                     mainViewModel = mainViewModel,
-                    onImportOldSms = onImportOldSms,
-                    onRefreshSmsArchive = onRefreshSmsArchive,
-                    onNavigateToRules = { rootNavController.navigate("rule_management") },
-                    onNavigateToArchive = { rootNavController.navigate("archived_transactions") },
-                    onNavigateToCategories = { rootNavController.navigate("category_management") },
-                    onNavigateToPassbook = { rootNavController.navigate("passbook_screen") },
-                    onBackupDatabase = onBackupDatabase,
-                    onRestoreDatabase = onRestoreDatabase
+                    onNavigateToDataManagement = { rootNavController.navigate("data_management_screen") },
                 )
             }
 
@@ -181,6 +181,38 @@ fun MainNavHost(
             ) {
                 // We will create this composable in the next step
                 PassbookScreen(onBack = { rootNavController.popBackStack() })
+            }
+            composable(
+                "data_management_screen",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                // We need to pass down all the lambdas that the new screen requires
+                val context = LocalContext.current
+                val createCsvFileLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument("text/csv")
+                ) { uri ->
+                    uri?.let { mainViewModel.exportTransactionsToCsv(it, context.contentResolver) }
+                        ?: run { mainViewModel.postSnackbarMessage("CSV export cancelled.") }
+                }
+
+                DataManagementScreen(
+                    onBack = { rootNavController.popBackStack() },
+                    mainViewModel = mainViewModel,
+                    onImportOldSms = onImportOldSms,
+                    onRefreshSmsArchive = onRefreshSmsArchive,
+                    onBackupDatabase = onBackupDatabase,
+                    onRestoreDatabase = onRestoreDatabase,
+                    onNavigateToArchive = { rootNavController.navigate("archived_transactions") },
+                    onNavigateToCategories = { rootNavController.navigate("category_management") },
+                    onNavigateToRules = { rootNavController.navigate("rule_management") },
+                    onNavigateToPassbook = { rootNavController.navigate("passbook_screen") },
+                    onExportToCsv = {
+                        val timestamp =
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        createCsvFileLauncher.launch("upi_tracker_export_$timestamp.csv")
+                    }
+                )
             }
         }
     }

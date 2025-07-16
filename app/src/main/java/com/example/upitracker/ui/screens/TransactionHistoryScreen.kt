@@ -82,6 +82,12 @@ fun TransactionHistoryScreen(
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
     val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
 
+    DisposableEffect(Unit) {
+        onDispose {
+            mainViewModel.clearAllHistoryFilters()
+        }
+    }
+
     Scaffold(
         topBar = {
 

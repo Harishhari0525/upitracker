@@ -44,7 +44,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.graphicsLayer
 import com.example.upitracker.ui.components.LottieEmptyState
 import java.text.SimpleDateFormat
 
@@ -144,13 +143,7 @@ fun CurrentMonthExpensesScreen(
                                             )
                                         }
                                     }
-                                ).graphicsLayer {
-                                    // We only apply the effect when the top of the list is visible
-                                    if (listState.firstVisibleItemIndex == 0) {
-                                        // Move the card up at half the speed of the scroll
-                                        translationY = listState.firstVisibleItemScrollOffset * 0.5f
-                                    }
-                                }
+                                )
                             )
                             Spacer(Modifier.height(8.dp))
                         }

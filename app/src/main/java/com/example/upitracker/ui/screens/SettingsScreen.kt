@@ -2,8 +2,6 @@
 
 package com.example.upitracker.ui.screens
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,8 +9,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,8 +32,6 @@ import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 
 private enum class PinChangeStep {
     NONE,
@@ -48,8 +42,6 @@ private enum class PinChangeStep {
 private sealed interface SettingsDialog {
     data object None : SettingsDialog
     data object ThemeChooser : SettingsDialog
-    data object RefundKeyword : SettingsDialog
-    data object RestoreConfirm : SettingsDialog
     data object DeleteAllConfirm : SettingsDialog
     data object Privacy : SettingsDialog
     data object About : SettingsDialog
@@ -59,15 +51,8 @@ private sealed interface SettingsDialog {
 @Composable
 fun SettingsScreen(
     mainViewModel: MainViewModel,
-    onImportOldSms: () -> Unit,
-    onNavigateToRules: () -> Unit,
-    onRefreshSmsArchive: () -> Unit,
+    onNavigateToDataManagement: () -> Unit, // This is the key navigation action
     modifier: Modifier = Modifier,
-    onBackupDatabase: () -> Unit,
-    onRestoreDatabase: () -> Unit,
-    onNavigateToArchive: () -> Unit,
-    onNavigateToPassbook: () -> Unit,
-    onNavigateToCategories: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -75,27 +60,12 @@ fun SettingsScreen(
     var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
     var isPinSet by remember { mutableStateOf(false) }
     var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) }
-    val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
-
-    // Collect states
-    val isImportingSms by mainViewModel.isImportingSms.collectAsState()
-    val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
-    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState()
-    val isBackingUp by mainViewModel.isBackingUp.collectAsState()
-    val isRestoring by mainViewModel.isRestoring.collectAsState()
 
     LaunchedEffect(Unit, currentPinChangeStep) {
         if (currentPinChangeStep == PinChangeStep.NONE) {
             isPinSet = PinStorage.isPinSet(context)
             oldPinVerifiedSuccessfully = false
         }
-    }
-
-    val createCsvFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri ->
-        uri?.let { mainViewModel.exportTransactionsToCsv(it, context.contentResolver) }
-            ?: run { mainViewModel.postSnackbarMessage("CSV export cancelled.") }
     }
 
     LazyColumn(
@@ -139,111 +109,14 @@ fun SettingsScreen(
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-        item { SettingsSectionTitle("Data Management") }
+        item { SettingsSectionTitle("Data & Sync") }
         item {
             SettingItemRow(
-                icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                title = "Manage Rules",
-                summary = "Customize auto-categorization and parsing",
-                onClick = onNavigateToRules
+                icon = Icons.Filled.Storage,
+                title = "Data & Sync",
+                summary = "Manage rules, sync, backup, and export",
+                onClick = onNavigateToDataManagement
             )
-        }
-
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Category, // ✨ ADD THIS NEW ITEM
-                title = "Manage Categories",
-                summary = "Add, edit, or delete custom categories",
-                onClick = onNavigateToCategories
-            )
-        }
-
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Archive,
-                title = "View Archived Transactions",
-                summary = "View and restore archived items",
-                onClick = onNavigateToArchive
-            )
-        }
-        item {
-            val refundKeyword by mainViewModel.refundKeyword.collectAsState()
-            SettingItemRow(
-                icon = Icons.AutoMirrored.Filled.Undo,
-                title = "Set Refund Keyword",
-                summary = "Current keyword: \"$refundKeyword\"",
-                onClick = { activeDialog = SettingsDialog.RefundKeyword }
-            )
-        }
-        item {
-            SettingItemRow(
-                icon = if (isRefreshingSmsArchive) Icons.Filled.SyncProblem else Icons.Filled.Sync,
-                title = "Sync SMS Archive",
-                summary = if (isRefreshingSmsArchive) "Sync in progress..." else "Find new transactions from all SMS",
-                onClick = { if (!isRefreshingSmsArchive && !isImportingSms) onRefreshSmsArchive() }
-            ) { if (isRefreshingSmsArchive) CircularProgressIndicator(Modifier.size(24.dp)) }
-        }
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Download,
-                title = "Export to CSV",
-                summary = if (isExportingCsv) "Exporting..." else "Save all transactions to a CSV file",
-                onClick = {
-                    if (!isExportingCsv) {
-                        val timestamp =
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                        createCsvFileLauncher.launch("upi_tracker_export_$timestamp.csv")
-                    }
-                }
-            ) { if (isExportingCsv) CircularProgressIndicator(Modifier.size(24.dp)) }
-        }
-
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Description,
-                title = "Passbook / Statements",
-                summary = "Generate transaction statements as PDF",
-                onClick = onNavigateToPassbook
-            )
-        }
-
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Save,
-                title = "Backup Database",
-                summary = "Save all data to a single file",
-                onClick = { if (!isBackingUp) onBackupDatabase() }
-            ) { if (isBackingUp) CircularProgressIndicator(Modifier.size(24.dp)) }
-        }
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.Restore,
-                title = "Restore Database",
-                summary = "Replace all data from a backup file",
-                onClick = { if (!isRestoring) activeDialog = SettingsDialog.RestoreConfirm }
-            ) { if (isRestoring) CircularProgressIndicator(Modifier.size(24.dp)) }
-        }
-
-        item {
-            SettingItemRow(
-                icon = Icons.Filled.SyncLock,
-                title = "Re-Sync Bank Names",
-                summary = "Update older transactions with bank data",
-                onClick = { mainViewModel.backfillBankNames() }
-            )
-        }
-
-        item {
-            SettingItemRow(
-                icon = if (isImportingSms) Icons.Filled.CloudDownload else Icons.Filled.CloudUpload,
-                title = "Import from All SMS",
-                summary = if (isImportingSms) "Import in progress..." else "One-time import from entire SMS inbox",
-                onClick = { if (!isImportingSms) onImportOldSms() } // The onImportOldSms lambda is now used here
-            ) {
-                if (isImportingSms) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
-            }
         }
 
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
@@ -279,7 +152,6 @@ fun SettingsScreen(
         }
     }
 
-    // --- DIALOG MANAGEMENT ---
     when (activeDialog) {
         is SettingsDialog.ThemeChooser -> {
             val currentTheme by mainViewModel.appTheme.collectAsState()
@@ -291,27 +163,6 @@ fun SettingsScreen(
                 }
             )
         }
-
-        is SettingsDialog.RefundKeyword -> {
-            val refundKeyword by mainViewModel.refundKeyword.collectAsState()
-            var tempKeyword by remember { mutableStateOf(refundKeyword) }
-            RefundKeywordDialog(
-                tempKeyword = tempKeyword,
-                onTempKeywordChange = { tempKeyword = it },
-                onDismiss = { activeDialog = SettingsDialog.None },
-                onConfirm = {
-                    mainViewModel.setRefundKeyword(tempKeyword); activeDialog = SettingsDialog.None
-                }
-            )
-        }
-
-        is SettingsDialog.RestoreConfirm -> {
-            RestoreConfirmDialog(
-                onDismiss = { activeDialog = SettingsDialog.None },
-                onConfirm = { activeDialog = SettingsDialog.None; onRestoreDatabase() }
-            )
-        }
-
         is SettingsDialog.DeleteAllConfirm -> {
             DeleteConfirmationDialog(
                 onDismiss = { activeDialog = SettingsDialog.None },
@@ -322,36 +173,14 @@ fun SettingsScreen(
                 }
             )
         }
-
-        is SettingsDialog.Privacy -> PrivacyPolicyDialog(onDismiss = {
-            activeDialog = SettingsDialog.None
-        })
-
+        is SettingsDialog.Privacy ->
+            PrivacyPolicyDialog(
+                onDismiss = {
+                    activeDialog = SettingsDialog.None
+                }
+            )
         is SettingsDialog.About -> AboutDialog(onDismiss = { activeDialog = SettingsDialog.None })
-        is SettingsDialog.None -> { /* Do nothing */
-        }
-    }
-
-    refundKeywordUpdateInfo?.let { (oldKeyword, newKeyword) ->
-        AlertDialog(
-            onDismissRequest = { mainViewModel.dismissRefundKeywordUpdate() },
-            title = { Text("Update Existing Transactions?") },
-            text = { Text("Would you like to rename all transactions currently categorized as '$oldKeyword' to '$newKeyword'?") },
-            confirmButton = {
-                Button(onClick = { mainViewModel.confirmRefundKeywordUpdate() }) {
-                    Text(
-                        "Yes, Update All"
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mainViewModel.dismissRefundKeywordUpdate() }) {
-                    Text(
-                        "No, Just Save"
-                    )
-                }
-            }
-        )
+        is SettingsDialog.None -> { /* Do nothing */ }
     }
 
     if (currentPinChangeStep != PinChangeStep.NONE) {
@@ -463,32 +292,6 @@ private fun ThemeChooserDialog(currentTheme: AppTheme, onDismiss: () -> Unit, on
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun RefundKeywordDialog(tempKeyword: String, onTempKeywordChange: (String) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Set Refund Keyword") },
-        text = {
-            Column {
-                Text("Transactions with this category will be excluded from spending totals.", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(16.dp))
-                OutlinedTextField(value = tempKeyword, onValueChange = onTempKeywordChange, label = { Text("Keyword") }, singleLine = true)
-            }
-        },
-        confirmButton = { Button(onClick = onConfirm) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun RestoreConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error) },
-        title = { Text("Confirm Restore") },
-        text = { Text("This will permanently overwrite all current app data. This action cannot be undone. Are you sure?") },
-        confirmButton = { Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Restore") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 

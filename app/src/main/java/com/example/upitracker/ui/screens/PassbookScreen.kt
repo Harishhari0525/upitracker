@@ -40,15 +40,17 @@ import java.util.TimeZone
 @Composable
 fun PassbookScreen(
     onBack: () -> Unit,
-    // ✅ Get an instance of our new ViewModel
     passbookViewModel: PassbookViewModel = viewModel()
 ) {
-    // ✅ Collect the state from the ViewModel
+
     val transactionType by passbookViewModel.transactionType.collectAsState()
     val transactions by passbookViewModel.filteredTransactions.collectAsState()
     val allCategories by passbookViewModel.allCategories.collectAsState()
     val startDate by passbookViewModel.startDate.collectAsState()
     val endDate by passbookViewModel.endDate.collectAsState()
+
+    var isPeriodMenuExpanded by remember { mutableStateOf(false) }
+    var selectedPeriodLabel by remember { mutableStateOf("This Month") }
 
     val context = LocalContext.current
 
@@ -95,22 +97,73 @@ fun PassbookScreen(
             ) {
                 // --- Date Range Section ---
                 Text("Select Period", style = MaterialTheme.typography.titleMedium)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { passbookViewModel.setThisMonth() }, modifier = Modifier.weight(1f)) { Text("This Month") }
-                    OutlinedButton(onClick = { passbookViewModel.setLastMonth() }, modifier = Modifier.weight(1f)) { Text("Last Month") }
+                ExposedDropdownMenuBox(
+                    expanded = isPeriodMenuExpanded,
+                    onExpandedChange = { isPeriodMenuExpanded = !isPeriodMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        readOnly = true,
+                        value = selectedPeriodLabel,
+                        onValueChange = {},
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPeriodMenuExpanded) }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isPeriodMenuExpanded,
+                        onDismissRequest = { isPeriodMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("This Month") },
+                            onClick = {
+                                passbookViewModel.setThisMonth()
+                                selectedPeriodLabel = "This Month"
+                                isPeriodMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Last Month") },
+                            onClick = {
+                                passbookViewModel.setLastMonth()
+                                selectedPeriodLabel = "Last Month"
+                                isPeriodMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("This Year") },
+                            onClick = {
+                                passbookViewModel.setThisYear()
+                                selectedPeriodLabel = "This Year"
+                                isPeriodMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Previous Financial Year") },
+                            onClick = {
+                                passbookViewModel.setPreviousFinancialYear()
+                                selectedPeriodLabel = "Previous Financial Year"
+                                isPeriodMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Current Financial Year") },
+                            onClick = {
+                                passbookViewModel.setFinancialYear()
+                                selectedPeriodLabel = "Current Financial Year"
+                                isPeriodMenuExpanded = false
+                            }
+                        )
+                    }
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { passbookViewModel.setThisYear() }, modifier = Modifier.weight(1f)) { Text("This Year") }
-                    // ✅ NEW "Previous Year" Button
-                    OutlinedButton(onClick = { passbookViewModel.setPreviousYear() }, modifier = Modifier.weight(1f)) { Text("Previous Year") }
-                }
-                OutlinedButton(onClick = { passbookViewModel.setFinancialYear() }, modifier = Modifier.fillMaxWidth()) { Text("Financial Year") }
 
-                // ✅ NEW Custom Date Picker UI
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceAround) {
-                    DateChip(label = "Start Date", timestamp = startDate, onClick = { showStartDatePicker = true })
-                    DateChip(label = "End Date", timestamp = endDate, onClick = { showEndDatePicker = true })
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    DateChip(label = "Custom Start Date", timestamp = startDate, onClick = { showStartDatePicker = true })
+                    DateChip(label = "Custom End Date", timestamp = endDate, onClick = { showEndDatePicker = true })
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Text("Transaction Type", style = MaterialTheme.typography.titleMedium)
@@ -175,7 +228,7 @@ fun PassbookScreen(
                     val selectedMillis = startDatePickerState.selectedDateMillis?.let {
                         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                         cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0)
+                        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(Calendar.SECOND, 59)
                         cal.timeInMillis
                     }
                     passbookViewModel.setDateRange(selectedMillis, endDate)
@@ -197,8 +250,7 @@ fun PassbookScreen(
                     val selectedMillis = endDatePickerState.selectedDateMillis?.let {
                         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                         cal.timeInMillis = it
-                        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(
-                        Calendar.SECOND, 59)
+                        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(Calendar.SECOND, 59)
                         cal.timeInMillis
                     }
                     passbookViewModel.setDateRange(startDate, selectedMillis)
