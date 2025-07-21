@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +17,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.DecimalInputVisualTransformation
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @Composable
 fun AddTransactionDialog(
@@ -23,7 +30,8 @@ fun AddTransactionDialog(
         amount: Double,
         type: String,
         description: String,
-        category: String
+        category: String,
+        date: Long
     ) -> Unit
 ) {
     // --- STATE MANAGEMENT ---
@@ -35,7 +43,48 @@ fun AddTransactionDialog(
     // --- NEW: SEPARATE ERROR STATES FOR EACH FIELD ---
     var isAmountError by remember { mutableStateOf(false) }
     var isDescriptionError by remember { mutableStateOf(false) }
-    var isCategoryError by remember { mutableStateOf(false) }
+
+    var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+    val displayDateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    // This robust logic prevents timezone issues
+                    datePickerState.selectedDateMillis?.let { newDateMillis ->
+                        // Get the new date from the picker (which is in UTC)
+                        val newDateCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                            timeInMillis = newDateMillis
+                        }
+
+                        // Get the existing time from our current state (in the phone's local timezone)
+                        val existingTimeCalendar = Calendar.getInstance().apply {
+                            timeInMillis = selectedDateMillis
+                        }
+
+                        // Apply the new date to the existing time's calendar
+                        existingTimeCalendar.set(
+                            newDateCalendar.get(Calendar.YEAR),
+                            newDateCalendar.get(Calendar.MONTH),
+                            newDateCalendar.get(Calendar.DAY_OF_MONTH)
+                        )
+
+                        // Update the state with the new combined timestamp
+                        selectedDateMillis = existingTimeCalendar.timeInMillis
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -97,17 +146,19 @@ fun AddTransactionDialog(
                        // isCategoryError = false
                     },
                     label = { Text("Category") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-//                    isError = isCategoryError, // Use new error state
-//                    supportingText = {
-//                        if (isCategoryError) {
-//                            Text(
-//                                text = "Category cannot be empty", // Specific message
-//                                color = MaterialTheme.colorScheme.error
-//                            )
-//                        }
-//                    }
+                    placeholder = { Text("e.g., Groceries, Utilities") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                 )
+
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.DateRange, contentDescription = "Select Date", modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text(displayDateFormat.format(Date(selectedDateMillis)))
+                }
 
                 // Transaction Type Radio Buttons
                 Row(modifier = Modifier.fillMaxWidth(),
@@ -160,7 +211,7 @@ fun AddTransactionDialog(
 
                     // If all checks pass, confirm and dismiss
                     if (!isAmountError && !isDescriptionError) {
-                        onConfirm(amountDouble!!, selectedType, description, category)
+                        onConfirm(amountDouble!!, selectedType, description, category, selectedDateMillis)
                     }
                 }
             ) {

@@ -1751,7 +1751,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         amount: Double,
         type: String,
         description: String,
-        category: String
+        category: String,
+        date: Long
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val newTransaction = Transaction(
@@ -1759,7 +1760,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 type = type,
                 description = description.trim(),
                 category = category.trim().takeIf { it.isNotEmpty() },
-                date = System.currentTimeMillis(),
+                date = date,
                 senderOrReceiver = "Manual Entry",
                 isArchived = false,
                 note = ""

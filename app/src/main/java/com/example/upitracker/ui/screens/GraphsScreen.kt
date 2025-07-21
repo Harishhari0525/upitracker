@@ -13,8 +13,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.togetherWith
@@ -23,8 +21,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,8 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -72,6 +71,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
@@ -99,6 +99,12 @@ import kotlin.math.roundToInt
 fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 fun Dp.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
 
+private enum class GraphType(val titleRes: Int, val icon: ImageVector) {
+    DAILY_TREND(R.string.graph_tab_daily_trend, Icons.AutoMirrored.Filled.ShowChart),
+    MONTHLY_SUMMARY(R.string.graph_tab_monthly_summary, Icons.Filled.BarChart),
+    CATEGORY_PIE(R.string.graph_tab_category_pie, Icons.Filled.PieChart),
+    INCOME_VS_EXPENSE(R.string.income_expense, Icons.Default.SwapHoriz)
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
@@ -106,82 +112,81 @@ fun GraphsScreen(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    val lastNMonthsExpenses by mainViewModel.lastNMonthsExpenses.collectAsState()
-    val dailyTrendExpenses by mainViewModel.dailyExpensesTrend.collectAsState()
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
-    val selectedGraphPeriod by mainViewModel.selectedGraphPeriod.collectAsState()
-
-    val graphTabTitles = listOf(
-        stringResource(R.string.graph_tab_daily_trend),
-        stringResource(R.string.graph_tab_monthly_summary),
-        stringResource(R.string.graph_tab_category_pie),
-        stringResource(R.string.income_expense)
-    )
-    val graphTabIcons = listOf(
-        Icons.AutoMirrored.Filled.ShowChart,
-        Icons.Filled.BarChart,
-        Icons.Filled.PieChart,
-        Icons.Default.SwapHoriz
-    )
-    val pagerState = rememberPagerState { graphTabTitles.size }
+    // ✅ STEP 2: Set up state for the selected graph and the bottom sheet
+    var selectedGraph by remember { mutableStateOf(GraphType.DAILY_TREND) }
+    val sheetState = rememberModalBottomSheetState()
+    var showSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(
-        modifier = modifier.fillMaxSize().animateContentSize()
-    ) {
-        SecondaryScrollableTabRow(
-            selectedTabIndex = pagerState.currentPage,
-            indicator = {
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(pagerState.currentPage)
-                )
+    // ✅ STEP 3: Use a Scaffold to structure the screen
+    Box(modifier = modifier.fillMaxSize()) {
+        // This is the main content area for the charts
+        AnimatedContent(
+            targetState = selectedGraph,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.92f))
+                    .togetherWith(fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.92f))
             },
-            edgePadding = 16.dp
+            label = "graph-content-switcher"
+        ) { targetGraph ->
+            PageContent(
+                pageIndex = targetGraph.ordinal,
+                mainViewModel = mainViewModel
+            )
+        }
+
+        // ✅ This is our new custom floating action bar
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter) // Pin it to the bottom-center
+                .padding(bottom = 16.dp),     // Give it some space from the main nav bar
+            shape = MaterialTheme.shapes.extraLarge, // A nice pill shape
+            tonalElevation = 6.dp,
+            onClick = { showSheet = true }
         ) {
-            graphTabTitles.forEachIndexed { index, title ->
-                Tab(
-                    selected = pagerState.targetPage == index,
-                    onClick = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(index, animationSpec = tween())
-                        }
-                    },
-                    text = { Text(title, style = MaterialTheme.typography.labelLarge) },
-                    icon = { Icon(graphTabIcons[index], contentDescription = title) }
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(selectedGraph.icon, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = stringResource(selectedGraph.titleRes),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
                 )
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Default.UnfoldMore, contentDescription = "Select Graph")
             }
         }
-        HorizontalDivider()
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxWidth().weight(1f)
-        ) { pageIndex ->
-            AnimatedContent(
-                targetState = pagerState.currentPage, // Use currentPage as the target state
-                transitionSpec = {
-                    // Check if the target page index is greater than the initial page index.
-                    if (targetState > initialState) {
-                        // Sliding left: New screen slides in from the right, old screen slides out to the left.
-                        (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeOut())
-                    } else {
-                        // Sliding right: New screen slides in from the left, old screen slides out to the right.
-                        (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeOut())
-                    }
-                }, label = "pager"
-            ) { currentPage ->
-                if (currentPage == pageIndex) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        PageContent(
-                            pageIndex = pageIndex,
-                            mainViewModel = mainViewModel,
-                            currencyFormatter = currencyFormatter,
-                            lastNMonthsExpenses = lastNMonthsExpenses,
-                            dailyTrendExpenses = dailyTrendExpenses,
-                            selectedGraphPeriod = selectedGraphPeriod
-                        )
-                    }
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState
+        ) {
+            Column(modifier = Modifier.navigationBarsPadding()) {
+                Text(
+                    "Select a Graph",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                HorizontalDivider()
+                GraphType.entries.forEach { graphType ->
+                    ListItem(
+                        headlineContent = { Text(stringResource(graphType.titleRes)) },
+                        leadingContent = { Icon(graphType.icon, contentDescription = null) },
+                        modifier = Modifier.clickable {
+                            selectedGraph = graphType
+                            coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                                if (!sheetState.isVisible) {
+                                    showSheet = false
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -192,11 +197,7 @@ fun GraphsScreen(
 @Composable
 private fun PageContent(
     pageIndex: Int,
-    mainViewModel: MainViewModel,
-    currencyFormatter: NumberFormat,
-    lastNMonthsExpenses: List<MonthlyExpense>,
-    dailyTrendExpenses: List<DailyExpensePoint>,
-    selectedGraphPeriod: GraphPeriod
+    mainViewModel: MainViewModel
 ) {
     var selectedBarData by remember { mutableStateOf<MonthlyExpense?>(null) }
     var selectedDailyPointData by remember { mutableStateOf<DailyExpensePoint?>(null) }
@@ -205,6 +206,11 @@ private fun PageContent(
     var selectedIncomeExpensePoint by remember { mutableStateOf<IncomeExpensePoint?>(null) }
 
     val chartCardShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
+
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
+    val lastNMonthsExpenses by mainViewModel.lastNMonthsExpenses.collectAsState()
+    val dailyTrendExpenses by mainViewModel.dailyExpensesTrend.collectAsState()
+    val selectedGraphPeriod by mainViewModel.selectedGraphPeriod.collectAsState()
 
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {

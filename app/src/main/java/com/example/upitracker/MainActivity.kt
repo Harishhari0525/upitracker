@@ -277,8 +277,8 @@ class MainActivity : FragmentActivity() {
         if (showAddTransactionDialog) {
             AddTransactionDialog(
                 onDismiss = { showAddTransactionDialog = false },
-                onConfirm = { amount, type, description, category ->
-                    mainViewModel.addManualTransaction(amount, type, description, category)
+                onConfirm = { amount, type, description, category, date ->
+                    mainViewModel.addManualTransaction(amount, type, description, category, date)
                     showAddTransactionDialog = false
                 }
             )
