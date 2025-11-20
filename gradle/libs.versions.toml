@@ -7,7 +7,7 @@ coreSplashscreen = "1.0.1"
 desugar_jdk_libs = "2.1.5"
 foundation = "1.9.0-beta02"
 compose = "1.9.0-beta02"
-gradle = "8.11.1"
+gradle = "8.13.1"
 introshowcaseview = "2.0.2"
 kotlinGradlePlugin = "2.0.21"
 ktorClientAndroid = "3.2.1"
@@ -15,13 +15,14 @@ lottieCompose = "6.6.7"
 protobufJava = "4.31.1"
 runtime = "1.9.0-beta02"
 materialVersion = "1.9.0-beta02"
+glance = "1.1.0"
 
 # Your new Material 3 version is compatible with these
 material3 = "1.4.0-alpha17"
 
 # The rest of your versions remain the same
 kotlin = "2.2.0"
-agp = "8.11.1"
+agp = "8.13.1"
 datastorePreferences = "1.1.7"
 iconscompose = "1.7.8"
 room = "2.7.2"
@@ -88,6 +89,8 @@ symbol-processing-gradle-plugin = { module = "com.google.devtools.ksp:symbol-pro
 androidx-core-animation = { group = "androidx.core", name = "core-animation", version.ref = "coreAnimation" }
 androidx-animation-graphics-android = { group = "androidx.compose.animation", name = "animation-graphics-android", version.ref = "animationGraphicsAndroid" }
 tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tinkAndroid" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
 
 
 [plugins]

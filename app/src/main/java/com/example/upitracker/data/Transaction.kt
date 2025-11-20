@@ -17,5 +17,6 @@ data class Transaction(
     val pendingDeletionTimestamp: Long? = null,
     val linkedTransactionId: Int? = null,
     val bankName: String? = null,
-    val receiptImagePath: String? = null
+    val receiptImagePath: String? = null,
+    val tags: String = ""
 )

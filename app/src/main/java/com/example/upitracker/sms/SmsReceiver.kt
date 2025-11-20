@@ -5,11 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.upitracker.data.AppDatabase // ✨ Import AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage // ✨ Import new Entity
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.util.BankIdentifier
+import com.example.upitracker.util.NotificationHelper
+import com.example.upitracker.widget.UpiExpenseWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,7 +31,6 @@ class SmsReceiver(
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             return
         }
-        Log.d("SmsReceiver", "SMS Received Intent processing started.")
 
         // ✨ Get DAO instance ✨
         val archivedSmsDao = AppDatabase.getDatabase(context.applicationContext).archivedSmsMessageDao()
@@ -79,7 +81,33 @@ class SmsReceiver(
                     )
                     if (transaction != null) {
                         isUpiRelated = true
-                        onTransactionParsed(transaction)
+
+                        val db = AppDatabase.getDatabase(context)
+                        val dao = db.transactionDao()
+
+                        // ✨ 2. INSERT AND GET THE ID (This removes the warning!)
+                        val newId = dao.insertReturningId(transaction)
+
+                        // Create a copy with the correct ID to pass to UI/Notification
+                        val savedTransaction = transaction.copy(id = newId.toInt())
+
+                        onTransactionParsed(savedTransaction)
+
+                        // ✨ 4. SHOW NOTIFICATION (Only if it's a debit & uncategorized)
+                        if (savedTransaction.type == "DEBIT" && savedTransaction.category == null) {
+                            NotificationHelper.showNewTransactionNotification(context, savedTransaction)
+                        }
+
+                        val context = context.applicationContext
+                        val widget = UpiExpenseWidget()
+                        val manager = GlanceAppWidgetManager(context)
+                        manager.getGlanceIds(UpiExpenseWidget::class.java).forEach { glanceId ->
+                            widget.update(context, glanceId)
+                        }
+                        val glanceIds = manager.getGlanceIds(widget.javaClass)
+                        glanceIds.forEach { glanceId ->
+                            widget.update(context, glanceId)
+                        }
 
                     }
                     if (isUpiRelated) {

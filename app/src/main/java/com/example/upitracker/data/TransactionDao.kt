@@ -70,4 +70,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
     suspend fun getTransactionsForBudgetCheck(categoryName: String, startDate: Long, endDate: Long, refundCategory: String): List<Transaction>
 
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getTransactionByIdSync(id: Int): Transaction?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReturningId(transaction: Transaction): Long
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
+    suspend fun getSpentAmountInRangeSync(startDate: Long, endDate: Long, refundCategory: String): Double?
+
 }

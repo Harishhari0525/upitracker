@@ -1,10 +1,8 @@
 package com.example.upitracker.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -24,6 +22,7 @@ import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.R
+import com.example.upitracker.ui.components.CategoryIconView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,34 +136,15 @@ private fun CategoryListItem(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 // ✨ START: THIS IS THE UPDATED LOGIC ✨
-                when (categoryIcon) {
-                    is com.example.upitracker.util.CategoryIcon.VectorIcon -> {
-                        Icon(
-                            imageVector = categoryIcon.image,
-                            contentDescription = null,
-                            tint = categoryColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    is com.example.upitracker.util.CategoryIcon.LetterIcon -> {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = categoryIcon.letter.toString(),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+                CategoryIconView(
+                    categoryIcon = categoryIcon,
+                    size = 24.dp,
+                    iconTint = categoryColor, // Use tint for vector icons
+                    // For emojis/letters, we usually want the background to match the category color
+                    // But for simplicity in this list item, we can keep the default or customize:
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
                 // ✨ END: THIS IS THE UPDATED LOGIC ✨
                 Spacer(Modifier.width(16.dp))
                 Text(category.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)

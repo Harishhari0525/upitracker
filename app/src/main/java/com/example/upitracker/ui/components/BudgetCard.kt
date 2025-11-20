@@ -1,15 +1,12 @@
 package com.example.upitracker.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -115,39 +112,6 @@ fun BudgetCard(
                 color = if (status.remainingAmount < 0) MaterialTheme.colorScheme.error else LocalContentColor.current.copy(alpha = 0.7f),
                 modifier = Modifier.align(Alignment.End)
             )
-        }
-    }
-}
-
-@Composable
-private fun CategoryIconView(categoryIcon: CategoryIcon, size: androidx.compose.ui.unit.Dp) {
-    when (categoryIcon) {
-        is CategoryIcon.VectorIcon -> { // ✨ CHANGE: from ResourceIcon to VectorIcon
-            Icon(
-                imageVector = categoryIcon.image, // ✨ CHANGE: use .image instead of painterResource
-                contentDescription = null,
-                modifier = Modifier.size(size),
-                tint = MaterialTheme.colorScheme.secondary
-            )
-        }
-        is CategoryIcon.LetterIcon -> {
-            // This part remains the same
-            Box(
-                modifier = Modifier
-                    .size(size)
-                    .background(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = categoryIcon.letter.toString(),
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
     }
 }

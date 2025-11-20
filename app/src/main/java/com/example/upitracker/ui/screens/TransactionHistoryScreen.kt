@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.data.Category
+import com.example.upitracker.ui.components.CategoryIconView
 import com.example.upitracker.ui.components.FilteredTotalsBar
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.util.CategoryIcon
@@ -1009,26 +1010,15 @@ private fun BulkCategorizeDialog(
                         modifier = Modifier.clickable { onCategorySelected(category.name) },
                         leadingContent = {
                             val categoryIcon = getCategoryIcon(category)
-                            when (categoryIcon) {
-                                is CategoryIcon.VectorIcon -> Icon(categoryIcon.image, null, tint = parseColor(category.colorHex))
-                                is CategoryIcon.LetterIcon -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .background(
-                                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                                shape = CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = categoryIcon.letter.toString(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
+                            CategoryIconView(
+                                categoryIcon = categoryIcon,
+                                size = FilterChipDefaults.IconSize,
+                                // Match the style used in the manual code (Secondary Container)
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                // Tint vector icons to match the text/chip content usually
+                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     )
                 }

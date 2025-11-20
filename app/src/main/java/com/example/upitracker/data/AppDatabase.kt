@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
         RecurringRule::class,
         Category::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -268,6 +268,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN receiptImagePath TEXT DEFAULT NULL")
             }
         }
+        val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add 'tags' column, default to empty string
+                db.execSQL("ALTER TABLE transactions ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -279,7 +285,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14, MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,
-                        MIGRATION_18_19) // ✨ Add new migration ✨
+                        MIGRATION_18_19,MIGRATION_19_20) // ✨ Add new migration ✨
                     .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
                     .addCallback(AppDatabaseCallback(CoroutineScope(Dispatchers.IO)))
                     .build()

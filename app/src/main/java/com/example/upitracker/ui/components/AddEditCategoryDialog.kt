@@ -17,7 +17,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.upitracker.data.Category
 import com.example.upitracker.util.availableColors // ✨ Import the new centralized lists
 import com.example.upitracker.util.availableIcons
@@ -31,7 +33,13 @@ fun AddEditCategoryDialog(
     onConfirm: (name: String, iconName: String, colorHex: String) -> Unit
 ) {
     var name by remember { mutableStateOf(categoryToEdit?.name ?: "") }
+
+    val initialIsEmoji = categoryToEdit != null && !availableIcons.containsKey(categoryToEdit.iconName)
+    var isEmojiMode by remember { mutableStateOf(initialIsEmoji) }
+
     var selectedIconName by remember { mutableStateOf(categoryToEdit?.iconName ?: "MoreHoriz") }
+    var emojiInput by remember { mutableStateOf(categoryToEdit?.iconName.takeIf { initialIsEmoji } ?: "🍔") }
+
     var selectedColorHex by remember { mutableStateOf(categoryToEdit?.colorHex ?: "#607D8B") }
     var nameError by remember { mutableStateOf<String?>(null) }
 
@@ -49,23 +57,50 @@ fun AddEditCategoryDialog(
                     singleLine = true
                 )
 
-                // Icon Selector
-                Text("Icon", style = MaterialTheme.typography.titleSmall)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // ✨ This items call is now correct with the right import
-                    items(items = availableIcons.entries.toList(), key = { it.key }) { (iconName, iconVector) ->
-                        IconSelector(
-                            icon = iconVector,
-                            isSelected = iconName == selectedIconName,
-                            onClick = { selectedIconName = iconName }
-                        )
-                    }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !isEmojiMode,
+                        onClick = { isEmojiMode = false },
+                        label = { Text("Icon Pack") },
+                        leadingIcon = { if (!isEmojiMode) Icon(Icons.Default.Check, null) }
+                    )
+                    FilterChip(
+                        selected = isEmojiMode,
+                        onClick = { isEmojiMode = true },
+                        label = { Text("Emoji") },
+                        leadingIcon = { if (isEmojiMode) Icon(Icons.Default.Check, null) }
+                    )
                 }
 
-                // Color Selector
+                // ✨ 2. Show either the Icon Grid OR the Emoji Input
+                if (!isEmojiMode) {
+                    Text("Select Icon", style = MaterialTheme.typography.titleSmall)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(items = availableIcons.entries.toList(), key = { it.key }) { (iconName, iconVector) ->
+                            IconSelector(
+                                icon = iconVector,
+                                isSelected = iconName == selectedIconName,
+                                onClick = { selectedIconName = iconName }
+                            )
+                        }
+                    }
+                } else {
+                    Text("Type an Emoji", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = emojiInput,
+                        onValueChange = {
+                            // Limit to roughly 2 characters (enough for 1 emoji)
+                            if (it.length <= 4) emojiInput = it
+                        },
+                        modifier = Modifier.width(100.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 32.sp, textAlign = TextAlign.Center),
+                        singleLine = true
+                    )
+                }
+
+                // Color Selector (Unchanged)
                 Text("Color", style = MaterialTheme.typography.titleSmall)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // ✨ This items call is also now correct
                     items(items = availableColors, key = { it }) { colorHex ->
                         ColorSelector(
                             color = parseColor(colorHex),
@@ -81,7 +116,9 @@ fun AddEditCategoryDialog(
                 if (name.isBlank()) {
                     nameError = "Name cannot be empty"
                 } else {
-                    onConfirm(name, selectedIconName, selectedColorHex)
+                    // ✨ 3. Save the correct value based on mode
+                    val finalIcon = if (isEmojiMode) emojiInput.trim().ifEmpty { "🍔" } else selectedIconName
+                    onConfirm(name, finalIcon, selectedColorHex)
                 }
             }) { Text("Save") }
         },

@@ -42,6 +42,7 @@ import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.BankIdentifier
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
+import com.example.upitracker.util.TagUtils
 import java.io.File
 import java.io.FileOutputStream
 
@@ -51,6 +52,12 @@ data class MonthlyExpense(
     val yearMonth: String,
     val totalAmount: Double,
     val timestamp: Long
+)
+
+data class VelocityState(
+    val totalBudget: Double = 0.0,
+    val totalSpent: Double = 0.0,
+    val daysRemaining: Int = 0
 )
 
 data class DailyExpensePoint(
@@ -657,8 +664,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 args.add(it)
             }
             if (currentFilters.searchQuery.isNotBlank()) {
-                queryBuilder.append(" AND (description LIKE ? OR senderOrReceiver LIKE ? OR category LIKE ?)")
+                queryBuilder.append(" AND (description LIKE ? OR senderOrReceiver LIKE ? OR category LIKE ? OR tags LIKE ?)")
                 val query = "%${currentFilters.searchQuery}%"
+                args.add(query)
                 args.add(query)
                 args.add(query)
                 args.add(query)
@@ -840,7 +848,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    // In MainViewModel.kt
+    val spendingVelocityState: StateFlow<VelocityState> = combine(
+        _budgets,
+        currentMonthTotalExpenses // This flow already exists in your ViewModel
+    ) { budgets, spent ->
+        val totalBudget = budgets.sumOf { it.budgetAmount }
+
+        val calendar = Calendar.getInstance()
+        val lastDayOfMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+        val daysRemaining = (lastDayOfMonth - currentDay).coerceAtLeast(1) // Avoid divide by zero
+
+        VelocityState(totalBudget, spent, daysRemaining)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), VelocityState())
 
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
         combine(
@@ -1424,6 +1444,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processAndInsertTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
+            val extractedTags = TagUtils.extractTags("${transaction.description} ${transaction.note}")
+            val transactionWithTags = transaction.copy(tags = extractedTags)
+
             if (transaction.category.isNullOrBlank()) {
                 Log.d("AutoCategorize", "Processing new uncategorized transaction: '${transaction.description}'")
 
@@ -1470,17 +1493,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val finalTransaction = if (bestMatch != null) {
-                    transaction.copy(category = bestMatch.categoryName)
+                    transactionWithTags.copy(category = bestMatch.categoryName) // ✅ Copy from object WITH tags
                 } else {
-                    transaction
+                    transactionWithTags // ✅ Fallback to object WITH tags
                 }
 
                 transactionDao.insert(finalTransaction)
                 checkBudgetForNewTransaction(finalTransaction)
 
             } else {
-                transactionDao.insert(transaction)
-                checkBudgetForNewTransaction(transaction)
+                transactionDao.insert(transactionWithTags)
+                checkBudgetForNewTransaction(transactionWithTags)
             }
         }
     }
@@ -1755,6 +1778,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         date: Long
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val extractedTags = TagUtils.extractTags(description)
             val newTransaction = Transaction(
                 amount = amount,
                 type = type,
@@ -1763,7 +1787,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 date = date,
                 senderOrReceiver = "Manual Entry",
                 isArchived = false,
-                note = ""
+                note = "",
+                tags = extractedTags
             )
 
             processAndInsertTransaction(newTransaction)
@@ -1812,22 +1837,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleTransactionArchiveStatus(transaction: Transaction, archive: Boolean = true) {
         viewModelScope.launch {
             if (archive) {
-                val transactionToArchive = transaction
                 val originalCategory = transaction.category
 
-                val archivedTransaction = transactionToArchive.copy(isArchived = true)
+                val archivedTransaction = transaction.copy(isArchived = true)
                 transactionDao.update(archivedTransaction)
 
                 _snackbarEvents.emit(
                     SnackbarMessage(
                         message = getApplication<Application>().getString(
                             R.string.transaction_archived_snackbar,
-                            transactionToArchive.description.take(20)
+                            transaction.description.take(20)
                         ),
                         actionLabel = getApplication<Application>().getString(R.string.snackbar_action_undo),
                         onAction = {
                             viewModelScope.launch {
-                                val restoredTransaction = transactionToArchive.copy(
+                                val restoredTransaction = transaction.copy(
                                     isArchived = false,
                                     category = originalCategory
                                 )

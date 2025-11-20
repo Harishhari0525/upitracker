@@ -45,6 +45,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.upitracker.ui.components.LottieEmptyState
+import com.example.upitracker.ui.components.SpendingVelocityCard
 import java.text.SimpleDateFormat
 
 
@@ -62,6 +63,8 @@ fun CurrentMonthExpensesScreen(
     var showAppIntro by remember { mutableStateOf(false) }
     val isTourCompleted by OnboardingPreference.isTourCompletedFlow(context)
         .collectAsState(initial = true)
+
+    val velocityState by mainViewModel.spendingVelocityState.collectAsState()
 
     LaunchedEffect(isTourCompleted) {
         if (!isTourCompleted) {
@@ -146,6 +149,18 @@ fun CurrentMonthExpensesScreen(
                                 )
                             )
                             Spacer(Modifier.height(8.dp))
+                        }
+                    }
+
+                    item {
+                        // Only show if the user has actually set up budgets
+                        if (velocityState.totalBudget > 0) {
+                            SpendingVelocityCard(
+                                totalBudget = velocityState.totalBudget,
+                                totalSpent = velocityState.totalSpent,
+                                daysRemaining = velocityState.daysRemaining
+                            )
+                            Spacer(Modifier.height(16.dp))
                         }
                     }
 

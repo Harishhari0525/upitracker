@@ -17,7 +17,6 @@ import com.example.upitracker.network.GitHubRelease
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import android.net.Uri
 import androidx.core.net.toUri
 
 object NotificationHelper {
@@ -122,5 +121,55 @@ object NotificationHelper {
             .setAutoCancel(true) // Dismiss the notification when tapped
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    }
+    // Add inside NotificationHelper object
+
+    fun showNewTransactionNotification(context: Context, transaction: com.example.upitracker.data.Transaction) {
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        // 1. Create distinct Channel for Transactions (High Importance)
+        val channelId = "transaction_alerts_channel"
+        val manager = NotificationManagerCompat.from(context)
+        if (manager.getNotificationChannel(channelId) == null) {
+            val channel = NotificationChannel(channelId, "New Transactions", NotificationManager.IMPORTANCE_HIGH)
+            manager.createNotificationChannel(channel)
+        }
+
+        val notificationId = transaction.id
+        val currencyFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+
+        // 2. Create Action Intents for common categories
+        val commonCategories = listOf("Food", "Transport", "Bills")
+        val actions = commonCategories.map { category ->
+            val intent = Intent(context, CategorizeReceiver::class.java).apply {
+                putExtra("TXN_ID", transaction.id)
+                putExtra("CATEGORY", category)
+                putExtra("NOTIF_ID", notificationId)
+            }
+            // RequestCode must be unique for each action!
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                transaction.id * 10 + commonCategories.indexOf(category),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            NotificationCompat.Action.Builder(0, category, pendingIntent).build()
+        }
+
+        // 3. Build Notification
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_stat_notifications) // Ensure this icon exists
+            .setContentTitle("New Spend: ${currencyFormatter.format(transaction.amount)}")
+            .setContentText(transaction.description)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(transaction.description))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+
+        // Add the actions buttons
+        actions.forEach { builder.addAction(it) }
+
+        manager.notify(notificationId, builder.build())
     }
 }

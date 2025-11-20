@@ -14,7 +14,9 @@ val availableIcons: Map<String, ImageVector> = mapOf(
     "Paid" to Icons.Default.Paid, "CardGiftcard" to Icons.Default.CardGiftcard,
     "School" to Icons.Default.School, "Flight" to Icons.Default.Flight,
     "GasMeter" to Icons.Default.GasMeter, "Pets" to Icons.Default.Pets,
-    "Bookmark" to Icons.Default.Bookmark, "MoreHoriz" to Icons.Default.MoreHoriz
+    "Bookmark" to Icons.Default.Bookmark, "MoreHoriz" to Icons.Default.MoreHoriz,
+    "FitnessCenter" to Icons.Default.FitnessCenter, "Restaurant" to Icons.Default.Restaurant,
+    "LocalCafe" to Icons.Default.LocalCafe, "Build" to Icons.Default.Build
 )
 
 val availableColors = listOf(
@@ -27,6 +29,7 @@ val availableColors = listOf(
 sealed interface CategoryIcon {
     data class VectorIcon(val image: ImageVector) : CategoryIcon
     data class LetterIcon(val letter: Char) : CategoryIcon
+    data class EmojiIcon(val emoji: String) : CategoryIcon
 }
 
 /**
@@ -34,18 +37,19 @@ sealed interface CategoryIcon {
  */
 fun getCategoryIcon(category: com.example.upitracker.data.Category?): CategoryIcon {
     if (category == null) {
-        // Default to a bookmark icon if category is null
         return CategoryIcon.VectorIcon(availableIcons["Bookmark"] ?: Icons.Default.MoreHoriz)
     }
 
-    // ✨ 3. The logic is now dynamic. It looks up the icon by its stored name.
+    // 1. Check if it matches a known Vector Icon
     val icon = availableIcons[category.iconName]
-
-    return if (icon != null) {
-        // If we found a matching icon in our map, use it.
-        CategoryIcon.VectorIcon(icon)
-    } else {
-        // Otherwise, INTELLIGENTLY create a letter icon from the category name.
-        CategoryIcon.LetterIcon(category.name.first().uppercaseChar())
+    if (icon != null) {
+        return CategoryIcon.VectorIcon(icon)
     }
+
+    if (category.iconName.isNotEmpty() && category.iconName.length <= 4) {
+        return CategoryIcon.EmojiIcon(category.iconName)
+    }
+
+    // 3. Fallback to Letter
+    return CategoryIcon.LetterIcon(category.name.first().uppercaseChar())
 }

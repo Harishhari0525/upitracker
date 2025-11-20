@@ -60,15 +60,32 @@ class MainActivity : FragmentActivity() {
     private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
 
-    private val multiplePermissionsLauncher =
+    private var pendingUpiLiteEnabledState: Boolean = true
+
+    private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
             val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
 
-            if (readSmsGranted && receiveSmsGranted) {
-                startFullSmsSync(isInitialImport = true)
+            // If we are onboarding, we proceed regardless of whether they said yes or no.
+            // If they said yes, we sync. If no, we just let them in.
+            if (!mainViewModel.isOnboardingCompleted.value) {
+                // Save the preference the user chose on the screen
+                mainViewModel.setUpiLiteEnabled(pendingUpiLiteEnabledState)
+                mainViewModel.markOnboardingComplete()
+
+                if (readSmsGranted && receiveSmsGranted) {
+                    startFullSmsSync(isInitialImport = true)
+                } else {
+                    mainViewModel.postSnackbarMessage("Permissions denied. Automatic tracking disabled.")
+                }
             } else {
-                mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required.")
+                // Normal manual sync logic (Settings screen)
+                if (readSmsGranted && receiveSmsGranted) {
+                    startFullSmsSync(isInitialImport = true)
+                } else {
+                    mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required.")
+                }
             }
         }
 
@@ -117,8 +134,14 @@ class MainActivity : FragmentActivity() {
     private fun MainAppRouter() {
         val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
         var pinUnlocked by rememberSaveable { mutableStateOf(false) }
+
         val pinIsActuallySet by produceState<Boolean?>(initialValue = null) {
-            value = PinStorage.isPinSet(this@MainActivity)
+            try {
+                value = PinStorage.isPinSet(this@MainActivity)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error reading PIN state", e)
+                value = false // Assume no PIN if error
+            }
         }
 
         val isDataReady by mainViewModel.isDataReady.collectAsState()
@@ -142,8 +165,12 @@ class MainActivity : FragmentActivity() {
                         OnboardingScreen(
                             modifier = Modifier.fillMaxSize(),
                             onOnboardingComplete = { isUpiLiteEnabled ->
-                                mainViewModel.markOnboardingComplete()
-                                mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+                                pendingUpiLiteEnabledState = isUpiLiteEnabled
+                                val permissionsToRequest = arrayOf(
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.RECEIVE_SMS
+                                )
+                                smsPermissionLauncher.launch(permissionsToRequest)
                             }
                         )
                     }
@@ -346,14 +373,37 @@ class MainActivity : FragmentActivity() {
 
     private fun scheduleAllWorkers() {
         val workManager = WorkManager.getInstance(applicationContext)
-        val budgetCheckRequest = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12, TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(BudgetCheckerWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, budgetCheckRequest)
-        val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
-        val recurringRequest = PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
-        val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
+        val budgetCheckRequest = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12,
+            TimeUnit.HOURS).build()
+        workManager.enqueueUniquePeriodicWork(BudgetCheckerWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP, budgetCheckRequest)
+        val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1,
+            TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
+        val recurringRequest = PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12,
+            TimeUnit.HOURS).build()
+        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
+        val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1,
+            TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
+        val updateCheckRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(
+            12, TimeUnit.HOURS
+        )
+            .setConstraints(
+                androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED) // Only run when internet is available
+                    .build()
+            )
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            UpdateCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            updateCheckRequest
+        )
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
@@ -474,7 +524,7 @@ class MainActivity : FragmentActivity() {
             startFullSmsSync(isInitialImport = isInitialImport)
         } else {
             val permissionsToRequest = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
-            multiplePermissionsLauncher.launch(permissionsToRequest)
+            smsPermissionLauncher.launch(permissionsToRequest)
         }
     }
 
@@ -482,6 +532,7 @@ class MainActivity : FragmentActivity() {
         super.onDestroy()
         smsReceiver?.let { unregisterReceiver(it) }
     }
+
 }
 
 @Composable

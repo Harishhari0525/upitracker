@@ -55,8 +55,20 @@ class UpdateCheckWorker(
     }
 
     // Helper function to compare version strings (e.g., "1.8" > "1.7")
+    // Helper function to compare version strings (e.g., "1.10" > "1.9")
     private fun isNewerVersion(latestVersion: String, currentVersion: String): Boolean {
-        // A simple lexicographical comparison works for formats like "1.8", "1.10", etc.
-        return latestVersion > currentVersion
+        val latestParts = latestVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        val currentParts = currentVersion.split(".").map { it.toIntOrNull() ?: 0 }
+
+        val length = maxOf(latestParts.size, currentParts.size)
+
+        for (i in 0 until length) {
+            val latestPart = if (i < latestParts.size) latestParts[i] else 0
+            val currentPart = if (i < currentParts.size) currentParts[i] else 0
+
+            if (latestPart > currentPart) return true
+            if (latestPart < currentPart) return false
+        }
+        return false
     }
 }

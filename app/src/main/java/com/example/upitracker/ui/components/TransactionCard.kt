@@ -5,10 +5,8 @@ package com.example.upitracker.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
@@ -98,7 +96,15 @@ fun TransactionCard(
                         AssistChip(
                             onClick = { onCategoryClick(transaction.category!!) },
                             label = { Text(transaction.category ?: "", fontWeight = FontWeight.SemiBold) },
-                            leadingIcon = { CategoryIconView(categoryIcon = categoryIcon, categoryColor = categoryColor) },
+                            leadingIcon = {
+                                CategoryIconView(
+                                    categoryIcon = categoryIcon,
+                                    size = 18.dp,
+                                    containerColor = categoryColor,
+                                    contentColor = Color.White,
+                                    iconTint = Color.White
+                                )
+                            },
                             colors = AssistChipDefaults.assistChipColors(containerColor = categoryColor.copy(alpha = 0.15f), labelColor = categoryColor, leadingIconContentColor = categoryColor),
                             border = null
                         )
@@ -110,16 +116,6 @@ fun TransactionCard(
             AnimatedVisibility(visible = showCheckbox, enter = fadeIn(), exit = fadeOut()) {
                 Checkbox(checked = isSelected, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun CategoryIconView(categoryIcon: CategoryIcon, categoryColor: Color) {
-    when (categoryIcon) {
-        is CategoryIcon.VectorIcon -> Icon(imageVector = categoryIcon.image, contentDescription = null, modifier = Modifier.size(18.dp))
-        is CategoryIcon.LetterIcon -> Box(modifier = Modifier.size(18.dp).background(color = categoryColor, shape = CircleShape), contentAlignment = Alignment.Center) {
-            Text(text = categoryIcon.letter.toString(), color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
         }
     }
 }

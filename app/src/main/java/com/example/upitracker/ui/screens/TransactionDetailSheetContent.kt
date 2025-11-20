@@ -31,7 +31,6 @@ import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.upitracker.util.getCategoryIcon
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.draw.clip
@@ -39,7 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.upitracker.util.CategoryIcon
+import com.example.upitracker.ui.components.CategoryIconView
 import java.io.File
 
 @Composable
@@ -134,32 +133,15 @@ fun TransactionDetailSheetContent(
                             label = { Text(category.name) },
                             leadingIcon = {
                                 val categoryIcon = getCategoryIcon(category)
-                                when (categoryIcon) {
-                                    is CategoryIcon.VectorIcon -> {
-                                        Icon(
-                                            imageVector = categoryIcon.image,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                        )
-                                    }
-                                    is CategoryIcon.LetterIcon -> {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(FilterChipDefaults.IconSize)
-                                                .background(
-                                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                                    shape = CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = categoryIcon.letter.toString(),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
+                                CategoryIconView(
+                                    categoryIcon = categoryIcon,
+                                    size = FilterChipDefaults.IconSize,
+                                    // Match the style used in the manual code (Secondary Container)
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    // Tint vector icons to match the text/chip content usually
+                                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         )
                     }
