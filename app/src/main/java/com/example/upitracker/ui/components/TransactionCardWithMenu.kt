@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.util.CategoryIcon
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 @Composable
 fun TransactionCardWithMenu(
@@ -41,6 +43,7 @@ fun TransactionCardWithMenu(
     var showMenu by remember { mutableStateOf(false) }
     var cardWidth by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
 
 
     Box(
@@ -85,6 +88,7 @@ fun TransactionCardWithMenu(
             DropdownMenuItem(
                 text = { Text(archiveActionText) },
                 onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onArchiveAction(transaction)
                     showMenu = false
                 },
@@ -93,6 +97,7 @@ fun TransactionCardWithMenu(
             DropdownMenuItem(
                 text = { Text("Delete") },
                 onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onDelete(transaction)
                     showMenu = false
                 },

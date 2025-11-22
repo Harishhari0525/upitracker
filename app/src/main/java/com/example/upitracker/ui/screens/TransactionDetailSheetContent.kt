@@ -2,9 +2,12 @@
 
 package com.example.upitracker.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -33,8 +36,11 @@ import java.util.*
 import com.example.upitracker.util.getCategoryIcon
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -59,6 +65,8 @@ fun TransactionDetailSheetContent(
     var receiptPath by remember { mutableStateOf<String?>(null) }
 
     var showFullScreenImage by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -252,6 +260,7 @@ fun TransactionDetailSheetContent(
 
             Spacer(Modifier.height(24.dp))
 
+            val buttonModifier = Modifier.weight(1f).height(56.dp)
 
             if (showFullScreenImage) {
                 FullScreenImageViewer(
@@ -261,48 +270,87 @@ fun TransactionDetailSheetContent(
             }
 
             // Action Buttons for View Mode
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { isEditMode = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    val buttonText = if (isManualEntry) "Edit Transaction Details" else "Edit Category"
-                    Text(buttonText)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilledTonalButton(
+                    onClick = { isEditMode = true },
+                    modifier = buttonModifier,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Edit, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Edit")
                 }
-                OutlinedButton(
+
+                FilledTonalButton(
+                    onClick = { shareTransactionDetails(context, transaction!!) },
+                    modifier = buttonModifier,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Share, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Row 2: Archive & (Auto-Cat OR Delete)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilledTonalButton(
                     onClick = {
                         mainViewModel.toggleTransactionArchiveStatus(transaction!!, archive = true)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = buttonModifier,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    shape = MaterialTheme.shapes.medium
                 ) {
-                    Icon(Icons.Filled.Archive, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.button_archive))
+                    Icon(Icons.Default.Archive, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Archive")
                 }
 
+                // Logic: If Uncategorized, show "Auto-Cat" here.
+                // If Categorized, show "Delete" here (to keep it compact).
                 if (transaction!!.category.isNullOrBlank()) {
-                    Button(
+                    FilledTonalButton(
                         onClick = {
                             mainViewModel.reapplyRulesToTransaction(transaction!!)
-                            onDismiss() // Close the sheet after trying
+                            onDismiss()
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = buttonModifier,
+                        shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Filled.AutoFixHigh, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Try Auto-Categorize")
+                        Icon(Icons.Default.AutoFixHigh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Auto-Cat")
                     }
+                } else {
+                    // Categorized? Delete button goes here.
+                    DeleteButton(
+                        onClick = {
+                            mainViewModel.deleteTransaction(transaction!!)
+                            onDismiss()
+                        },
+                        modifier = buttonModifier
+                    )
                 }
+            }
 
-                TextButton(
+            // Row 3: Delete (Only if Uncategorized)
+            // Since "Auto-Cat" took the spot above, we need a dedicated Delete button below.
+            if (transaction!!.category.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                DeleteButton(
                     onClick = {
                         mainViewModel.deleteTransaction(transaction!!)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                )
             }
         }
     }
@@ -316,6 +364,24 @@ private fun TransactionDetailHeader(transaction: Transaction) {
         Text(text = transaction.type.uppercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(text = "₹${"%.2f".format(transaction.amount)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = amountColor)
     }
+}
+
+private fun shareTransactionDetails(context: Context, transaction: Transaction) {
+    val date = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(transaction.date))
+    val text = """
+        Transaction Details:
+        Amount: ₹${transaction.amount}
+        To/From: ${transaction.senderOrReceiver}
+        Date: $date
+        Description: ${transaction.description}
+        Category: ${transaction.category ?: "Uncategorized"}
+    """.trimIndent()
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share Transaction"))
 }
 
 @Composable
@@ -364,5 +430,19 @@ private fun FullScreenImageViewer(imagePath: String, onDismiss: () -> Unit) {
                 Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
             }
         }
+    }
+}
+@Composable
+private fun DeleteButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Icon(Icons.Default.Delete, null)
+        Spacer(Modifier.width(8.dp))
+        Text("Delete")
     }
 }

@@ -268,7 +268,7 @@ private fun PageContent(
                     Spacer(Modifier.height(24.dp))
                     SectionHeader(title = "Stats :")
                     Spacer(Modifier.height(8.dp))
-                    StatsCard(stats = statsList, currencyFormatter = currencyFormatter)
+                    StatsCard(stats = statsList)
                 }
             }
             1 -> { // Monthly Expenses Bar Chart Page
@@ -409,7 +409,7 @@ private fun PageContent(
                     Spacer(Modifier.height(15.dp))
                     SectionHeader(title = "Stats :")
                     Spacer(Modifier.height(8.dp))
-                    StatsCard(stats = statsList, currencyFormatter = currencyFormatter)
+                    StatsCard(stats = statsList)
                 }
             }
             2 -> { // Category Pie Chart Page
@@ -538,7 +538,7 @@ private fun PageContent(
                 Spacer(Modifier.height(24.dp))
                 SectionHeader(title = "Stats :")
                 Spacer(Modifier.height(8.dp))
-                StatsCard(stats = statsList, currencyFormatter = currencyFormatter)
+                StatsCard(stats = statsList)
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -560,8 +560,6 @@ fun SimpleMonthlyExpenseBarChart(
     val barRegions = remember { mutableStateListOf<ComposeRect>() }
 
     val themedOutlineColor = MaterialTheme.colorScheme.outline
-    val themedBarColor = barColor
-    val themedSelectedBarColor = selectedBarColor
     val themedAxisColorArgb = axisColor.toArgb()
     val themedOnSurfaceColorArgb = MaterialTheme.colorScheme.onSurface.toArgb()
 
@@ -654,7 +652,7 @@ fun SimpleMonthlyExpenseBarChart(
             barRegions.add(barRect)
 
             // --- Draw the bar and its selection outline (no changes here) ---
-            val currentBarColorToDraw = if (index == selectedBarIndex) themedSelectedBarColor else themedBarColor
+            val currentBarColorToDraw = if (index == selectedBarIndex) selectedBarColor else barColor
             drawRect(color = currentBarColorToDraw, topLeft = Offset(x = barLeft, y = barTop), size = Size(width = barWidth, height = barHeight))
             if (index == selectedBarIndex) {
                 drawRect(color = themedOutlineColor, topLeft = Offset(x = barLeft, y = barTop), size = Size(width = barWidth, height = barHeight), style = Stroke(width = 2.dp.toPx()))
@@ -806,7 +804,7 @@ fun SimpleDailyExpenseLineChart(
         }
 
         val linePath = Path()
-        val xStep = if (pointCount > 1) chartWidth / (pointCount - 1).toFloat() else 0f
+        val xStep = chartWidth / (pointCount - 1).toFloat()
         dailyExpenses.forEachIndexed { index, point ->
             val xPos = leftPaddingForYAxis + (index * xStep)
             val yPosRatio = if (niceMaxAmount > 0) point.totalAmount / niceMaxAmount else 0.0
@@ -1057,8 +1055,7 @@ fun IncomeExpenseGroupedBarChart(
 
 @Composable
 private fun StatsCard(
-    stats: List<Triple<String, String, ImageVector>>,
-    currencyFormatter: NumberFormat
+    stats: List<Triple<String, String, ImageVector>>
 ) {
     @Composable
     fun StatItem(label: String, value: String, icon: ImageVector) {

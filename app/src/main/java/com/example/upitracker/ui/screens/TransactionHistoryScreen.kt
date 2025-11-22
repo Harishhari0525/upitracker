@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -32,7 +33,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,8 +49,8 @@ import com.example.upitracker.data.Category
 import com.example.upitracker.ui.components.CategoryIconView
 import com.example.upitracker.ui.components.FilteredTotalsBar
 import com.example.upitracker.ui.components.LottieEmptyState
-import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.DecimalInputVisualTransformation
+import com.example.upitracker.util.animateEnter
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import kotlinx.coroutines.flow.drop
@@ -366,9 +366,10 @@ private fun UpiTransactionsList(
                                 }
                             }
                         }
-                        items(
+                        itemsIndexed(
                             items = transactionsInMonth,
-                            key = { "txn-${it.id}" }) { transaction ->
+                            key = { _, txn -> "txn-${txn.id}" }
+                        ) { index, transaction ->
                             val isSelected = selectedIds.contains(transaction.id)
                             val categoryDetails = allCategories.find { c ->
                                 c.name.equals(
@@ -381,13 +382,15 @@ private fun UpiTransactionsList(
 
                             // ✨ FIX: The `onClick` in this card now has the correct logic
                             TransactionCardWithMenu(
-                                modifier = Modifier.animateItem(
+                                modifier = Modifier
+                                    .animateItem(
                                     fadeInSpec = tween(durationMillis = 300),
                                     placementSpec = spring(
                                         dampingRatio = Spring.DampingRatioLowBouncy,
                                         stiffness = Spring.StiffnessMedium
                                     )
-                                ),
+
+                                ).animateEnter(index),
                                 transaction = transaction,
                                 isSelectionMode = isSelectionMode,
                                 isSelected = isSelected,
@@ -1043,66 +1046,38 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
 }
 @Composable
 private fun MonthlyHeader(title: String, total: Double, count: Int) {
-    val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder().setLanguage("en").setRegion("IN").build()
-        )
-    }
-    // Use a Box to center the pill, similar to the UPI transaction header
-    Box(
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 2.dp), // Spacing below the header
-        contentAlignment = Alignment.Center
+            .background(MaterialTheme.colorScheme.surface) // Match background
+            .padding(vertical = 12.dp, horizontal = 4.dp), // Add breathing room
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween // Push items to edges
     ) {
-        Surface(
-            shape = RoundedCornerShape(100), // This creates the "pill" shape
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            tonalElevation = 3.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 35.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 1. Title
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+        // Left Side: Month Name
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
 
-                // Separator
-                Text(
-                    text = " - ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                // 2. Amount
-                Text(
-                    text = currencyFormatter.format(total),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-
-                // Separator
-                Text(
-                    text = " - ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                // 3. Count
-                Text(
-                    text = "$count item(s)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                )
-            }
+        // Right Side: Total Amount (and small count)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = currencyFormatter.format(total),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "$count items",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }

@@ -2,8 +2,9 @@ package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -34,6 +35,8 @@ fun CategoryManagementScreen(
     var showDialog by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<Category?>(null) }
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
+    val listState = rememberLazyListState()
+    val isScrollingUp = listState.isScrollingUp()
 
     Scaffold(
         topBar = {
@@ -47,14 +50,16 @@ fun CategoryManagementScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                categoryToEdit = null
-                showDialog = true
-            },
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Category")
-            }
+            ExtendedFloatingActionButton( // Use Extended instead of standard FAB
+                text = { Text("Add Category") },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = {
+                    categoryToEdit = null
+                    showDialog = true
+                },
+                expanded = isScrollingUp,
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
         }
     ) { paddingValues ->
         if (categories.isEmpty()) {
@@ -159,4 +164,21 @@ private fun CategoryListItem(
             }
         }
     }
+}
+@Composable
+private fun LazyListState.isScrollingUp(): Boolean {
+    var previousIndex by remember(this) { mutableIntStateOf(firstVisibleItemIndex) }
+    var previousScrollOffset by remember(this) { mutableIntStateOf(firstVisibleItemScrollOffset) }
+    return remember(this) {
+        derivedStateOf {
+            if (previousIndex != firstVisibleItemIndex) {
+                previousIndex > firstVisibleItemIndex
+            } else {
+                previousScrollOffset >= firstVisibleItemScrollOffset
+            }.also {
+                previousIndex = firstVisibleItemIndex
+                previousScrollOffset = firstVisibleItemScrollOffset
+            }
+        }
+    }.value
 }

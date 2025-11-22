@@ -22,6 +22,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun AddTransactionDialog(
@@ -105,7 +106,8 @@ fun AddTransactionDialog(
                     },
                     label = { Text("Amount") },
                     prefix = { Text("₹") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next),
                     isError = isAmountError,
                     supportingText = {
                         if (isAmountError) {
@@ -126,7 +128,8 @@ fun AddTransactionDialog(
                         isDescriptionError = false
                     },
                     label = { Text("Description") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Next),
                     isError = isDescriptionError, // Use new error state
                     supportingText = {
                         if (isDescriptionError) {
@@ -148,7 +151,8 @@ fun AddTransactionDialog(
                     label = { Text("Category") },
                     placeholder = { Text("e.g., Groceries, Utilities") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next)
                 )
 
                 OutlinedButton(

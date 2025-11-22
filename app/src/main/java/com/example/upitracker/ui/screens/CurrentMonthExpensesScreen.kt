@@ -46,6 +46,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.SpendingVelocityCard
+import com.example.upitracker.util.animateEnter
 import java.text.SimpleDateFormat
 
 
@@ -206,7 +207,7 @@ fun CurrentMonthExpensesScreen(
                                 )
                             } else {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    recentTransactions.take(3).forEach { item ->
+                                    recentTransactions.take(3).forEachIndexed { index , item ->
                                         if (item is TransactionHistoryItem) {
                                             val transaction = item.transaction
                                             val categoryDetails = remember(transaction.category, allCategories) {
@@ -218,11 +219,11 @@ fun CurrentMonthExpensesScreen(
                                             val categoryIcon = getCategoryIcon(categoryDetails)
 
                                             TransactionCardWithMenu(
+                                                modifier = Modifier.animateEnter(index),
                                                 transaction = item.transaction,
                                                 isSelectionMode = false, // Selection mode is not active on the home screen
                                                 isSelected = false,
                                                 showCheckbox = false,
-                                                // Callbacks
                                                 onToggleSelection = {},
                                                 onShowDetails = { },
                                                 onDelete = { mainViewModel.deleteTransaction(it) },
