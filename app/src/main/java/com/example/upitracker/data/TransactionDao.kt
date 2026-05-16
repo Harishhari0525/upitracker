@@ -79,4 +79,6 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
     suspend fun getSpentAmountInRangeSync(startDate: Long, endDate: Long, refundCategory: String): Double?
 
+    @Query("SELECT * FROM transactions WHERE senderOrReceiver = :sender AND isArchived = 0 ORDER BY date DESC")
+    suspend fun getHistoryForMerchant(sender: String): List<Transaction>
 }

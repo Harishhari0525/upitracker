@@ -45,6 +45,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.upitracker.ui.components.CategoryIconView
+import com.example.upitracker.ui.components.MerchantDnaCard
 import java.io.File
 
 @Composable
@@ -87,6 +88,20 @@ fun TransactionDetailSheetContent(
         }
     }
 
+    LaunchedEffect(transaction) {
+        transaction?.let {
+            // Only load if it's a real merchant (not Manual Entry)
+            if (it.senderOrReceiver != "Manual Entry") {
+                mainViewModel.loadMerchantDna(it.senderOrReceiver)
+            }
+        }
+    }
+
+    // Clear on exit
+    DisposableEffect(Unit) {
+        onDispose { mainViewModel.clearMerchantDna() }
+    }
+
     if (transaction == null) {
         Box(modifier = Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -94,6 +109,8 @@ fun TransactionDetailSheetContent(
         return
     }
     val isManualEntry = transaction!!.senderOrReceiver == "Manual Entry"
+
+    val merchantDna by mainViewModel.merchantDna.collectAsState()
 
     Column(
         modifier = Modifier
@@ -236,7 +253,18 @@ fun TransactionDetailSheetContent(
         } else {
             // --- VIEW MODE UI ---
             TransactionDetailHeader(transaction!!)
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            Spacer(Modifier.height(20.dp))
+
+            // ✨ 3. Show DNA Card if available
+            if (merchantDna != null) {
+                MerchantDnaCard(
+                    merchantName = transaction!!.senderOrReceiver,
+                    dna = merchantDna!!
+                )
+                Spacer(Modifier.height(20.dp))
+            } else {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            }
 
             DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
             DetailRow(label = stringResource(R.string.detail_label_category), value = transaction!!.category ?: "Uncategorized")

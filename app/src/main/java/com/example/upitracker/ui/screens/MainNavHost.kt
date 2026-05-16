@@ -119,16 +119,26 @@ fun MainNavHost(
         ) {
             // Home screen with unified navigation builder for “View All”
             composable(BottomNavItem.Home.route) {
-                CurrentMonthExpensesScreen(
-                    mainViewModel = mainViewModel,
-                    onViewAllClick = {
+//                CurrentMonthExpensesScreen(
+//                    mainViewModel = mainViewModel,
+//                    onViewAllClick = {
+//                        rootNavController.navigate(BottomNavItem.History.route) {
+//                            popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
+//                            launchSingleTop = true
+//                            restoreState = true
+//                        }
+//                    },
+//                    onRefresh = onImportOldSms
+//                )
+                InsightGridScreen(
+                    mainViewModel = mainViewModel, // Requires mainViewModel for categories
+                    onNavigateToHistory = {
                         rootNavController.navigate(BottomNavItem.History.route) {
                             popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
-                    },
-                    onRefresh = onImportOldSms
+                    }
                 )
             }
 

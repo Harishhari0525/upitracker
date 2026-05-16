@@ -88,6 +88,17 @@ fun parseUpiSms(
                 }
 
                 val description = message.replace("\n", " ").trim().take(150)
+
+                val merchantRegex = Regex("""(?:\bat\b|\bto\b|VPA)\s+([A-Za-z0-9\s]+?)(?:\s|$)""", RegexOption.IGNORE_CASE)
+                val extractedMerchant = merchantRegex.find(description)?.groupValues?.get(1)?.trim()
+
+                // If we found a merchant name, use it. Otherwise fall back to Sender ID.
+                val counterpartyInMsg = if (!extractedMerchant.isNullOrBlank() && extractedMerchant.length < 20) {
+                    extractedMerchant.uppercase()
+                } else {
+                    sender
+                }
+
                 val noteMsg = matchResult.groupValues.getOrNull(3)?.trim().orEmpty()
 
                 return Transaction(
@@ -95,7 +106,7 @@ fun parseUpiSms(
                     type = type,
                     date = smsDate,
                     description = description,
-                    senderOrReceiver = sender,
+                    senderOrReceiver = counterpartyInMsg,
                     note = noteMsg,
                     bankName = bankName
                 )

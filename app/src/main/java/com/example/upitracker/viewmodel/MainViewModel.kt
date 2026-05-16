@@ -54,6 +54,14 @@ data class MonthlyExpense(
     val timestamp: Long
 )
 
+data class MerchantDna(
+    val totalSpent: Double,
+    val transactionCount: Int,
+    val averageSpend: Double,
+    val favoriteDay: String, // e.g., "Friday"
+    val recentTrend: String  // "↑ 10% vs last month" (Optional, we'll keep it simple for now)
+)
+
 data class VelocityState(
     val totalBudget: Double = 0.0,
     val totalSpent: Double = 0.0,
@@ -314,6 +322,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val _bankFilter = MutableStateFlow<String?>(null)
+
+    private val _merchantDna = MutableStateFlow<MerchantDna?>(null)
+    val merchantDna = _merchantDna.asStateFlow()
+
+    fun loadMerchantDna(sender: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val history = transactionDao.getHistoryForMerchant(sender)
+            if (history.isEmpty()) {
+                _merchantDna.value = null
+                return@launch
+            }
+
+            val total = history.sumOf { it.amount }
+            val count = history.size
+            val avg = total / count
+
+            // Calculate Favorite Day
+            val calendar = Calendar.getInstance()
+            val dayCounts = history.groupingBy {
+                calendar.timeInMillis = it.date
+                calendar.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
+            }.eachCount()
+
+            val topDayInt = dayCounts.maxByOrNull { it.value }?.key ?: Calendar.MONDAY
+            val days = arrayOf("", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+            val favDay = days.getOrElse(topDayInt) { "Monday" }
+
+            _merchantDna.value = MerchantDna(
+                totalSpent = total,
+                transactionCount = count,
+                averageSpend = avg,
+                favoriteDay = favDay,
+                recentTrend = ""
+            )
+        }
+    }
+
+    // Call this when clearing selection
+    fun clearMerchantDna() {
+        _merchantDna.value = null
+    }
 
     private val _nonRefundDebits: StateFlow<List<Transaction>> =
         combine(_transactions, refundKeyword) { transactions, keyword ->
