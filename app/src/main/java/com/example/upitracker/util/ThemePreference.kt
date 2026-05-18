@@ -25,6 +25,11 @@ enum class AppTheme(val displayName: String) {
     MINT("Mint")
 }
 
+enum class HomeScreenStyle(val displayName: String) {
+    CURRENT_MONTH("Current Month Expenses"),
+    INSIGHTS("Smart Insights Dashboard")
+}
+
 object ThemePreference {
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
     private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
@@ -33,6 +38,8 @@ object ThemePreference {
     private val REFUND_KEYWORD_KEY = stringPreferencesKey("refund_keyword")
 
     private val LAST_SEEN_VERSION_KEY = stringPreferencesKey("last_seen_version")
+
+    private val HOME_SCREEN_STYLE_KEY = stringPreferencesKey("home_screen_style")
 
     /**
      * Retrieves the Flow for the dark mode preference.
@@ -102,6 +109,19 @@ object ThemePreference {
     suspend fun setLastSeenVersion(context: Context, versionName: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[LAST_SEEN_VERSION_KEY] = versionName
+        }
+    }
+
+    fun getHomeScreenStyleFlow(context: Context): Flow<HomeScreenStyle> =
+        context.settingsDataStore.data.map { prefs ->
+            val savedValue = prefs[HOME_SCREEN_STYLE_KEY] ?: HomeScreenStyle.CURRENT_MONTH.name
+            runCatching { HomeScreenStyle.valueOf(savedValue) }
+                .getOrDefault(HomeScreenStyle.CURRENT_MONTH)
+        }
+
+    suspend fun setHomeScreenStyle(context: Context, style: HomeScreenStyle) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[HOME_SCREEN_STYLE_KEY] = style.name
         }
     }
 

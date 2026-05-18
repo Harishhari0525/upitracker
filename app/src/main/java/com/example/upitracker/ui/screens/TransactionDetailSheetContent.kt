@@ -75,8 +75,6 @@ fun TransactionDetailSheetContent(
         imageUri = uri
     }
 
-    // This effect syncs the local state with the selected transaction
-    // whenever the transaction changes or we enter edit mode.
     LaunchedEffect(transaction, isEditMode) {
         transaction?.let {
             descriptionText = it.description

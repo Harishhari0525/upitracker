@@ -40,6 +40,7 @@ import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.BankIdentifier
+import com.example.upitracker.util.HomeScreenStyle
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.util.TagUtils
@@ -230,6 +231,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isUpiLiteEnabled: StateFlow<Boolean> = ThemePreference.isUpiLiteEnabledFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
+
+    val homeScreenStyle: StateFlow<HomeScreenStyle> =
+        ThemePreference.getHomeScreenStyleFlow(application)
+            .stateIn(
+                viewModelScope,
+                SharingStarted.Lazily,
+                HomeScreenStyle.CURRENT_MONTH
+            )
 
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
@@ -1081,6 +1090,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, IncomeExpenseSummaryStats())
 
+
+    fun setHomeScreenStyle(style: HomeScreenStyle) {
+        viewModelScope.launch {
+            ThemePreference.setHomeScreenStyle(getApplication(), style)
+        }
+    }
 
     // Add this new public function to the ViewModel
     fun toggleCategoryFilter(categoryName: String) {

@@ -37,6 +37,8 @@ import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.runtime.collectAsState
+import com.example.upitracker.util.HomeScreenStyle
 
 @Composable
 fun MainNavHost(
@@ -57,6 +59,7 @@ fun MainNavHost(
     val navBackStackEntry by rootNavController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = bottomNavItems.any { it.route == currentRoute }
+    val homeScreenStyle by mainViewModel.homeScreenStyle.collectAsState()
 
     Scaffold(
         modifier = modifier,
@@ -119,27 +122,38 @@ fun MainNavHost(
         ) {
             // Home screen with unified navigation builder for “View All”
             composable(BottomNavItem.Home.route) {
-//                CurrentMonthExpensesScreen(
-//                    mainViewModel = mainViewModel,
-//                    onViewAllClick = {
-//                        rootNavController.navigate(BottomNavItem.History.route) {
-//                            popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
-//                            launchSingleTop = true
-//                            restoreState = true
-//                        }
-//                    },
-//                    onRefresh = onImportOldSms
-//                )
-                InsightGridScreen(
-                    mainViewModel = mainViewModel, // Requires mainViewModel for categories
-                    onNavigateToHistory = {
-                        rootNavController.navigate(BottomNavItem.History.route) {
-                            popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                when (homeScreenStyle) {
+                    HomeScreenStyle.CURRENT_MONTH -> {
+                        CurrentMonthExpensesScreen(
+                            mainViewModel = mainViewModel,
+                            onViewAllClick = {
+                                rootNavController.navigate(BottomNavItem.History.route) {
+                                    popUpTo(rootNavController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onRefresh = onImportOldSms
+                        )
                     }
-                )
+
+                    HomeScreenStyle.INSIGHTS -> {
+                        InsightGridScreen(
+                            mainViewModel = mainViewModel,
+                            onNavigateToHistory = {
+                                rootNavController.navigate(BottomNavItem.History.route) {
+                                    popUpTo(rootNavController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
             }
 
             composable(BottomNavItem.Graphs.route) {

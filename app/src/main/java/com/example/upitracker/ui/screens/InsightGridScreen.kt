@@ -2,35 +2,43 @@
 
 package com.example.upitracker.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.upitracker.data.*
-import com.example.upitracker.ui.components.TransactionCard
-import com.example.upitracker.util.getCategoryIcon
-import com.example.upitracker.util.parseColor
+import com.example.upitracker.data.HeroState
+import com.example.upitracker.data.RecentActivityItem
+import com.example.upitracker.data.SmartAction
+import com.example.upitracker.data.Transaction
+import com.example.upitracker.ui.components.expressive.ExpressiveEmptyState
+import com.example.upitracker.ui.components.expressive.ExpressiveHeroCard
+import com.example.upitracker.ui.components.expressive.ExpressiveQuickActionCard
+import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
+import com.example.upitracker.ui.components.expressive.ExpressiveStatCard
+import com.example.upitracker.ui.components.expressive.ExpressiveTransactionCard
+import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.DashboardViewModel
 import com.example.upitracker.viewmodel.MainViewModel
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -40,217 +48,188 @@ fun InsightGridScreen(
     onNavigateToHistory: () -> Unit
 ) {
     val state by dashboardViewModel.dashboardState.collectAsState()
-    val allCategories by mainViewModel.allCategories.collectAsState()
     val currentMonthTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
 
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN")).apply {
+            maximumFractionDigits = 0
+        }
+    }
+
     if (state.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
             CircularProgressIndicator()
         }
         return
     }
 
+    val transactions = state.recentActivity
+        .filterIsInstance<RecentActivityItem.TransactionItem>()
+        .map { it.transaction }
+
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalItemSpacing = 12.dp
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = ExpressiveTokens.spacing.lg,
+            top = ExpressiveTokens.spacing.lg,
+            end = ExpressiveTokens.spacing.lg,
+            bottom = ExpressiveTokens.spacing.huge
+        ),
+        horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md),
+        verticalItemSpacing = ExpressiveTokens.spacing.md
     ) {
-        // 1. STATUS HERO (Full Width)
         item(span = StaggeredGridItemSpan.FullLine) {
-            StatusHeroBlock(state.hero, currentMonthTotal)
+            DashboardHeroSection(
+                heroState = state.hero,
+                totalSpent = currentMonthTotal,
+                currencyFormatter = currencyFormatter
+            )
         }
 
-        // 2. INSIGHT CARDS (Half Width)
-        items(state.actions) { action ->
-            InsightCard(action)
+        if (state.actions.isNotEmpty()) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                ExpressiveSectionHeader(
+                    title = "Smart snapshot",
+                    subtitle = "Quick signals from your spending"
+                )
+            }
+
+            items(state.actions.sortedBy { it.priority }) { action ->
+                DashboardInsightActionCard(action = action)
+            }
         }
 
-        // 3. RECURRING / UPCOMING (Full Width)
-        // Check if we have ghost data hidden in the Velocity object
         val currentHero = state.hero
         if (currentHero is HeroState.Velocity && currentHero.daysLeft > 0) {
             item(span = StaggeredGridItemSpan.FullLine) {
-                UpcomingBillsRow(
-                    count = currentHero.daysLeft,   // Now Kotlin knows currentHero is Velocity
-                    amount = currentHero.dailyLimit
+                ExpressiveStatCard(
+                    title = "Upcoming recurring bills",
+                    value = currencyFormatter.format(currentHero.dailyLimit),
+                    subtitle = "${currentHero.daysLeft} bill(s) expected this month",
+                    icon = Icons.Rounded.CalendarMonth,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        // 4. COMPACT HISTORY HEADER
         item(span = StaggeredGridItemSpan.FullLine) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .clickable { onNavigateToHistory() },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "History",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "View All",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // 5. TRANSACTIONS
-        items(
-            items = state.recentActivity,
-            // ✨ CRITICAL FIX: Force items to take full width
-            span = { StaggeredGridItemSpan.FullLine }
-        ) { item ->
-            if (item is RecentActivityItem.TransactionItem) {
-                val transaction = item.transaction
-                val categoryDetails = allCategories.find { c -> c.name.equals(transaction.category, ignoreCase = true) }
-
-                TransactionCard(
-                    transaction = transaction,
-                    categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080"),
-                    categoryIcon = getCategoryIcon(categoryDetails),
-                    onCategoryClick = { },
-                    isSelected = false,
-                    showCheckbox = false
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun StatusHeroBlock(heroState: HeroState, totalSpent: Double) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN")) }
-
-    val (color, remaining, committed) = if (heroState is HeroState.Velocity) {
-        Triple(heroState.statusColor, heroState.amountLeft, heroState.dailyLimit)
-    } else {
-        Triple(MaterialTheme.colorScheme.primary, 0.0, 0.0)
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth().height(150.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = color)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Background "Wave" decoration
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ShowChart,
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(120.dp)
-                    .offset(x = 20.dp, y = 20.dp)
-                    .graphicsLayer { alpha = 0.1f },
-                tint = Color.Black
+            ExpressiveSectionHeader(
+                title = "Recent activity",
+                subtitle = if (transactions.isEmpty()) "No transactions yet" else "Latest tracked payments",
+                actionText = if (transactions.isNotEmpty()) "View all" else null,
+                onActionClick = if (transactions.isNotEmpty()) onNavigateToHistory else null
             )
+        }
 
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    "Current Month Spending",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.8f)
+        if (transactions.isEmpty()) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                ExpressiveEmptyState(
+                    title = "No transactions found",
+                    message = "Import old SMS or wait for new UPI alerts to start tracking your expenses.",
+                    icon = Icons.AutoMirrored.Rounded.ReceiptLong
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    currencyFormatter.format(totalSpent),
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                // The "Ghost" Warning Logic
-                if (remaining < committed && committed > 0) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.2f), CircleShape)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Icon(Icons.Default.Warning, null, tint = Color(0xFFFFD54F), modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Ghost Alert: ₹${currencyFormatter.format(committed)} committed",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFFFD54F),
-                            fontWeight = FontWeight.Bold
-                        )
+            }
+        } else {
+            items(
+                items = transactions,
+                span = { StaggeredGridItemSpan.FullLine }
+            ) { transaction ->
+                ExpressiveTransactionCard(
+                    title = transaction.displayTitle(),
+                    amount = transaction.formattedAmount(currencyFormatter),
+                    type = transaction.type,
+                    dateText = transaction.formattedDate(),
+                    category = transaction.category ?: "Uncategorized",
+                    bankName = transaction.bankName,
+                    note = transaction.note.takeIf { it.isNotBlank() },
+                    onClick = {
+                        mainViewModel.selectTransaction(transaction.id)
                     }
-                } else if (remaining > 0) {
-                    Text(
-                        "₹${currencyFormatter.format(remaining)} left in target",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
-                } else {
-                    Text(
-                        "Target Exceeded",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                )
             }
         }
     }
 }
 
 @Composable
-fun InsightCard(action: SmartAction) {
-    Card(
-        modifier = Modifier.fillMaxWidth().height(90.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Icon(action.icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Column {
-                Text(action.subtitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(action.title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun DashboardHeroSection(
+    heroState: HeroState,
+    totalSpent: Double,
+    currencyFormatter: NumberFormat
+) {
+    val subtitle = when (heroState) {
+        is HeroState.Velocity -> {
+            when {
+                heroState.amountLeft > 0 -> "${currencyFormatter.format(heroState.amountLeft)} left in monthly target"
+                else -> "Monthly target exceeded"
             }
         }
+
+        is HeroState.OverBudget -> {
+            "Over budget in ${heroState.categoryName} by ${currencyFormatter.format(heroState.amountOver)}"
+        }
+
+        is HeroState.MonthlySummary -> {
+            "Top category: ${heroState.mostExpensiveCategory}"
+        }
+
+        HeroState.Loading -> {
+            "Preparing your dashboard"
+        }
     }
+
+    val debitLabel = "Spent ${currencyFormatter.format(totalSpent)}"
+
+    val creditLabel = when (heroState) {
+        is HeroState.Velocity -> {
+            if (heroState.dailyLimit > 0) {
+                "Committed ${currencyFormatter.format(heroState.dailyLimit)}"
+            } else {
+                null
+            }
+        }
+
+        else -> null
+    }
+
+    ExpressiveHeroCard(
+        title = "Current month",
+        amount = currencyFormatter.format(totalSpent),
+        subtitle = subtitle,
+        debitLabel = debitLabel,
+        creditLabel = creditLabel
+    )
 }
 
 @Composable
-fun UpcomingBillsRow(count: Int, amount: Double) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN")) }
+private fun DashboardInsightActionCard(
+    action: SmartAction
+) {
+    ExpressiveQuickActionCard(
+        title = action.title,
+        subtitle = action.subtitle,
+        icon = action.icon,
+        onClick = action.onClick
+    )
+}
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(count.toString(), color = Color.White, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Upcoming Recurring Bills", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text("Total: ${currencyFormatter.format(amount)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+private fun Transaction.displayTitle(): String {
+    return when {
+        senderOrReceiver.isNotBlank() && senderOrReceiver != "Manual Entry" -> senderOrReceiver
+        description.isNotBlank() -> description
+        else -> "Transaction"
     }
+}
+
+private fun Transaction.formattedAmount(formatter: NumberFormat): String {
+    val prefix = if (type.equals("CREDIT", ignoreCase = true)) "+" else "-"
+    return "$prefix${formatter.format(amount)}"
+}
+
+private fun Transaction.formattedDate(): String {
+    return SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(date))
 }

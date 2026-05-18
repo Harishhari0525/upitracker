@@ -25,6 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.ExpressiveTokens
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -67,6 +69,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Functions
@@ -80,6 +83,7 @@ import com.example.upitracker.R
 import com.example.upitracker.ui.components.CategoryLegend
 import com.example.upitracker.ui.components.CategorySpendingPieChart
 import com.example.upitracker.ui.components.LottieEmptyState
+import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.MonthlyExpense
 import com.example.upitracker.viewmodel.GraphPeriod
@@ -112,21 +116,83 @@ fun GraphsScreen(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    // ✅ STEP 2: Set up state for the selected graph and the bottom sheet
     var selectedGraph by remember { mutableStateOf(GraphType.DAILY_TREND) }
     val sheetState = rememberModalBottomSheetState()
     var showSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // ✅ STEP 3: Use a Scaffold to structure the screen
-    Box(modifier = modifier.fillMaxSize()) {
-        // This is the main content area for the charts
+    Scaffold(
+        modifier = modifier,
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            Column {
+                ExpressiveTopBar(
+                    title = "Graphs",
+                    subtitle = "Visualize spending trends with different views"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = ExpressiveTokens.spacing.lg,
+                            end = ExpressiveTokens.spacing.lg,
+                            top = ExpressiveTokens.spacing.xs,
+                            bottom = ExpressiveTokens.spacing.md
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = MaterialTheme.shapes.extraLarge,
+                        tonalElevation = 6.dp,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onClick = { showSheet = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(
+                                start = ExpressiveTokens.spacing.lg,
+                                end = ExpressiveTokens.spacing.md,
+                                top = ExpressiveTokens.spacing.sm,
+                                bottom = ExpressiveTokens.spacing.sm
+                            ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = selectedGraph.icon,
+                                contentDescription = null
+                            )
+
+                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+
+                            Text(
+                                text = stringResource(selectedGraph.titleRes),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
+
+                            Icon(
+                                imageVector = Icons.Default.UnfoldMore,
+                                contentDescription = "Select Graph"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    ) { paddingValues ->
         AnimatedContent(
             targetState = selectedGraph,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
             transitionSpec = {
                 (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.92f))
-                    .togetherWith(fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.92f))
+                    .togetherWith(
+                        fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.92f)
+                    )
             },
             label = "graph-content-switcher"
         ) { targetGraph ->
@@ -135,31 +201,6 @@ fun GraphsScreen(
                 mainViewModel = mainViewModel
             )
         }
-
-        // ✅ This is our new custom floating action bar
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter) // Pin it to the bottom-center
-                .padding(bottom = 16.dp),     // Give it some space from the main nav bar
-            shape = MaterialTheme.shapes.extraLarge, // A nice pill shape
-            tonalElevation = 6.dp,
-            onClick = { showSheet = true }
-        ) {
-            Row(
-                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(selectedGraph.icon, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = stringResource(selectedGraph.titleRes),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.Default.UnfoldMore, contentDescription = "Select Graph")
-            }
-        }
     }
 
     if (showSheet) {
@@ -167,20 +208,54 @@ fun GraphsScreen(
             onDismissRequest = { showSheet = false },
             sheetState = sheetState
         ) {
-            Column(modifier = Modifier.navigationBarsPadding()) {
+            Column(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = ExpressiveTokens.spacing.md)
+            ) {
                 Text(
-                    "Select a Graph",
+                    text = "Select a Graph",
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(
+                        horizontal = ExpressiveTokens.spacing.lg,
+                        vertical = ExpressiveTokens.spacing.md
+                    )
                 )
+
                 HorizontalDivider()
+
                 GraphType.entries.forEach { graphType ->
                     ListItem(
-                        headlineContent = { Text(stringResource(graphType.titleRes)) },
-                        leadingContent = { Icon(graphType.icon, contentDescription = null) },
+                        headlineContent = {
+                            Text(
+                                text = stringResource(graphType.titleRes),
+                                fontWeight = if (graphType == selectedGraph) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                }
+                            )
+                        },
+                        leadingContent = {
+                            Icon(
+                                imageVector = graphType.icon,
+                                contentDescription = null
+                            )
+                        },
+                        trailingContent = {
+                            if (graphType == selectedGraph) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected"
+                                )
+                            }
+                        },
                         modifier = Modifier.clickable {
                             selectedGraph = graphType
-                            coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                            coroutineScope.launch {
+                                sheetState.hide()
+                            }.invokeOnCompletion {
                                 if (!sheetState.isVisible) {
                                     showSheet = false
                                 }
@@ -266,8 +341,11 @@ private fun PageContent(
                             Icons.AutoMirrored.Filled.TrendingUp)
                     )
                     Spacer(Modifier.height(24.dp))
-                    SectionHeader(title = "Stats :")
-                    Spacer(Modifier.height(8.dp))
+                    ExpressiveSectionHeader(
+                        title = "Stats",
+                        subtitle = "Daily spending insights"
+                    )
+                    Spacer(Modifier.height(ExpressiveTokens.spacing.sm))
                     StatsCard(stats = statsList)
                 }
             }
@@ -407,8 +485,11 @@ private fun PageContent(
                             Icons.AutoMirrored.Filled.TrendingUp)
                     )
                     Spacer(Modifier.height(15.dp))
-                    SectionHeader(title = "Stats :")
-                    Spacer(Modifier.height(8.dp))
+                    ExpressiveSectionHeader(
+                        title = "Stats",
+                        subtitle = "Monthly performance overview"
+                    )
+                    Spacer(Modifier.height(ExpressiveTokens.spacing.sm))
                     StatsCard(stats = statsList)
                 }
             }
@@ -440,6 +521,12 @@ private fun PageContent(
                             Spacer(Modifier.height(MaterialTheme.typography.labelLarge.lineHeight.value.dp.times(LocalDensity.current.fontScale)))
                         }
                     }
+                    Spacer(Modifier.height(24.dp))
+                    ExpressiveSectionHeader(
+                        title = "Stats",
+                        subtitle = "Spending distribution by category"
+                    )
+                    Spacer(Modifier.height(ExpressiveTokens.spacing.sm))
                 }
                 if (categoryData.isEmpty()) {
                     LottieEmptyState(
@@ -536,8 +623,11 @@ private fun PageContent(
                     Triple("Net Savings", currencyFormatter.format(incomeStats.netSavings), Icons.Default.AccountBalance)
                 )
                 Spacer(Modifier.height(24.dp))
-                SectionHeader(title = "Stats :")
-                Spacer(Modifier.height(8.dp))
+                ExpressiveSectionHeader(
+                    title = "Stats",
+                    subtitle = "Income and savings summary"
+                )
+                Spacer(Modifier.height(ExpressiveTokens.spacing.sm))
                 StatsCard(stats = statsList)
             }
         }

@@ -41,6 +41,8 @@ import com.example.upitracker.R
 import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.ui.components.UpiLiteSummaryCard
 import com.example.upitracker.viewmodel.*
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.ExpressiveTokens
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -55,31 +57,29 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import kotlinx.coroutines.flow.drop
 import java.text.NumberFormat
+import androidx.compose.ui.platform.LocalLocale
 
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionHistoryScreen(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    // State for the main view (tabs, detail sheet)
     val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
     val pageCount = if (isUpiLiteEnabled) 2 else 1
     val pagerState = rememberPagerState { pageCount }
     val coroutineScope = rememberCoroutineScope()
+
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDetailSheet by remember { mutableStateOf(false) }
+
     val showFilterSheet by mainViewModel.showHistoryFilterSheet.collectAsState()
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showCategorizeDialog by remember { mutableStateOf(false) }
 
-    // State for our new Filter Bottom Sheet
-    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // Collect all necessary state from ViewModel
     val filters by mainViewModel.filters.collectAsState()
-
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
     val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
 
@@ -90,83 +90,149 @@ fun TransactionHistoryScreen(
     }
 
     Scaffold(
+        modifier = modifier,
+        contentWindowInsets = WindowInsets(0),
         topBar = {
-
             AnimatedContent(
                 targetState = isSelectionMode,
                 transitionSpec = {
-                    (slideInVertically { h -> -h } + fadeIn()) togetherWith
-                            (slideOutVertically { h -> -h } + fadeOut())
+                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                            (slideOutVertically { height -> -height } + fadeOut())
                 },
                 label = "history_top_bar_animation"
-            ) { isInSelectionMode ->
-                if (isInSelectionMode) {
+            ) { selectionMode ->
+                if (selectionMode) {
                     SelectionModeTopAppBar(
                         selectionCount = selectedIds.size,
                         onCancelClick = { mainViewModel.clearSelection() },
                         onCategorizeClick = { showCategorizeDialog = true }
                     )
                 } else {
-                    // In normal mode, we show the search bar as the TopAppBar
-                    TopAppBar(
-                        title = {
-                            OutlinedTextField(
-                                value = filters.searchQuery,
-                                onValueChange = { mainViewModel.setSearchQuery(it) },
-                                label = { Text(stringResource(R.string.search_hint)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color.Transparent,
-                                    unfocusedBorderColor = Color.Transparent
-                                )
-                            )
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                        ),
-                        windowInsets = WindowInsets(0)
+                    ExpressiveTopBar(
+                        title = "History",
+                        subtitle = "Search, filter, and manage transactions"
                     )
                 }
             }
         }
     ) { paddingValues ->
-        // The main content of the screen goes here
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Apply padding from the Scaffold
+                .padding(paddingValues)
         ) {
-            // The ActiveFiltersRow is now part of the main content Column
+            OutlinedTextField(
+                value = filters.searchQuery,
+                onValueChange = { mainViewModel.setSearchQuery(it) },
+                placeholder = {
+                    Text(text = stringResource(R.string.search_hint))
+                },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search"
+                    )
+                },
+                trailingIcon = {
+                    if (filters.searchQuery.isNotBlank()) {
+                        IconButton(
+                            onClick = { mainViewModel.setSearchQuery("") }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear search"
+                            )
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(ExpressiveTokens.corners.extraLarge.topStart),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = ExpressiveTokens.spacing.lg,
+                        end = ExpressiveTokens.spacing.lg,
+                        bottom = ExpressiveTokens.spacing.sm
+                    ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                )
+            )
+
             ActiveFiltersRow(
                 filters = filters,
                 onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
-                onClearAmountFilter = { mainViewModel.setAmountFilter(AmountFilterType.ALL, null, null) },
-                onClearUncategorizedFilter = { mainViewModel.toggleUncategorizedFilter(false) },
+                onClearAmountFilter = {
+                    mainViewModel.setAmountFilter(
+                        AmountFilterType.ALL,
+                        null,
+                        null
+                    )
+                },
+                onClearUncategorizedFilter = {
+                    mainViewModel.toggleUncategorizedFilter(false)
+                },
                 onDateFilterClick = { mainViewModel.onFilterClick() },
                 onAmountFilterClick = { mainViewModel.onFilterClick() },
                 onUncategorizedFilterClick = { mainViewModel.onFilterClick() },
-                onCategoryChipClick = { categoryName -> mainViewModel.toggleCategoryFilter(categoryName) },
-                onClearAllCategories = { mainViewModel.clearCategoryFilter() },
-                onClearBankFilter = { mainViewModel.setBankFilter(null) }
+                onCategoryChipClick = { categoryName ->
+                    mainViewModel.toggleCategoryFilter(categoryName)
+                },
+                onClearAllCategories = {
+                    mainViewModel.clearCategoryFilter()
+                },
+                onClearBankFilter = {
+                    mainViewModel.setBankFilter(null)
+                }
             )
 
-            val tabTitles = if (isUpiLiteEnabled) listOf("UPI", "UPI Lite") else listOf("UPI")
-            val tabIcons = if (isUpiLiteEnabled) listOf(Icons.Filled.AccountBalanceWallet, Icons.Filled.Summarize) else listOf(Icons.Filled.AccountBalanceWallet)
+            val tabTitles = if (isUpiLiteEnabled) {
+                listOf("UPI", "UPI Lite")
+            } else {
+                listOf("UPI")
+            }
+
+            val tabIcons = if (isUpiLiteEnabled) {
+                listOf(
+                    Icons.Filled.AccountBalanceWallet,
+                    Icons.Filled.Summarize
+                )
+            } else {
+                listOf(Icons.Filled.AccountBalanceWallet)
+            }
 
             if (isUpiLiteEnabled) {
-                SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
+                SecondaryTabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
                     tabTitles.forEachIndexed { index, title ->
                         Tab(
                             selected = pagerState.currentPage == index,
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                            text = { Text(title) },
-                            icon = { Icon(tabIcons[index], contentDescription = title) }
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
+                            },
+                            text = {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = tabIcons[index],
+                                    contentDescription = title
+                                )
+                            }
                         )
                     }
                 }
-                HorizontalDivider()
             }
 
             HorizontalPager(
@@ -174,23 +240,29 @@ fun TransactionHistoryScreen(
                 modifier = Modifier.weight(1f)
             ) { pageIndex ->
                 when (pageIndex) {
-                    0 -> UpiTransactionsList(
-                        mainViewModel,
-                        onShowDetails = { showDetailSheet = true },
-                        isSelectionMode = isSelectionMode,
-                        selectedIds = selectedIds
-                    )
-                    1 -> if (isUpiLiteEnabled) UpiLiteSummariesList(mainViewModel)
+                    0 -> {
+                        UpiTransactionsList(
+                            mainViewModel = mainViewModel,
+                            onShowDetails = { showDetailSheet = true },
+                            isSelectionMode = isSelectionMode,
+                            selectedIds = selectedIds
+                        )
+                    }
+
+                    1 -> {
+                        if (isUpiLiteEnabled) {
+                            UpiLiteSummariesList(mainViewModel)
+                        }
+                    }
                 }
             }
         }
     }
 
-    // The BottomSheet for Filters
     if (showFilterSheet) {
         ModalBottomSheet(
             onDismissRequest = { mainViewModel.onFilterSheetDismiss() },
-            sheetState = filterSheetState,
+            sheetState = filterSheetState
         ) {
             FilterSheetContent(
                 mainViewModel = mainViewModel,
@@ -199,7 +271,6 @@ fun TransactionHistoryScreen(
         }
     }
 
-    // The BottomSheet for Transaction Details (remains unchanged)
     if (showDetailSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -211,7 +282,9 @@ fun TransactionHistoryScreen(
             TransactionDetailSheetContent(
                 mainViewModel = mainViewModel,
                 onDismiss = {
-                    coroutineScope.launch { detailSheetState.hide() }.invokeOnCompletion {
+                    coroutineScope.launch {
+                        detailSheetState.hide()
+                    }.invokeOnCompletion {
                         if (!detailSheetState.isVisible) {
                             showDetailSheet = false
                             mainViewModel.selectTransaction(null)
@@ -221,8 +294,10 @@ fun TransactionHistoryScreen(
             )
         }
     }
+
     if (showCategorizeDialog) {
         val allCategories by mainViewModel.allCategories.collectAsState()
+
         BulkCategorizeDialog(
             categories = allCategories,
             onDismiss = { showCategorizeDialog = false },
@@ -296,7 +371,7 @@ private fun UpiTransactionsList(
                             modifier = Modifier.padding(end = 8.dp),
                             selected = selectedUpiFilterType == filterType,
                             onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                            label = { Text(filterType.name.replaceFirstChar { it.titlecase(Locale.getDefault()) }) },
+                            label = { Text(filterType.name.replaceFirstChar { it.titlecase(LocalLocale.current.platformLocale) }) },
                             leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
                         )
                     }
@@ -633,7 +708,6 @@ private fun ActiveFiltersRow(
                                 AmountFilterType.GREATER_THAN -> "> ₹${val1 ?: ""}"
                                 AmountFilterType.LESS_THAN -> "< ₹${val1 ?: ""}"
                                 AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
-                                else -> "Amount"
                             }
                         }
                     // ✨ END OF THE FIX ✨
@@ -871,7 +945,7 @@ fun UpiLiteSummarySortControls(
         // Define display names or string resources for SortableUpiLiteSummaryField values
         SortableUpiLiteSummaryField.entries.forEach { field ->
             SortButton(
-                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }, // Or use stringResource
+                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(LocalLocale.current.platformLocale) else it.toString() }, // Or use stringResource
                 isSelected = currentSortField == field,
                 sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING,
                 onClick = { onSortFieldSelected(field) }
@@ -881,7 +955,7 @@ fun UpiLiteSummarySortControls(
 }
 // In TransactionHistoryScreen.kt
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedFilterControls(
     filters: TransactionFilters,
@@ -959,7 +1033,6 @@ fun AdvancedFilterControls(
                         AmountFilterType.GREATER_THAN -> "Greater Than"
                         AmountFilterType.LESS_THAN -> "Less Than"
                         AmountFilterType.RANGE -> "Min Amount"
-                        else -> ""
                     }
                     Text(label)
                 },
@@ -1046,15 +1119,18 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
 }
 @Composable
 private fun MonthlyHeader(title: String, total: Double, count: Int) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
+        .setLanguage("en")
+        .setRegion("IN")
+        .build()) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface) // Match background
-            .padding(vertical = 12.dp, horizontal = 4.dp), // Add breathing room
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween // Push items to edges
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         // Left Side: Month Name
         Text(
