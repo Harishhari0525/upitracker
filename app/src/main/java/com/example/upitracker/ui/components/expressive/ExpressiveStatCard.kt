@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 
 @Composable
@@ -39,14 +38,17 @@ fun ExpressiveStatCard(
         )
     ) {
         Row(
-            modifier = Modifier.padding(ExpressiveTokens.spacing.lg),
-            horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md),
+            modifier = Modifier.padding(
+                horizontal = ExpressiveTokens.compact.cardHorizontal,
+                vertical = ExpressiveTokens.compact.cardVertical
+            ),
+            horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.compact.itemGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
                 tint = MaterialTheme.colorScheme.primary
             )
 
@@ -55,13 +57,13 @@ fun ExpressiveStatCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )

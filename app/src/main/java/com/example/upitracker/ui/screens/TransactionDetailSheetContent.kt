@@ -34,6 +34,7 @@ import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.upitracker.util.getCategoryIcon
+import com.example.upitracker.util.ExpressiveTokens
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -113,13 +114,30 @@ fun TransactionDetailSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 24.dp, end = 24.dp, bottom = 32.dp, top = 16.dp)
-            .verticalScroll(rememberScrollState())
+            .padding(
+                start = ExpressiveTokens.spacing.lg,
+                end = ExpressiveTokens.spacing.lg,
+                top = ExpressiveTokens.spacing.md,
+                bottom = ExpressiveTokens.spacing.xl
+            )
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
     ) {
         if (isEditMode) {
             val title = if (isManualEntry) "Edit Transaction Details" else "Edit Category Details"
 
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = "Update category, note, and receipt details",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             // Category field and suggestions are now first for better UX
             OutlinedTextField(
@@ -128,7 +146,8 @@ fun TransactionDetailSheetContent(
                     char.isLetterOrDigit() || char.isWhitespace() } },
                 label = { Text("Category") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                shape = ExpressiveTokens.corners.large
             )
 
             Spacer(Modifier.height(8.dp))
@@ -178,7 +197,8 @@ fun TransactionDetailSheetContent(
                     value = descriptionText,
                     onValueChange = { descriptionText = it },
                     label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.large
                 )
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
@@ -187,7 +207,8 @@ fun TransactionDetailSheetContent(
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
-                    prefix = { Text("₹") }
+                    prefix = { Text("₹") },
+                    shape = ExpressiveTokens.corners.large
                 )
             } else {
                 // For SMS entries, show non-editable DetailRow
@@ -199,7 +220,8 @@ fun TransactionDetailSheetContent(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note") },
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                shape = ExpressiveTokens.corners.large
             )
 
             Spacer(Modifier.height(16.dp))
@@ -208,7 +230,7 @@ fun TransactionDetailSheetContent(
                 AsyncImage(
                     model = imageToShow,
                     contentDescription = "Receipt",
-                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(MaterialTheme.shapes.medium),
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(ExpressiveTokens.corners.large),
                     contentScale = ContentScale.Crop
                 )
                 Spacer(Modifier.height(8.dp))
@@ -224,7 +246,10 @@ fun TransactionDetailSheetContent(
 
             // Action buttons for Edit Mode
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { isEditMode = false }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { isEditMode = false },
+                    modifier = Modifier.weight(1f),
+                    shape = ExpressiveTokens.corners.large) {
                     Text("Cancel")
                 }
                 Button(
@@ -300,7 +325,7 @@ fun TransactionDetailSheetContent(
                 FilledTonalButton(
                     onClick = { isEditMode = true },
                     modifier = buttonModifier,
-                    shape = MaterialTheme.shapes.medium
+                    shape = ExpressiveTokens.corners.large
                 ) {
                     Icon(Icons.Default.Edit, null)
                     Spacer(Modifier.width(8.dp))
@@ -384,11 +409,57 @@ fun TransactionDetailSheetContent(
 
 @Composable
 private fun TransactionDetailHeader(transaction: Transaction) {
-    val creditColor = if (isSystemInDarkTheme()) Color(0xFF63DC94) else Color(0xFF006D3D)
-    val amountColor = if (transaction.type.equals("CREDIT", ignoreCase = true)) creditColor else MaterialTheme.colorScheme.error
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text(text = transaction.type.uppercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = "₹${"%.2f".format(transaction.amount)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = amountColor)
+    val creditColor = if (isSystemInDarkTheme()) {
+        Color(0xFF63DC94)
+    } else {
+        Color(0xFF006D3D)
+    }
+
+    val amountColor = if (transaction.type.equals("CREDIT", ignoreCase = true)) {
+        creditColor
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(ExpressiveTokens.spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = transaction.type.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+            )
+
+            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
+
+            Text(
+                text = "₹${"%.2f".format(transaction.amount)}",
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = amountColor
+            )
+
+            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
+
+            Text(
+                text = transaction.senderOrReceiver,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            )
+        }
     }
 }
 
@@ -411,10 +482,41 @@ private fun shareTransactionDetails(context: Context, transaction: Transaction) 
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = value, style = MaterialTheme.typography.bodyLarge)
+private fun DetailRow(
+    label: String,
+    value: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = ExpressiveTokens.spacing.lg,
+                vertical = ExpressiveTokens.spacing.md
+            )
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
@@ -459,16 +561,29 @@ private fun FullScreenImageViewer(imagePath: String, onDismiss: () -> Unit) {
     }
 }
 @Composable
-private fun DeleteButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun DeleteButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-        shape = MaterialTheme.shapes.medium
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.error
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.error
+        ),
+        shape = ExpressiveTokens.corners.large
     ) {
-        Icon(Icons.Default.Delete, null)
-        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = null
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
         Text("Delete")
     }
 }

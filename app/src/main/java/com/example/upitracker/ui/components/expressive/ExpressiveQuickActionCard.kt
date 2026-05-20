@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 
 @Composable
@@ -34,24 +33,26 @@ fun ExpressiveQuickActionCard(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card,
-            pressedElevation = ExpressiveTokens.elevation.cardPressed
+            defaultElevation = ExpressiveTokens.elevation.card
         )
     ) {
         Column(
-            modifier = Modifier.padding(ExpressiveTokens.spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
+            modifier = Modifier.padding(
+                horizontal = ExpressiveTokens.compact.cardHorizontal,
+                vertical = ExpressiveTokens.compact.cardVertical
+            ),
+            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
                 tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )

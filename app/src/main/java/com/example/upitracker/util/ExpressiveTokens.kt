@@ -20,22 +20,22 @@ import androidx.compose.ui.unit.dp
 data class ExpressiveSpacing(
     val xxs: Dp = 2.dp,
     val xs: Dp = 4.dp,
-    val sm: Dp = 8.dp,
-    val md: Dp = 12.dp,
-    val lg: Dp = 16.dp,
-    val xl: Dp = 20.dp,
-    val xxl: Dp = 24.dp,
-    val xxxl: Dp = 32.dp,
-    val huge: Dp = 40.dp
+    val sm: Dp = 6.dp,
+    val md: Dp = 10.dp,
+    val lg: Dp = 14.dp,
+    val xl: Dp = 18.dp,
+    val xxl: Dp = 22.dp,
+    val xxxl: Dp = 30.dp,
+    val huge: Dp = 38.dp
 )
 
 @Immutable
 data class ExpressiveCorners(
-    val small: CornerBasedShape = RoundedCornerShape(12.dp),
-    val medium: CornerBasedShape = RoundedCornerShape(18.dp),
-    val large: CornerBasedShape = RoundedCornerShape(24.dp),
-    val extraLarge: CornerBasedShape = RoundedCornerShape(32.dp),
-    val hero: CornerBasedShape = RoundedCornerShape(36.dp)
+    val small: CornerBasedShape = RoundedCornerShape(10.dp),
+    val medium: CornerBasedShape = RoundedCornerShape(14.dp),
+    val large: CornerBasedShape = RoundedCornerShape(18.dp),
+    val extraLarge: CornerBasedShape = RoundedCornerShape(24.dp),
+    val hero: CornerBasedShape = RoundedCornerShape(28.dp)
 )
 
 @Immutable
@@ -46,10 +46,24 @@ data class ExpressiveElevation(
     val dialog: Dp = 8.dp
 )
 
+@Immutable
+data class CompactTokens(
+    val screenHorizontal: Dp = 14.dp,
+    val cardHorizontal: Dp = 14.dp,
+    val cardVertical: Dp = 10.dp,
+    val sectionGap: Dp = 12.dp,
+    val itemGap: Dp = 8.dp,
+    val bottomPadding: Dp = 88.dp,
+    val iconSmall: Dp = 18.dp,
+    val iconMedium: Dp = 22.dp,
+    val avatar: Dp = 34.dp
+)
+
 object ExpressiveTokens {
     val spacing = ExpressiveSpacing()
     val corners = ExpressiveCorners()
     val elevation = ExpressiveElevation()
+    val compact = CompactTokens()
 }
 
 /**

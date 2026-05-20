@@ -3,24 +3,64 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Science
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.upitracker.R
+import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
@@ -32,9 +72,11 @@ fun ParsingRulesContent(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val regexListState = remember { mutableStateListOf<String>() }
-    var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
+
+    val regexListState = remember { mutableStateListOf<String>() }
+
+    var isLoading by remember { mutableStateOf(true) }
     var showTestSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -45,75 +87,86 @@ fun ParsingRulesContent(
         isLoading = false
     }
 
-    // ✨ FIX: REMOVED the Scaffold. We use a Box to hold the content and the FAB. ✨
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            // The padding is now simpler, as it doesn't need to account for a Scaffold
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp) // Add bottom padding for FAB
+            contentPadding = PaddingValues(
+                start = ExpressiveTokens.spacing.lg,
+                top = ExpressiveTokens.spacing.lg,
+                end = ExpressiveTokens.spacing.lg,
+                bottom = 120.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
         ) {
             item {
-                Text(
-                    stringResource(R.string.regex_editor_active_patterns_title),
-                    style = MaterialTheme.typography.titleMedium
+                ExpressiveSectionHeader(
+                    title = stringResource(R.string.regex_editor_active_patterns_title),
+                    subtitle = "Advanced SMS parsing patterns used when default detection fails"
                 )
-                Text(
-                    "For advanced users. These are used to find transactions if the app's default parsers fail.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
+            }
+
+            item {
+                ParsingInfoCard()
             }
 
             if (isLoading) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = ExpressiveTokens.spacing.xl),
+                        contentAlignment = Alignment.Center
+                    ) {
                         CircularProgressIndicator()
                     }
                 }
             } else if (regexListState.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.regex_editor_empty_patterns),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 20.dp, horizontal = 16.dp)
-                    )
+                    EmptyParsingRulesCard()
                 }
             } else {
-                items(regexListState, key = { it }) { regexPattern ->
-                    ListItem(
-                        headlineContent = { Text(regexPattern, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)) },
-                        trailingContent = {
-                            IconButton(onClick = {
-                                regexListState.remove(regexPattern)
-                                coroutineScope.launch {
-                                    RegexPreference.setRegexPatterns(context, regexListState.toSet())
-                                    mainViewModel.postPlainSnackbarMessage("Pattern removed.")
-                                }
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.regex_editor_delete_pattern_desc),
-                                    tint = MaterialTheme.colorScheme.error)
+                items(
+                    items = regexListState,
+                    key = { it }
+                ) { regexPattern ->
+                    RegexPatternCard(
+                        regexPattern = regexPattern,
+                        onDelete = {
+                            regexListState.remove(regexPattern)
+                            coroutineScope.launch {
+                                RegexPreference.setRegexPatterns(
+                                    context,
+                                    regexListState.toSet()
+                                )
+                                mainViewModel.postPlainSnackbarMessage("Pattern removed.")
                             }
                         }
                     )
-                    HorizontalDivider()
                 }
             }
         }
 
-        // The FAB is now aligned within the Box
         ExtendedFloatingActionButton(
             text = { Text("Test Pattern") },
-            icon = { Icon(Icons.Default.Science, contentDescription = "Test Pattern") },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Science,
+                    contentDescription = null
+                )
+            },
             onClick = { showTestSheet = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp)
+                .navigationBarsPadding()
+                .padding(ExpressiveTokens.spacing.lg),
+            shape = ExpressiveTokens.corners.large,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 
-    // The logic for the "Test Pattern" dialog remains unchanged
     if (showTestSheet) {
         Dialog(
             onDismissRequest = { showTestSheet = false },
@@ -122,19 +175,164 @@ fun ParsingRulesContent(
                 decorFitsSystemWindows = false
             )
         ) {
-            Surface(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
                 TestPatternSheetContent(
                     onClose = { showTestSheet = false },
                     onSavePattern = { patternFromSheet ->
-                        if (patternFromSheet.isNotBlank() && !regexListState.contains(patternFromSheet)) {
+                        if (
+                            patternFromSheet.isNotBlank() &&
+                            !regexListState.contains(patternFromSheet)
+                        ) {
                             regexListState.add(0, patternFromSheet)
+
                             coroutineScope.launch {
-                                RegexPreference.setRegexPatterns(context, regexListState.toSet())
+                                RegexPreference.setRegexPatterns(
+                                    context,
+                                    regexListState.toSet()
+                                )
                                 mainViewModel.postPlainSnackbarMessage("Pattern saved!")
                             }
                         }
+
                         showTestSheet = false
                     }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParsingInfoCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(ExpressiveTokens.spacing.lg),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Terminal,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+
+            Spacer(modifier = Modifier.size(ExpressiveTokens.spacing.md))
+
+            Column {
+                Text(
+                    text = "Advanced mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                Text(
+                    text = "Use this only when a bank SMS format is not detected correctly.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyParsingRulesCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(ExpressiveTokens.spacing.lg)
+        ) {
+            Text(
+                text = stringResource(R.string.regex_editor_empty_patterns),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
+
+            Text(
+                text = "Tap Test Pattern to create and save a new custom regex.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun RegexPatternCard(
+    regexPattern: String,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = ExpressiveTokens.spacing.lg,
+                    vertical = ExpressiveTokens.spacing.md
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Pattern",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = regexPattern,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            IconButton(
+                onClick = onDelete
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.regex_editor_delete_pattern_desc),
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -147,64 +345,72 @@ private fun TestPatternSheetContent(
     onSavePattern: (String) -> Unit
 ) {
     val context = LocalContext.current
+
     var newRegex by remember { mutableStateOf("") }
     var sampleSmsText by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf<String?>(null) }
     var isTestMatchFound by remember { mutableStateOf<Boolean?>(null) }
 
-    // Using LazyColumn is the most robust way to handle scrolling inside a bottom sheet.
     LazyColumn(
-        modifier = Modifier.fillMaxWidth()
-        .windowInsetsPadding(WindowInsets.systemBars),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars),
+        contentPadding = PaddingValues(
+            start = ExpressiveTokens.spacing.lg,
+            top = ExpressiveTokens.spacing.md,
+            end = ExpressiveTokens.spacing.lg,
+            bottom = ExpressiveTokens.spacing.xl
+        ),
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
     ) {
-
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.regex_editor_test_area_title), style = MaterialTheme.typography.titleLarge)
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+            ExpressiveTopBar(
+                title = "Test Pattern",
+                subtitle = "Try a regex against a sample SMS",
+                actions = {
+                    FilledTonalIconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close"
+                        )
+                    }
                 }
-            }
-            Spacer(Modifier.height(16.dp))
+            )
         }
 
-        // --- Input Fields ---
         item {
             OutlinedTextField(
                 value = sampleSmsText,
                 onValueChange = { sampleSmsText = it },
-                modifier = Modifier.fillMaxWidth().height(120.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
                 label = { Text(stringResource(R.string.regex_editor_test_sms_label)) },
-                placeholder = { Text(stringResource(R.string.regex_editor_test_sms_placeholder)) },
+                placeholder = {
+                    Text(stringResource(R.string.regex_editor_test_sms_placeholder))
+                },
+                shape = ExpressiveTokens.corners.large
             )
         }
-        item { Spacer(Modifier.height(16.dp)) }
+
         item {
             OutlinedTextField(
                 value = newRegex,
                 onValueChange = { newRegex = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.regex_editor_new_pattern_label)) },
-                singleLine = true
+                singleLine = true,
+                shape = ExpressiveTokens.corners.large
             )
         }
-        item { Spacer(Modifier.height(16.dp)) }
 
-        // --- Buttons Row (Corrected and Consistent) ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
             ) {
-                // Using OutlinedButton for secondary actions
                 OutlinedButton(
                     onClick = {
-                        // ... Full Suggest Logic ...
                         if (sampleSmsText.isNotBlank()) {
                             val patternsToTry = listOf(
                                 """credited with Rs\.?\s*([\d,]+\.?\d*)""",
@@ -214,13 +420,21 @@ private fun TestPatternSheetContent(
                                 """(?:Rs\.?|INR)\s*([\d,]+\.?\d*)""",
                                 """([\d,]+\.\d{2})"""
                             )
+
                             var suggestedPattern = ""
+
                             for (pattern in patternsToTry) {
-                                if (Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(sampleSmsText)) {
+                                if (
+                                    Regex(
+                                        pattern,
+                                        RegexOption.IGNORE_CASE
+                                    ).containsMatchIn(sampleSmsText)
+                                ) {
                                     suggestedPattern = pattern
                                     break
                                 }
                             }
+
                             if (suggestedPattern.isNotBlank()) {
                                 newRegex = suggestedPattern
                                 testResult = "Suggested a pattern based on your sample text."
@@ -232,63 +446,134 @@ private fun TestPatternSheetContent(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = sampleSmsText.isNotBlank()
-                ) { Text("Suggest") }
+                    enabled = sampleSmsText.isNotBlank(),
+                    shape = ExpressiveTokens.corners.large
+                ) {
+                    Text("Suggest")
+                }
 
                 OutlinedButton(
                     onClick = {
-                        // ... Full Test Logic ...
                         if (newRegex.isNotBlank() && sampleSmsText.isNotBlank()) {
                             try {
-                                val regex = Regex(newRegex.trim(), RegexOption.IGNORE_CASE)
+                                val regex = Regex(
+                                    newRegex.trim(),
+                                    RegexOption.IGNORE_CASE
+                                )
+
                                 val match = regex.find(sampleSmsText)
+
                                 if (match != null) {
                                     isTestMatchFound = true
-                                    val resultBuilder = StringBuilder(context.getString(R.string.regex_editor_test_result_match_found))
+
+                                    val resultBuilder = StringBuilder(
+                                        context.getString(
+                                            R.string.regex_editor_test_result_match_found
+                                        )
+                                    )
+
                                     match.groupValues.forEachIndexed { index, value ->
                                         resultBuilder.appendLine()
-                                        resultBuilder.append(context.getString(R.string.regex_editor_test_result_group_template, index, value))
+                                        resultBuilder.append(
+                                            context.getString(
+                                                R.string.regex_editor_test_result_group_template,
+                                                index,
+                                                value
+                                            )
+                                        )
                                     }
+
                                     testResult = resultBuilder.toString()
                                 } else {
                                     isTestMatchFound = false
-                                    testResult = context.getString(R.string.regex_editor_test_result_no_match)
+                                    testResult = context.getString(
+                                        R.string.regex_editor_test_result_no_match
+                                    )
                                 }
                             } catch (_: Exception) {
                                 isTestMatchFound = false
-                                testResult = context.getString(R.string.regex_editor_test_result_invalid_regex)
+                                testResult = context.getString(
+                                    R.string.regex_editor_test_result_invalid_regex
+                                )
                             }
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = newRegex.isNotBlank() && sampleSmsText.isNotBlank()
-                ) { Text("Test") }
+                    enabled = newRegex.isNotBlank() && sampleSmsText.isNotBlank(),
+                    shape = ExpressiveTokens.corners.large
+                ) {
+                    Text("Test")
+                }
             }
         }
 
         item {
-            // Using a filled Button for the primary "Save" action
             Button(
                 onClick = { onSavePattern(newRegex) },
                 enabled = newRegex.isNotBlank() && isTestMatchFound == true,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) { Text("Save Active Pattern") }
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveTokens.corners.large
+            ) {
+                Text("Save Active Pattern")
+            }
         }
 
-        // --- Test Results Section ---
         testResult?.let { result ->
             item {
-                Column(modifier = Modifier.padding(top = 16.dp)) {
-                    Text(stringResource(R.string.regex_editor_test_results_title), style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = result,
-                        color = if (isTestMatchFound == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(8.dp)
-                    )
-                }
+                TestResultCard(
+                    result = result,
+                    isMatchFound = isTestMatchFound == true
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun TestResultCard(
+    result: String,
+    isMatchFound: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isMatchFound) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(ExpressiveTokens.spacing.lg)
+        ) {
+            Text(
+                text = stringResource(R.string.regex_editor_test_results_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
+
+            Text(
+                text = result,
+                color = if (isMatchFound) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onErrorContainer
+                },
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(ExpressiveTokens.spacing.sm)
+            )
         }
     }
 }

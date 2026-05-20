@@ -19,7 +19,7 @@ import com.example.upitracker.util.CategoryIcon
 @Composable
 fun CategoryIconView(
     categoryIcon: CategoryIcon,
-    size: Dp = 24.dp, // Default size
+    size: Dp = 22.dp,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     iconTint: Color = MaterialTheme.colorScheme.secondary
@@ -33,26 +33,33 @@ fun CategoryIconView(
                 tint = iconTint
             )
         }
+
         is CategoryIcon.EmojiIcon -> {
-            // ✨ Render Emoji centered in a circle
             Box(
                 modifier = Modifier
                     .size(size)
-                    .background(color = containerColor, shape = CircleShape),
+                    .background(
+                        color = containerColor,
+                        shape = CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = categoryIcon.emoji,
-                    style = MaterialTheme.typography.titleMedium, // Adjust size as needed
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Normal
                 )
             }
         }
+
         is CategoryIcon.LetterIcon -> {
             Box(
                 modifier = Modifier
                     .size(size)
-                    .background(color = containerColor, shape = CircleShape),
+                    .background(
+                        color = containerColor,
+                        shape = CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

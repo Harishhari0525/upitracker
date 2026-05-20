@@ -205,7 +205,6 @@ fun CurrentMonthExpensesScreen(
                         item {
                             MonthlyQuickStatsSection(
                                 transactionCount = transactionCount,
-                                upcomingCount = recurringRules.size,
                                 totalSpent = currentMonthExpensesTotal
                             )
                         }
@@ -220,10 +219,8 @@ fun CurrentMonthExpensesScreen(
                             }
                         }
 
-                        if (recurringRules.isNotEmpty()) {
-                            item {
-                                UpcomingPaymentsSection(rules = recurringRules)
-                            }
+                        item {
+                            UpcomingPaymentsSection(rules = recurringRules)
                         }
 
                         item {
@@ -363,7 +360,6 @@ private fun TotalExpensesHeroCard(
 @Composable
 private fun MonthlyQuickStatsSection(
     transactionCount: Int,
-    upcomingCount: Int,
     totalSpent: Double
 ) {
     val currencyFormatter = remember {
@@ -393,16 +389,9 @@ private fun MonthlyQuickStatsSection(
         )
 
         MonthlyStatCard(
-            title = "Average",
+            title = "Average Spend",
             value = currencyFormatter.format(averageAmount),
             icon = Icons.AutoMirrored.Filled.TrendingUp,
-            modifier = Modifier.weight(1f)
-        )
-
-        MonthlyStatCard(
-            title = "Upcoming",
-            value = upcomingCount.toString(),
-            icon = Icons.Filled.Schedule,
             modifier = Modifier.weight(1f)
         )
     }
@@ -464,15 +453,66 @@ private fun UpcomingPaymentsSection(
 ) {
     val upcomingRules = rules.take(3)
 
-    if (upcomingRules.isNotEmpty()) {
-        Column {
-            ExpressiveSectionHeader(
-                title = "Upcoming Payments",
-                subtitle = "Next recurring payments coming up"
-            )
+    Column {
+        ExpressiveSectionHeader(
+            title = "Upcoming Payments",
+            subtitle = if (upcomingRules.isEmpty()) {
+                "No upcoming recurring payments"
+            } else {
+                "Next recurring payments coming up"
+            }
+        )
 
-            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
+        Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
 
+        if (upcomingRules.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveTokens.corners.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = ExpressiveTokens.elevation.card
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = ExpressiveTokens.spacing.lg,
+                            vertical = ExpressiveTokens.spacing.lg
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = "No upcoming payments",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+
+                    Column {
+                        Text(
+                            text = "None upcoming",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = "Add recurring payments from Budgets to track bills here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
