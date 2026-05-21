@@ -4,19 +4,19 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
-    id("com.google.protobuf") version "0.9.5"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
+    id("com.google.protobuf") version "0.10.0"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21"
 }
 
 android {
     namespace = "com.example.upitracker"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.upitracker"
-        minSdk = 31
-        targetSdk = 36
+        minSdk = 33
+        targetSdk = 37
         versionCode = 1
         versionName = "1.9"
 

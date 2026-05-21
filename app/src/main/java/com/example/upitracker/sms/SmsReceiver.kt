@@ -6,72 +6,50 @@ import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.example.upitracker.data.AppDatabase // ✨ Import AppDatabase
-import com.example.upitracker.data.ArchivedSmsMessage // ✨ Import new Entity
-import com.example.upitracker.data.Transaction
-import com.example.upitracker.data.UpiLiteSummary
+import com.example.upitracker.data.AppDatabase
+import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.util.BankIdentifier
 import com.example.upitracker.util.NotificationHelper
+import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.widget.UpiExpenseWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-// import com.example.upitracker.util.RegexPreference // Already present from previous changes
 
-class SmsReceiver(
-    private val onTransactionParsed: (Transaction) -> Unit,
-    private val onUpiLiteSummaryReceived: (UpiLiteSummary) -> Unit
-) : BroadcastReceiver() {
-
-    private val receiverScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+class SmsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             return
         }
 
-        // ✨ Get DAO instance ✨
-        val archivedSmsDao = AppDatabase.getDatabase(context.applicationContext).archivedSmsMessageDao()
+        val pendingResult = goAsync()
+        val receiverScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-        messages?.forEachIndexed { index, sms ->
-            val body = sms.messageBody.orEmpty()
-            val sender = sms.originatingAddress.orEmpty()
-            val smsTimestamp = sms.timestampMillis
+        receiverScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(context)
+                val transactionDao = db.transactionDao()
+                val archivedSmsDao = db.archivedSmsMessageDao()
+                val upiLiteSummaryDao = db.upiLiteSummaryDao()
 
+                // Safely fetch and compile your custom user-defined regex patterns from storage
+                val storedPatterns = RegexPreference.getRegexPatterns(context).first()
+                val customRegexPatterns = storedPatterns.map { patternStr ->
+                    Regex(patternStr, RegexOption.IGNORE_CASE)
+                }
 
-            var isUpiRelated = false // Flag to check if SMS was UPI related for backup
+                val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return@launch
 
-            val bankName = BankIdentifier.getBankName(sender)
-            if (bankName == null) {
-                Log.d("SmsReceiver", "SMS from $sender does not match any known bank.")
-                return@forEachIndexed
-            }
+                for (sms in messages) {
+                    val body = sms.displayMessageBody ?: continue
+                    val sender = sms.displayOriginatingAddress ?: "Unknown"
+                    val smsTimestamp = sms.timestampMillis
+                    val bankName = BankIdentifier.getBankName(sender)
 
-            val liteSummary = parseUpiLiteSummarySms(body)
-            if (liteSummary != null) {
-                isUpiRelated = true
-                onUpiLiteSummaryReceived(liteSummary)
-            } else {
-                Log.d("SmsReceiver", "SMS from $sender not a UPI Lite Summary. Attempting regular UPI parse.")
-            }
-
-            if (!isUpiRelated) {
-                receiverScope.launch {
-                    var customRegexPatterns: List<Regex> = emptyList()
-                    com.example.upitracker.util.RegexPreference.getRegexPatterns(context)
-                        .firstOrNull()?.let { patternsSet ->
-                        customRegexPatterns = patternsSet.mapNotNull {
-                            try {
-                                Regex(it, RegexOption.IGNORE_CASE)
-                            } catch (e: Exception) {
-                                Log.w("SmsReceiver", "Invalid custom regex pattern: '$it'", e); null
-                            }
-                        }
-                    }
-
+                    // 1. Parse standard UPI transactions
                     val transaction = parseUpiSms(
                         message = body,
                         sender = sender,
@@ -79,38 +57,15 @@ class SmsReceiver(
                         customRegexList = customRegexPatterns,
                         bankName = bankName
                     )
+
                     if (transaction != null) {
-                        isUpiRelated = true
+                        val insertedId = transactionDao.insertReturningId(transaction)
+                        val savedTransaction = transaction.copy(id = insertedId.toInt())
 
-                        val db = AppDatabase.getDatabase(context)
-                        val dao = db.transactionDao()
-
-                        // ✨ 2. INSERT AND GET THE ID (This removes the warning!)
-                        val newId = dao.insertReturningId(transaction)
-
-                        // Create a copy with the correct ID to pass to UI/Notification
-                        val savedTransaction = transaction.copy(id = newId.toInt())
-
-                        onTransactionParsed(savedTransaction)
-
-                        // ✨ 4. SHOW NOTIFICATION (Only if it's a debit & uncategorized)
                         if (savedTransaction.type == "DEBIT" && savedTransaction.category == null) {
                             NotificationHelper.showNewTransactionNotification(context, savedTransaction)
                         }
 
-                        val context = context.applicationContext
-                        val widget = UpiExpenseWidget()
-                        val manager = GlanceAppWidgetManager(context)
-                        manager.getGlanceIds(UpiExpenseWidget::class.java).forEach { glanceId ->
-                            widget.update(context, glanceId)
-                        }
-                        val glanceIds = manager.getGlanceIds(widget.javaClass)
-                        glanceIds.forEach { glanceId ->
-                            widget.update(context, glanceId)
-                        }
-
-                    }
-                    if (isUpiRelated) {
                         val archivedSms = ArchivedSmsMessage(
                             originalSender = sender,
                             originalBody = body,
@@ -118,21 +73,48 @@ class SmsReceiver(
                             backupTimestamp = System.currentTimeMillis()
                         )
                         archivedSmsDao.insertArchivedSms(archivedSms)
-                        Log.i("SmsReceiver", "UPI-related SMS from $sender backed up.")
+
+                        val widgetManager = GlanceAppWidgetManager(context)
+                        val widget = UpiExpenseWidget()
+                        val glanceIds = widgetManager.getGlanceIds(widget.javaClass)
+                        glanceIds.forEach { glanceId ->
+                            widget.update(context, glanceId)
+                        }
+                    }
+
+                    // 2. Parse UPI Lite Wallet summaries with your precise original conditions
+                    val liteSummary = parseUpiLiteSummarySms(body)
+                    if (liteSummary != null) {
+                        val existingSummary = upiLiteSummaryDao.getSummaryByDateAndBank(
+                            date = liteSummary.date,
+                            bank = liteSummary.bank
+                        )
+
+                        if (existingSummary == null) {
+                            upiLiteSummaryDao.insert(liteSummary)
+                        } else if (existingSummary.transactionCount != liteSummary.transactionCount ||
+                            existingSummary.totalAmount != liteSummary.totalAmount) {
+                            upiLiteSummaryDao.update(
+                                existingSummary.copy(
+                                    transactionCount = liteSummary.transactionCount,
+                                    totalAmount = liteSummary.totalAmount
+                                )
+                            )
+                        }
+
+                        val archivedSms = ArchivedSmsMessage(
+                            originalSender = sender,
+                            originalBody = body,
+                            originalTimestamp = smsTimestamp,
+                            backupTimestamp = System.currentTimeMillis()
+                        )
+                        archivedSmsDao.insertArchivedSms(archivedSms)
                     }
                 }
-            }
-            if (liteSummary != null) { // Check if liteSummary was parsed successfully earlier
-                receiverScope.launch { // Use a coroutine for DB operation
-                    val archivedSms = ArchivedSmsMessage(
-                        originalSender = sender,
-                        originalBody = body,
-                        originalTimestamp = smsTimestamp,
-                        backupTimestamp = System.currentTimeMillis()
-                    )
-                    archivedSmsDao.insertArchivedSms(archivedSms)
-                    Log.i("SmsReceiver", "UPI Lite SMS backed up.")
-                }
+            } catch (e: Exception) {
+                Log.e("SmsReceiver", "Error processing background SMS tracker payload", e)
+            } finally {
+                pendingResult.finish()
             }
         }
     }

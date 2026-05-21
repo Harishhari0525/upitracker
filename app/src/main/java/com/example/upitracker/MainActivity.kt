@@ -1,10 +1,8 @@
 package com.example.upitracker
 
 import android.Manifest
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.provider.Telephony
 import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -36,7 +34,6 @@ import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.network.GitHubRelease
 import com.example.upitracker.network.UpdateService
-import com.example.upitracker.sms.SmsReceiver
 import com.example.upitracker.sms.parseUpiLiteSummarySms
 import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.ui.components.AddTransactionDialog
@@ -57,7 +54,6 @@ import java.util.concurrent.TimeUnit
 
 class MainActivity : FragmentActivity() {
 
-    private var smsReceiver: SmsReceiver? = null
     private val mainViewModel: MainViewModel by viewModels()
 
     private var pendingUpiLiteEnabledState: Boolean = true
@@ -67,10 +63,7 @@ class MainActivity : FragmentActivity() {
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
             val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
 
-            // If we are onboarding, we proceed regardless of whether they said yes or no.
-            // If they said yes, we sync. If no, we just let them in.
             if (!mainViewModel.isOnboardingCompleted.value) {
-                // Save the preference the user chose on the screen
                 mainViewModel.setUpiLiteEnabled(pendingUpiLiteEnabledState)
                 mainViewModel.markOnboardingComplete()
 
@@ -80,7 +73,6 @@ class MainActivity : FragmentActivity() {
                     mainViewModel.postSnackbarMessage("Permissions denied. Automatic tracking disabled.")
                 }
             } else {
-                // Normal manual sync logic (Settings screen)
                 if (readSmsGranted && receiveSmsGranted) {
                     startFullSmsSync(isInitialImport = true)
                 } else {
@@ -112,7 +104,6 @@ class MainActivity : FragmentActivity() {
         CryptoManager.initialize(this)
         NotificationHelper.createNotificationChannels(this)
         scheduleAllWorkers()
-        registerSmsReceiver()
 
         setContent {
             Theme(mainViewModel = mainViewModel) {
@@ -140,7 +131,7 @@ class MainActivity : FragmentActivity() {
                 value = PinStorage.isPinSet(this@MainActivity)
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error reading PIN state", e)
-                value = false // Assume no PIN if error
+                value = false
             }
         }
 
@@ -154,8 +145,6 @@ class MainActivity : FragmentActivity() {
 
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             if (!isDataReady) {
-                // While the splash screen is dismissing and data is loading, show a centered spinner.
-                // This prevents the "flash".
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     CircularProgressIndicator()
                 }
@@ -176,10 +165,7 @@ class MainActivity : FragmentActivity() {
                     }
 
                     pinIsActuallySet == null -> {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             CircularProgressIndicator()
                         }
                     }
@@ -190,9 +176,7 @@ class MainActivity : FragmentActivity() {
                             onUnlock = { pinUnlocked = true },
                             onSetPin = { pinUnlocked = true },
                             onAttemptBiometricUnlock = {
-                                handleBiometricUnlock {
-                                    pinUnlocked = true
-                                }
+                                handleBiometricUnlock { pinUnlocked = true }
                             }
                         )
                     }
@@ -210,7 +194,7 @@ class MainActivity : FragmentActivity() {
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
-        val rootNavController = rememberNavController() // The single NavController for the entire app
+        val rootNavController = rememberNavController()
         var latestReleaseInfo by remember { mutableStateOf<GitHubRelease?>(null) }
         var showRestartDialog by remember { mutableStateOf(false) }
         var restartDialogMessage by remember { mutableStateOf("") }
@@ -229,7 +213,6 @@ class MainActivity : FragmentActivity() {
         }
 
         LaunchedEffect(Unit) {
-            // SILENT and FAST sync for messages that arrived while app was closed.
             val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
             if (lastTimestamp > 0) {
                 val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
@@ -254,10 +237,8 @@ class MainActivity : FragmentActivity() {
                             }
                             mainViewModel.postSnackbarMessage(message)
                         }
-
                     )
-                }
-                else {
+                } else {
                     mainViewModel.postPlainSnackbarMessage("No new transactions found.")
                 }
             }
@@ -352,58 +333,24 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun registerSmsReceiver() {
-        smsReceiver = SmsReceiver(
-            onTransactionParsed = { transaction -> mainViewModel.processAndInsertTransaction(transaction) },
-            onUpiLiteSummaryReceived = { newSummary ->
-                lifecycleScope.launch {
-                    val liteDao = AppDatabase.getDatabase(this@MainActivity).upiLiteSummaryDao()
-                    val existingSummary = liteDao.getSummaryByDateAndBank(newSummary.date, newSummary.bank)
-                    if (existingSummary == null) {
-                        liteDao.insert(newSummary)
-                    } else if (existingSummary.transactionCount != newSummary.transactionCount || existingSummary.totalAmount != newSummary.totalAmount) {
-                        liteDao.update(existingSummary.copy(transactionCount = newSummary.transactionCount, totalAmount = newSummary.totalAmount))
-                    }
-                }
-            }
-        )
-        val filter = IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)
-        ContextCompat.registerReceiver(this, smsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-    }
-
     private fun scheduleAllWorkers() {
         val workManager = WorkManager.getInstance(applicationContext)
-        val budgetCheckRequest = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12,
-            TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(BudgetCheckerWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, budgetCheckRequest)
-        val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1,
-            TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
-        val recurringRequest = PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12,
-            TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
-        val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1,
-            TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
-        val updateCheckRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(
-            12, TimeUnit.HOURS
-        )
-            .setConstraints(
-                androidx.work.Constraints.Builder()
-                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED) // Only run when internet is available
-                    .build()
-            )
-            .build()
+        val budgetCheckRequest = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12, TimeUnit.HOURS).build()
+        workManager.enqueueUniquePeriodicWork(BudgetCheckerWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, budgetCheckRequest)
 
-        workManager.enqueueUniquePeriodicWork(
-            UpdateCheckWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            updateCheckRequest
-        )
+        val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
+
+        val recurringRequest = PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, TimeUnit.HOURS).build()
+        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
+
+        val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
+
+        val updateCheckRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS)
+            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+            .build()
+        workManager.enqueueUniquePeriodicWork(UpdateCheckWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, updateCheckRequest)
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
@@ -464,7 +411,10 @@ class MainActivity : FragmentActivity() {
                 parseUpiSms(body, sender, smsDate, customRegexPatterns, bankName)?.let { transaction ->
                     isUpiRelated = true
                     if (dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description) == null) {
-                        mainViewModel.processAndInsertTransaction(transaction)
+                        // Safe context delegation directly to MainViewModel's handler thread structure
+                        withContext(Dispatchers.Main) {
+                            mainViewModel.processAndInsertTransaction(transaction)
+                        }
                         newTxnCount++
                     }
                 }
@@ -503,7 +453,6 @@ class MainActivity : FragmentActivity() {
                     if (txnCount > 0) {
                         messageParts.add("$txnCount new transaction(s)")
                     }
-                    // Only mention UPI Lite if it's enabled and summaries were found
                     if (isUpiLiteEnabled && summaryCount > 0) {
                         messageParts.add("$summaryCount UPI Lite summary(s)")
                     }
@@ -527,18 +476,12 @@ class MainActivity : FragmentActivity() {
             smsPermissionLauncher.launch(permissionsToRequest)
         }
     }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        smsReceiver?.let { unregisterReceiver(it) }
-    }
-
 }
 
 @Composable
 private fun ForceRestartDialog(message: String, onConfirm: () -> Unit) {
     AlertDialog(
-        onDismissRequest = { /* Cannot be dismissed */ },
+        onDismissRequest = { },
         icon = { Icon(Icons.Default.SyncProblem, contentDescription = null) },
         title = { Text(text = "Restore Successful") },
         text = { Text(text = message) },

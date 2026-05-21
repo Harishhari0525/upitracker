@@ -11,11 +11,13 @@ import java.io.OutputStream
 import com.google.crypto.tink.Aead
 import kotlinx.coroutines.flow.first
 import androidx.datastore.core.DataStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-// Define the DataStore using the dataStore delegate
-private val Context.pinDataStore: DataStore<UserPreferences> by dataStore( // ✨ ADD THIS TYPE DEFINITION
-    fileName = "secure_user_prefs.pb", // Using .pb for protobuf
-    serializer = SecureUserPreferencesSerializer(CryptoManager.getAead())
+
+private val Context.pinDataStore: DataStore<UserPreferences> by dataStore(
+    fileName = "secure_user_prefs.pb",
+    serializer = SecureUserPreferencesSerializer(aeadProvider = { CryptoManager.getAead() })
 )
 
 object PinStorage {
@@ -34,17 +36,7 @@ object PinStorage {
      */
     suspend fun getPin(context: Context): String? {
         val preferences = context.pinDataStore.data.first()
-        // For proto3, we check if the string is not empty instead of using hasPin()
-        return preferences.pin.ifEmpty {
-            null
-        }
-    }
-
-    /**
-     * Checks if a PIN has been set by the user.
-     */
-    suspend fun isPinSet(context: Context): Boolean {
-        return getPin(context) != null
+        return preferences.pin.ifEmpty { null }
     }
 
     /**
@@ -63,17 +55,28 @@ object PinStorage {
             preferences.toBuilder().clearPin().build()
         }
     }
+
+    /**
+     * Helper to verify if a PIN exists. Safely handles reading errors.
+     */
+    suspend fun isPinSet(context: Context): Boolean {
+        return getPin(context) != null
+    }
 }
 
-// Serializer for the UserPreferences protobuf with encryption
-private class SecureUserPreferencesSerializer(private val aead: Aead) : Serializer<UserPreferences> {
+// Serializer for the UserPreferences protobuf with dynamic, deferred encryption initialization
+private class SecureUserPreferencesSerializer(
+    private val aeadProvider: () -> Aead
+) : Serializer<UserPreferences> {
+
     override val defaultValue: UserPreferences = UserPreferences.getDefaultInstance()
 
     override suspend fun readFrom(input: InputStream): UserPreferences {
         try {
             val encryptedInput = input.readBytes()
             val decryptedInput = if (encryptedInput.isNotEmpty()) {
-                aead.decrypt(encryptedInput, null)
+                // Fetch Aead lazily on actual data transaction
+                aeadProvider().decrypt(encryptedInput, null)
             } else {
                 ByteArray(0)
             }
@@ -85,7 +88,10 @@ private class SecureUserPreferencesSerializer(private val aead: Aead) : Serializ
 
     override suspend fun writeTo(t: UserPreferences, output: OutputStream) {
         val byteArray = t.toByteArray()
-        val encryptedBytes = aead.encrypt(byteArray, null)
-        output.write(encryptedBytes)
+        // Fetch Aead lazily on actual data transaction
+        val encryptedBytes = aeadProvider().encrypt(byteArray, null)
+        withContext(Dispatchers.IO) {
+            output.write(encryptedBytes)
+        }
     }
 }
