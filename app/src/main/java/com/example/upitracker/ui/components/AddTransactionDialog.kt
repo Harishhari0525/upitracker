@@ -2,27 +2,49 @@
 
 package com.example.upitracker.ui.components
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.DecimalInputVisualTransformation
+import com.example.upitracker.util.ExpressiveTokens
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun AddTransactionDialog(
@@ -35,68 +57,96 @@ fun AddTransactionDialog(
         date: Long
     ) -> Unit
 ) {
-    // --- STATE MANAGEMENT ---
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("DEBIT") }
 
-    // --- NEW: SEPARATE ERROR STATES FOR EACH FIELD ---
     var isAmountError by remember { mutableStateOf(false) }
     var isDescriptionError by remember { mutableStateOf(false) }
 
     var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
-    val displayDateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDateMillis
+    )
+
+    val displayDateFormat = remember {
+        SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    }
 
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                TextButton(onClick = {
-                    showDatePicker = false
-                    // This robust logic prevents timezone issues
-                    datePickerState.selectedDateMillis?.let { newDateMillis ->
-                        // Get the new date from the picker (which is in UTC)
-                        val newDateCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                            timeInMillis = newDateMillis
+                TextButton(
+                    onClick = {
+                        showDatePicker = false
+
+                        datePickerState.selectedDateMillis?.let { newDateMillis ->
+                            val newDateCalendar = Calendar.getInstance(
+                                TimeZone.getTimeZone("UTC")
+                            ).apply {
+                                timeInMillis = newDateMillis
+                            }
+
+                            val existingTimeCalendar = Calendar.getInstance().apply {
+                                timeInMillis = selectedDateMillis
+                            }
+
+                            existingTimeCalendar.set(
+                                newDateCalendar.get(Calendar.YEAR),
+                                newDateCalendar.get(Calendar.MONTH),
+                                newDateCalendar.get(Calendar.DAY_OF_MONTH)
+                            )
+
+                            selectedDateMillis = existingTimeCalendar.timeInMillis
                         }
-
-                        // Get the existing time from our current state (in the phone's local timezone)
-                        val existingTimeCalendar = Calendar.getInstance().apply {
-                            timeInMillis = selectedDateMillis
-                        }
-
-                        // Apply the new date to the existing time's calendar
-                        existingTimeCalendar.set(
-                            newDateCalendar.get(Calendar.YEAR),
-                            newDateCalendar.get(Calendar.MONTH),
-                            newDateCalendar.get(Calendar.DAY_OF_MONTH)
-                        )
-
-                        // Update the state with the new combined timestamp
-                        selectedDateMillis = existingTimeCalendar.timeInMillis
                     }
-                }) { Text("OK") }
+                ) {
+                    Text("OK")
+                }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(
+                    onClick = { showDatePicker = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Manual Transaction") },
+        shape = ExpressiveTokens.corners.extraLarge,
+        title = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+            ) {
+                Text(
+                    text = "Add Transaction",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Manually add cash, UPI, or adjustment entries.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
             ) {
-                // --- AMOUNT FIELD ---
                 OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
                     value = amount,
                     onValueChange = {
                         if (it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
@@ -106,97 +156,98 @@ fun AddTransactionDialog(
                     },
                     label = { Text("Amount") },
                     prefix = { Text("₹") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal,
-                        imeAction = ImeAction.Next),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next
+                    ),
                     isError = isAmountError,
                     supportingText = {
                         if (isAmountError) {
-                            Text(
-                                text = "Please enter a valid amount",
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Text("Please enter a valid amount")
                         }
                     },
-                    visualTransformation = DecimalInputVisualTransformation()
+                    visualTransformation = DecimalInputVisualTransformation(),
+                    shape = ExpressiveTokens.corners.medium,
+                    singleLine = true
                 )
 
-                // --- DESCRIPTION FIELD ---
                 OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
                     value = description,
                     onValueChange = {
                         description = it
                         isDescriptionError = false
                     },
                     label = { Text("Description") },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Next),
-                    isError = isDescriptionError, // Use new error state
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Next
+                    ),
+                    isError = isDescriptionError,
                     supportingText = {
                         if (isDescriptionError) {
-                            Text(
-                                text = "Description cannot be empty", // Specific message
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Text("Description cannot be empty")
                         }
-                    }
+                    },
+                    shape = ExpressiveTokens.corners.medium,
+                    singleLine = true
                 )
 
-                // --- CATEGORY FIELD ---
                 OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
                     value = category,
-                    onValueChange = {
-                        category = it
-                       // isCategoryError = false
-                    },
+                    onValueChange = { category = it },
                     label = { Text("Category") },
                     placeholder = { Text("e.g., Groceries, Utilities") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next)
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next
+                    ),
+                    shape = ExpressiveTokens.corners.medium
                 )
 
                 OutlinedButton(
                     onClick = { showDatePicker = true },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.medium
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = "Select Date", modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Select Date",
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+
+                    Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
+
                     Text(displayDateFormat.format(Date(selectedDateMillis)))
                 }
 
-                // Transaction Type Radio Buttons
-                Row(modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f) // Takes up half of the available space
-                            .clickable { selectedType = "DEBIT" }, // Make the whole area clickable for better UX
-                        verticalAlignment = Alignment.CenterVertically // This aligns the button and text
-                    ) {
-                        RadioButton(
-                            selected = selectedType == "DEBIT",
-                            onClick = { selectedType = "DEBIT" }
-                        )
-                        Text(
-                            text = "Debit",
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+                ) {
+                    Text(
+                        text = "Transaction type",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                    // --- Credit Option ---
                     Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { selectedType = "CREDIT" }, // Make the whole area clickable
-                        verticalAlignment = Alignment.CenterVertically // This aligns the button and text
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
                     ) {
-                        RadioButton(
-                            selected = selectedType == "CREDIT",
-                            onClick = { selectedType = "CREDIT" }
+                        FilterChip(
+                            selected = selectedType == "DEBIT",
+                            onClick = { selectedType = "DEBIT" },
+                            label = { Text("Debit") },
+                            modifier = Modifier.weight(1f)
                         )
-                        Text(
-                            text = "Credit",
-                            modifier = Modifier.padding(start = 4.dp)
+
+                        FilterChip(
+                            selected = selectedType == "CREDIT",
+                            onClick = { selectedType = "CREDIT" },
+                            label = { Text("Credit") },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -205,19 +256,22 @@ fun AddTransactionDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    // --- NEW: INDIVIDUAL VALIDATION LOGIC ---
                     val amountDouble = amount.toDoubleOrNull()
 
-                    // Check each condition separately
                     isAmountError = amountDouble == null || amountDouble <= 0
                     isDescriptionError = description.isBlank()
-                  //  isCategoryError = category.isBlank()
 
-                    // If all checks pass, confirm and dismiss
                     if (!isAmountError && !isDescriptionError) {
-                        onConfirm(amountDouble!!, selectedType, description, category, selectedDateMillis)
+                        onConfirm(
+                            amountDouble!!,
+                            selectedType,
+                            description,
+                            category,
+                            selectedDateMillis
+                        )
                     }
-                }
+                },
+                shape = ExpressiveTokens.corners.medium
             ) {
                 Text("Save")
             }

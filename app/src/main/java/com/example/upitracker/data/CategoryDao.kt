@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -13,22 +14,44 @@ interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY name ASC")
     fun getAllCategories(): Flow<List<Category>>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAll(categories: List<Category>)
-
-    // ✨ NEW: Insert a single category ✨
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(category: Category)
-
-    // ✨ NEW: Update an existing category ✨
     @Update
     suspend fun update(category: Category)
 
-    // ✨ NEW: Delete a category ✨
+    // Changed REIGNORE to IGNORE to match Room's official strategy name
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(category: Category)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(categories: List<Category>)
+
     @Delete
     suspend fun delete(category: Category)
 
-    // ✨ NEW: Check if a category name exists (for validation) ✨
+    @Query("SELECT COUNT(*) FROM categories")
+    suspend fun getCategoryCount(): Int
+
+    @Query("DELETE FROM category_suggestion_rules WHERE categoryName = :categoryName")
+    suspend fun deleteRulesForCategory(categoryName: String)
+
+    @Query("UPDATE transactions SET category = null WHERE category = :categoryName")
+    suspend fun clearCategoryForTransactions(categoryName: String)
+
     @Query("SELECT * FROM categories WHERE name = :name LIMIT 1")
     suspend fun getCategoryByName(name: String): Category?
+
+    /**
+     * Our Atomic "Package Deal" operation.
+     * If any of these three steps fail, the entire operation rolls back.
+     */
+    @Transaction
+    suspend fun deleteCategoryAndCleanup(category: Category) {
+        // Step 1: Delete the category itself
+        delete(category)
+
+        // Step 2: Clear out any automatic rules pointing to this category name
+        deleteRulesForCategory(category.name)
+
+        // Step 3: Remove the category name from all transactions that used it
+        clearCategoryForTransactions(category.name)
+    }
 }

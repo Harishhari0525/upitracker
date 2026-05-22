@@ -42,11 +42,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -344,7 +344,10 @@ private fun TestPatternSheetContent(
     onClose: () -> Unit,
     onSavePattern: (String) -> Unit
 ) {
-    val context = LocalContext.current
+    val matchFoundText = stringResource(R.string.regex_editor_test_result_match_found)
+    val groupTemplate = stringResource(R.string.regex_editor_test_result_group_template)
+    val noMatchText = stringResource(R.string.regex_editor_test_result_no_match)
+    val invalidRegexText = stringResource(R.string.regex_editor_test_result_invalid_regex)
 
     var newRegex by remember { mutableStateOf("") }
     var sampleSmsText by remember { mutableStateOf("") }
@@ -466,35 +469,23 @@ private fun TestPatternSheetContent(
                                 if (match != null) {
                                     isTestMatchFound = true
 
-                                    val resultBuilder = StringBuilder(
-                                        context.getString(
-                                            R.string.regex_editor_test_result_match_found
-                                        )
-                                    )
+                                    val resultBuilder = StringBuilder(matchFoundText)
 
                                     match.groupValues.forEachIndexed { index, value ->
                                         resultBuilder.appendLine()
                                         resultBuilder.append(
-                                            context.getString(
-                                                R.string.regex_editor_test_result_group_template,
-                                                index,
-                                                value
-                                            )
+                                            groupTemplate.format(index, value)
                                         )
                                     }
 
                                     testResult = resultBuilder.toString()
                                 } else {
                                     isTestMatchFound = false
-                                    testResult = context.getString(
-                                        R.string.regex_editor_test_result_no_match
-                                    )
+                                    testResult = noMatchText
                                 }
                             } catch (_: Exception) {
                                 isTestMatchFound = false
-                                testResult = context.getString(
-                                    R.string.regex_editor_test_result_invalid_regex
-                                )
+                                testResult = invalidRegexText
                             }
                         }
                     },

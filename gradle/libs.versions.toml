@@ -1,20 +1,20 @@
 [versions]
 # UPDATED: All core Compose libraries are now aligned to a new, compatible version
-animation = "1.11.1"
+animation = "1.11.2"
 appUpdateKtx = "2.1.0"
 coilCompose = "2.7.0"
 coreSplashscreen = "1.2.0"
 desugar_jdk_libs = "2.1.5"
-foundation = "1.11.1"
-compose = "1.11.1"
+foundation = "1.11.2"
+compose = "1.11.2"
 gradle = "9.2.1"
 introshowcaseview = "2.0.2"
 kotlinGradlePlugin = "2.2.10"
 ktorClientAndroid = "3.5.0"
 lottieCompose = "6.7.1"
 protobufJava = "4.34.1"
-runtime = "1.11.1"
-materialVersion = "1.11.1"
+runtime = "1.11.2"
+materialVersion = "1.11.2"
 glance = "1.1.1"
 
 # Your new Material 3 version is compatible with these
@@ -41,7 +41,7 @@ tinkAndroid = "1.21.0"
 vico = "3.1.0"
 workRuntimeKtx = "2.11.2"
 coreAnimation = "1.0.0"
-animationGraphicsAndroid = "1.11.1"
+animationGraphicsAndroid = "1.11.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }

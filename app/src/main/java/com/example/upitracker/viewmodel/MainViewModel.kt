@@ -1635,7 +1635,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     priority = priority,
                     logic = logic
                 )
-                categorySuggestionRuleDao.insert(newRule)
+                categorySuggestionRuleDao.insertRuleAndApplyRetroactively(newRule)
                 postPlainSnackbarMessage("New categorization rule saved.")
             }
         }
@@ -1701,14 +1701,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteCategory(category: Category) {
         viewModelScope.launch(Dispatchers.IO) {
             categorySuggestionRuleDao.deleteRulesForCategory(category.name)
-            // Un-assign the category from all transactions that use it
             transactionDao.clearCategoryForTransactions(category.name)
-            // Delete the category itself
-            categoryDao.delete(category)
+            categoryDao.deleteCategoryAndCleanup(category)
             postPlainSnackbarMessage("Category '${category.name}' deleted.")
         }
     }
-    // ✨✨✨ END: NEW CATEGORY MANAGEMENT FUNCTIONS ✨✨✨
 
     fun setIsRefreshingSmsArchive(isRefreshing: Boolean) {
         _isRefreshingSmsArchive.value = isRefreshing

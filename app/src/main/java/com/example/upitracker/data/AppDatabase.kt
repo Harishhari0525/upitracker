@@ -219,7 +219,8 @@ abstract class AppDatabase : RoomDatabase() {
                     Category(name = "Groceries",    iconName = "LocalGroceryStore", colorHex = "#FF5722"),
                     Category(name = "Health",       iconName = "Favorite",      colorHex = "#F44336"),
                     Category(name = "Rent",         iconName = "HomeWork",      colorHex = "#795548"),
-                    Category(name = "Other",        iconName = "MoreHoriz",     colorHex = "#607D8B")
+                    Category(name = "Other",        iconName = "MoreHoriz",     colorHex = "#607D8B"),
+                    Category(name = "Salary",       iconName = "Payments",      colorHex = "#009688")
                 )
                 categoryDao.insertAll(defaultCategories)
             }

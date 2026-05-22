@@ -1,13 +1,24 @@
 package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -16,7 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.MerchantDna
 import java.text.NumberFormat
 import java.util.Locale
@@ -26,44 +37,67 @@ fun MerchantDnaCard(
     merchantName: String,
     dna: MerchantDna
 ) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(
+            Locale.Builder()
+                .setLanguage("en")
+                .setRegion("IN")
+                .build()
+        ).apply {
+            maximumFractionDigits = 0
+        }
+    }
 
-    // Premium Dark Blue/Purple Gradient for "Data" feel
     val brush = Brush.horizontalGradient(
-        colors = listOf(Color(0xFF263238), Color(0xFF37474F))
+        colors = listOf(
+            Color(0xFF263238),
+            Color(0xFF37474F)
+        )
     )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(4.dp)
+        shape = ExpressiveTokens.corners.large,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
     ) {
-        Box(modifier = Modifier.background(brush).padding(20.dp)) {
+        Box(
+            modifier = Modifier
+                .background(brush)
+                .padding(
+                    horizontal = ExpressiveTokens.compact.cardHorizontal,
+                    vertical = ExpressiveTokens.compact.cardVertical
+                )
+        ) {
             Column {
                 Text(
                     text = "Insights for $merchantName",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.7f)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.72f)
                 )
-                Spacer(Modifier.height(16.dp))
+
+                Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     DnaStat(
-                        label = "Total Spent",
+                        label = "Total",
                         value = currencyFormatter.format(dna.totalSpent),
                         icon = Icons.AutoMirrored.Filled.ShowChart
                     )
+
                     DnaStat(
                         label = "Visits",
                         value = "${dna.transactionCount}",
                         icon = Icons.Default.History
                     )
+
                     DnaStat(
-                        label = "Peak Day",
-                        value = dna.favoriteDay.take(3), // "Fri"
+                        label = "Peak",
+                        value = dna.favoriteDay.take(3),
                         icon = Icons.Default.CalendarToday
                     )
                 }
@@ -73,25 +107,33 @@ fun MerchantDnaCard(
 }
 
 @Composable
-private fun DnaStat(label: String, value: String, icon: ImageVector) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun DnaStat(
+    label: String,
+    value: String,
+    icon: ImageVector
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xxs)
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF80DEEA), // Cyan tint
-            modifier = Modifier.size(20.dp)
+            tint = Color(0xFF80DEEA),
+            modifier = Modifier.size(ExpressiveTokens.compact.iconSmall)
         )
-        Spacer(Modifier.height(4.dp))
+
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = Color.White
         )
+
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.6f)
+            color = Color.White.copy(alpha = 0.62f)
         )
     }
 }

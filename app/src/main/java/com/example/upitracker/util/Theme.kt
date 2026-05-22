@@ -1,7 +1,7 @@
 package com.example.upitracker.util
 
-import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -11,15 +11,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import com.example.upitracker.viewmodel.MainViewModel
 
 val AppShapes = Shapes(
@@ -292,24 +289,25 @@ fun Theme(
     val userDarkMode by mainViewModel.isDarkMode.collectAsState()
     val appTheme by mainViewModel.appTheme.collectAsState()
 
-    val systemDark = isSystemInDarkTheme()
-    val isDarkMode = userDarkMode || systemDark
+    // Our explicit manual Dark Mode override fix
+    val isDarkMode = userDarkMode
+
     val colorScheme = selectedColorScheme(appTheme, isDarkMode)
+    val context = LocalContext.current
 
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as? Activity)?.window ?: return@SideEffect
-
-            window.statusBarColor = Color.Transparent.toArgb()
-            window.navigationBarColor = Color.Transparent.toArgb()
-
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-
-            val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !isDarkMode
-            controller.isAppearanceLightNavigationBars = !isDarkMode
-        }
+    // Modern API: Control system bar icon appearance without touching deprecated properties
+    LaunchedEffect(isDarkMode) {
+        val activity = context as? ComponentActivity ?: return@LaunchedEffect
+        activity.enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ) { isDarkMode },
+            navigationBarStyle = androidx.activity.SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ) { isDarkMode }
+        )
     }
 
     MaterialTheme(

@@ -111,7 +111,6 @@ class MainActivity : FragmentActivity() {
 
                 if (showLottieSplash) {
                     LottieSplashScreen(
-                        mainViewModel = mainViewModel,
                         onAnimationFinished = { showLottieSplash = false }
                     )
                 } else {

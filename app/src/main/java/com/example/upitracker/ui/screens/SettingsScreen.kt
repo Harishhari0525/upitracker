@@ -3,11 +3,13 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,12 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
-import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
-import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
-import com.example.upitracker.util.ExpressiveTokens
-import androidx.compose.material3.Scaffold
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +40,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -72,7 +69,10 @@ import androidx.compose.ui.window.Dialog
 import com.example.upitracker.R
 import com.example.upitracker.ui.components.OldPinVerificationComponent
 import com.example.upitracker.ui.components.PinSetupScreen
+import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.HomeScreenStyle
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.viewmodel.MainViewModel
@@ -100,6 +100,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    val pinChangedSuccessMessage = stringResource(R.string.pin_change_success_pin_changed)
+    val pinSetSuccessMessage = stringResource(R.string.pin_setup_pin_set_success)
 
     var activeDialog by remember { mutableStateOf<SettingsDialog>(SettingsDialog.None) }
     var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
@@ -144,6 +147,7 @@ fun SettingsScreen(
                     subtitle = "Theme and home screen preferences"
                 )
             }
+
             item {
                 val isDarkMode by mainViewModel.isDarkMode.collectAsState()
 
@@ -331,34 +335,37 @@ fun SettingsScreen(
                 onDismissRequest = { currentPinChangeStep = PinChangeStep.NONE }
             ) {
                 Surface(
-                    shape = MaterialTheme.shapes.large,
-                    tonalElevation = 6.dp,
+                    shape = ExpressiveTokens.corners.large,
+                    tonalElevation = ExpressiveTokens.elevation.floating,
                     modifier = Modifier.wrapContentHeight()
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(ExpressiveTokens.spacing.xl),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = when (currentPinChangeStep) {
-                                PinChangeStep.VERIFY_OLD ->
+                                PinChangeStep.VERIFY_OLD -> {
                                     stringResource(R.string.pin_change_enter_current_pin_title)
+                                }
 
-                                PinChangeStep.SET_NEW ->
+                                PinChangeStep.SET_NEW -> {
                                     if (isPinSet) {
                                         stringResource(R.string.dialog_set_pin_title_change)
                                     } else {
                                         stringResource(R.string.dialog_set_pin_title_new)
                                     }
+                                }
 
                                 PinChangeStep.NONE -> ""
                             },
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.lg))
 
                         when (currentPinChangeStep) {
                             PinChangeStep.VERIFY_OLD -> {
@@ -376,13 +383,11 @@ fun SettingsScreen(
                             PinChangeStep.SET_NEW -> {
                                 PinSetupScreen(
                                     onPinSet = {
-                                        val successMessage = context.getString(
-                                            if (oldPinVerifiedSuccessfully) {
-                                                R.string.pin_change_success_pin_changed
-                                            } else {
-                                                R.string.pin_setup_pin_set_success
-                                            }
-                                        )
+                                        val successMessage = if (oldPinVerifiedSuccessfully) {
+                                            pinChangedSuccessMessage
+                                        } else {
+                                            pinSetSuccessMessage
+                                        }
 
                                         coroutineScope.launch {
                                             isPinSet = PinStorage.isPinSet(context)
@@ -425,8 +430,13 @@ private fun HomeScreenStyleDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
         title = {
-            Text(text = "Choose home screen")
+            Text(
+                text = "Choose home screen",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column {
@@ -486,17 +496,20 @@ fun SettingItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.lg),
+                .padding(
+                    horizontal = ExpressiveTokens.compact.cardHorizontal,
+                    vertical = ExpressiveTokens.compact.cardVertical
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
                 tint = iconTint,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
             )
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+            Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
 
             Column(
                 modifier = Modifier.weight(1f)
@@ -540,8 +553,13 @@ private fun ThemeChooserDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
         title = {
-            Text("Choose a Theme")
+            Text(
+                text = "Choose a Theme",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column {
@@ -580,6 +598,7 @@ fun DeleteConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
         icon = {
             Icon(
                 imageVector = Icons.Filled.DeleteForever,
@@ -588,7 +607,11 @@ fun DeleteConfirmationDialog(
             )
         },
         title = {
-            Text("Confirm Deletion")
+            Text(
+                text = "Confirm Deletion",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Text("Are you sure you want to permanently delete all transactions and data?")
@@ -598,7 +621,8 @@ fun DeleteConfirmationDialog(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
-                )
+                ),
+                shape = ExpressiveTokens.corners.medium
             ) {
                 Text("Delete All")
             }
@@ -654,6 +678,7 @@ private fun PrivacyPolicyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
         icon = {
             Icon(
                 imageVector = Icons.Filled.PrivacyTip,
@@ -661,7 +686,11 @@ private fun PrivacyPolicyDialog(
             )
         },
         title = {
-            Text("Privacy & Data Policy")
+            Text(
+                text = "Privacy & Data Policy",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column(
@@ -708,6 +737,7 @@ private fun AboutDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
         icon = {
             Icon(
                 imageVector = Icons.Default.Info,
@@ -715,7 +745,11 @@ private fun AboutDialog(
             )
         },
         title = {
-            Text("About")
+            Text(
+                text = "About",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column(

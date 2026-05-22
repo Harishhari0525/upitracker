@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.screens
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -46,8 +48,10 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +69,9 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.PassbookTransactionType
 import com.example.upitracker.viewmodel.PassbookViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -90,8 +97,25 @@ fun PassbookScreen(
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
 
-    val startDatePickerState = rememberDatePickerState(initialSelectedDateMillis = startDate)
-    val endDatePickerState = rememberDatePickerState(initialSelectedDateMillis = endDate)
+    val startDatePickerState = key(startDate) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = startDate,
+            initialDisplayedMonthMillis = startDate ?: System.currentTimeMillis(),
+            initialDisplayMode = DisplayMode.Picker
+        )
+    }
+
+// 2. Safe, dynamic state initialization for the End Date Picker
+    val endDatePickerState = key(endDate) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = endDate,
+            initialDisplayedMonthMillis = endDate ?: System.currentTimeMillis(),
+            initialDisplayMode = DisplayMode.Picker
+        )
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+    var isExportingPdf by remember { mutableStateOf(false) }
 
     val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -99,13 +123,26 @@ fun PassbookScreen(
     val pdfSaverLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf"),
         onResult = { uri ->
-            uri?.let {
-                passbookViewModel.generateAndSavePdf(
-                    context,
-                    it,
-                    primaryColor,
-                    textColor
-                )
+            uri?.let { safeUri ->
+                isExportingPdf = true
+
+                coroutineScope.launch {
+                    try {
+                        // Shift font rendering and drawing loops completely off the Main UI thread
+                        withContext(Dispatchers.IO) {
+                            passbookViewModel.generateAndSavePdf(
+                                context,
+                                safeUri,
+                                primaryColor,
+                                textColor
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e("PdfExportError", "Error compiling PDF document history", e)
+                    } finally {
+                        isExportingPdf = false
+                    }
+                }
             }
         }
     )
@@ -127,6 +164,7 @@ fun PassbookScreen(
                     val filename = "Passbook_${dateFormat.format(Date())}.pdf"
                     pdfSaverLauncher.launch(filename)
                 },
+                enabled = !isExportingPdf, // Prevent double-tapping while exporting
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
@@ -139,14 +177,22 @@ fun PassbookScreen(
                     .height(54.dp),
                 shape = ExpressiveTokens.corners.large
             ) {
-                Icon(
-                    imageVector = Icons.Filled.PictureAsPdf,
-                    contentDescription = null
-                )
-
-                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-
-                Text("Generate PDF")
+                if (isExportingPdf) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Generating PDF...")
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.PictureAsPdf,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text("Generate PDF")
+                }
             }
         }
     ) { paddingValues ->
