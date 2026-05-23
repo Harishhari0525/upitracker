@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
         RecurringRule::class,
         Category::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,11 +35,6 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
-        // Migration from version 1 to version 2 (UpiLiteSummary.date String to Long)
-// WARNING: This is a destructive migration that drops user data.
-// This was likely a shortcut during early development and should NOT be
-// used as an example for future migrations in a production app.
-// The safe way is to use "ALTER TABLE" to add columns.
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DROP TABLE IF EXISTS upi_lite_summaries")
@@ -198,29 +193,34 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private class AppDatabaseCallback(
+            private val context: Context, // Inject context directly to safely fetch the database thread instance
             private val scope: CoroutineScope
         ) : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                INSTANCE?.let { database ->
-                    scope.launch {
+
+                scope.launch {
+                    try {
+                        val database = getDatabase(context)
                         populateDefaultCategories(database.categoryDao())
+                    } catch (e: Exception) {
+                        android.util.Log.e("AppDatabase", "Error during primary category auto-seed pass", e)
                     }
                 }
             }
 
             suspend fun populateDefaultCategories(categoryDao: CategoryDao) {
                 val defaultCategories = listOf(
-                    Category(name = "Food",         iconName = "Fast-food",      colorHex = "#FFC107"),
-                    Category(name = "Shopping",     iconName = "ShoppingBag",   colorHex = "#4CAF50"),
-                    Category(name = "Transport",    iconName = "DirectionsCar", colorHex = "#2196F3"),
-                    Category(name = "Bills",        iconName = "ReceiptLong",   colorHex = "#9C27B0"),
-                    Category(name = "Entertainment",iconName = "Theaters",      colorHex = "#E91E63"),
-                    Category(name = "Groceries",    iconName = "LocalGroceryStore", colorHex = "#FF5722"),
-                    Category(name = "Health",       iconName = "Favorite",      colorHex = "#F44336"),
-                    Category(name = "Rent",         iconName = "HomeWork",      colorHex = "#795548"),
-                    Category(name = "Other",        iconName = "MoreHoriz",     colorHex = "#607D8B"),
-                    Category(name = "Salary",       iconName = "Payments",      colorHex = "#009688")
+                    Category(name = "Food",          iconName = "Fast-food",          colorHex = "#FFC107"),
+                    Category(name = "Shopping",      iconName = "ShoppingBag",        colorHex = "#4CAF50"),
+                    Category(name = "Transport",     iconName = "DirectionsCar",      colorHex = "#2196F3"),
+                    Category(name = "Bills",         iconName = "ReceiptLong",        colorHex = "#9C27B0"),
+                    Category(name = "Entertainment", iconName = "Theaters",           colorHex = "#E91E63"),
+                    Category(name = "Groceries",     iconName = "LocalGroceryStore",  colorHex = "#FF5722"),
+                    Category(name = "Health",        iconName = "Favorite",           colorHex = "#F44336"),
+                    Category(name = "Rent",          iconName = "HomeWork",           colorHex = "#795548"),
+                    Category(name = "Other",         iconName = "MoreHoriz",          colorHex = "#607D8B"),
+                    Category(name = "Salary",        iconName = "Payments",           colorHex = "#009688")
                 )
                 categoryDao.insertAll(defaultCategories)
             }
@@ -276,6 +276,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_20_21: Migration = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_amount_date_type` ON `transactions` (`amount`, `date`, `type`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -286,9 +292,9 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14, MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,
-                        MIGRATION_18_19,MIGRATION_19_20) // ✨ Add new migration ✨
+                        MIGRATION_18_19,MIGRATION_19_20, MIGRATION_20_21) // ✨ Add new migration ✨
                     .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
-                    .addCallback(AppDatabaseCallback(CoroutineScope(Dispatchers.IO)))
+                    .addCallback(AppDatabaseCallback(context.applicationContext, CoroutineScope(Dispatchers.IO)))
                     .build()
                 INSTANCE = instance
                 instance

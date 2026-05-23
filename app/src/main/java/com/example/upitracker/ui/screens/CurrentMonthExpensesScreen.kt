@@ -135,7 +135,8 @@ fun CurrentMonthExpensesScreen(
             contentWindowInsets = WindowInsets(0),
             topBar = {
                 ExpressiveTopBar(
-                    title = "UPI Expense Tracker"
+                    title = "Home",
+                    subtitle = "A cumulative dashboard for the month"
                 )
             }
         ) { paddingValues ->

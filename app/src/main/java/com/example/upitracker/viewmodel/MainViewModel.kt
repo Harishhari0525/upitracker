@@ -2092,21 +2092,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        // Pipeline 1: Independent, lightning-fast onboarding state evaluation
         viewModelScope.launch {
-            // First, wait for the initial list of transactions to load.
-            _transactions.first()
-            val onboardingCompleted = OnboardingPreference.isOnboardingCompletedFlow(getApplication()).first()
-            if (onboardingCompleted) {
-                PinStorage.isPinSet(getApplication())
+            try {
+                val onboardingCompleted = OnboardingPreference.isOnboardingCompletedFlow(getApplication()).first()
+                if (onboardingCompleted) {
+                    PinStorage.isPinSet(getApplication())
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModelInit", "Error checking onboarding preference state", e)
+            } finally {
+                _isDataReady.value = true
             }
-            _isDataReady.value = true
         }
 
         viewModelScope.launch {
-            // Start with the loading indicator visible.
             _isHistoryLoading.value = true
-            filteredUpiTransactions.drop(1).first()
-            _isHistoryLoading.value = false
+            try {
+                _transactions.first()
+                filteredUpiTransactions.drop(1).first()
+            } catch (e: Exception) {
+                Log.e("MainViewModelInit", "Error waiting for primary data streams", e)
+            } finally {
+                _isHistoryLoading.value = false
+            }
         }
     }
+
 }

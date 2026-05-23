@@ -7,6 +7,8 @@ import com.google.crypto.tink.aead.AesGcmKeyManager
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.security.KeyStore
+import androidx.core.content.edit
 
 object CryptoManager {
     private const val KEYSET_NAME = "master_keyset"
@@ -16,29 +18,68 @@ object CryptoManager {
     @Volatile
     private var _aead: Aead? = null
 
-    // Initialize the Aead primitive
-    // This should be done once, for example, in your Application's onCreate
     fun initialize(context: Context) {
         if (_aead == null) {
             synchronized(this) {
                 if (_aead == null) {
                     try {
                         AeadConfig.register()
-                        _aead = AndroidKeysetManager.Builder()
-                            .withSharedPref(context, KEYSET_NAME, PREFERENCE_FILE)
-                            .withKeyTemplate(AesGcmKeyManager.aes256GcmTemplate())
-                            .withMasterKeyUri(MASTER_KEY_URI)
-                            .build()
-                            .keysetHandle
-                            .getPrimitive(Aead::class.java)
-                    } catch (e: GeneralSecurityException) {
-                        throw GeneralSecurityException("Failed to initialize CryptoManager", e)
-                    } catch (e: IOException) {
-                        throw IOException("Failed to initialize CryptoManager", e)
+                        _aead = initAeadPrimitive(context)
+                    } catch (e: Exception) {
+                        // ✨ RECOVERY ENGINE: Intercepts unreadable/corrupted hardware references on clean install
+                        when (e) {
+                            is GeneralSecurityException -> {
+                                try {
+                                    // 1. Force-flush the stale hardware alias from the Android System KeyStore daemon
+                                    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                                    if (keyStore.containsAlias("master_key")) {
+                                        keyStore.deleteEntry("master_key")
+                                    }
+
+                                    // 2. Clear out the corrupted internal XML tracking preference file tags
+                                    context.getSharedPreferences(PREFERENCE_FILE, Context.MODE_PRIVATE)
+                                        .edit(commit = true) {
+                                            clear()
+                                        }
+
+                                    // 3. Re-attempt a clean key generation pass from a fresh slate
+                                    _aead = initAeadPrimitive(context)
+                                } catch (retryException: Exception) {
+                                    throw GeneralSecurityException(
+                                        "Fatal failure during crypto provider recovery loop",
+                                        retryException
+                                    )
+                                }
+                            }
+
+                            is IOException -> {
+                                throw IOException("Failed to initialize CryptoManager due to file I/O error", e)
+                            }
+
+                            else -> {
+                                throw e
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Internal factory abstraction helper that handles keyset instantiation cleanly using
+     * non-deprecated modern Tink casting implementations.
+     */
+    @Throws(GeneralSecurityException::class, IOException::class)
+    private fun initAeadPrimitive(context: Context): Aead {
+        val keysetHandle = AndroidKeysetManager.Builder()
+            .withSharedPref(context, KEYSET_NAME, PREFERENCE_FILE)
+            .withKeyTemplate(AesGcmKeyManager.aes256GcmTemplate())
+            .withMasterKeyUri(MASTER_KEY_URI)
+            .build()
+            .keysetHandle
+
+        return keysetHandle.getPrimitive(Aead::class.java)
     }
 
     fun getAead(): Aead {

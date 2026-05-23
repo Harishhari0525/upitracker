@@ -24,6 +24,11 @@ private val rejectionKeywords = listOf(
     "standing order", "recurring payment", "recurring transfer", "requested"
 )
 
+// ✨ NEW FILTER CRITERIA: Isolates and flags explicit Credit Card statement spikes safely
+private val creditCardKeywords = listOf(
+    "credit card", "credit-card", "spent on card", "charged to card", "cc a/c", "active on card", "card ending"
+)
+
 fun parseUpiSms(
     message: String,
     sender: String,
@@ -40,9 +45,18 @@ fun parseUpiSms(
 
     val messageLower = normalizedMessage.lowercase(Locale.getDefault())
 
-    // CRITICAL FIX 1: Check rejection list FIRST before executing any regex matches
+    // Standard non-transaction spam verification block execution
     if (rejectionKeywords.any { messageLower.contains(it) }) {
         return null
+    }
+
+    // ✨ CRITICAL FILTER: Blocks credit card spend tracking leaks
+    // Exception Rule: Allows processing if you are explicitly PAYING a card bill using a liquid UPI account app route
+    if (creditCardKeywords.any { messageLower.contains(it) }) {
+        val isPayingCardViaUpi = messageLower.contains("paid") && messageLower.contains("via upi")
+        if (!isPayingCardViaUpi) {
+            return null // Dropped completely from saving pathways
+        }
     }
 
     val allRegexToTry = (customRegexList + defaultRegexList).distinct()
@@ -51,13 +65,11 @@ fun parseUpiSms(
         val matchResult = regex.find(normalizedMessage)
         if (matchResult != null) {
             try {
-                // Safely extract numeric amount from whichever group captured it
                 val groups = matchResult.groupValues
                 var amountStr: String? = null
                 var actionKeyword: String? = null
                 var isSalaryTxn = false
 
-                // Inspect groups to isolate amount digits vs keywords
                 for (i in 1 until groups.size) {
                     val value = groups[i].trim()
                     if (value.lowercase(Locale.getDefault()) == "salary") {
@@ -97,7 +109,6 @@ fun parseUpiSms(
 
                 if (type == "UNKNOWN") continue
 
-                // CRITICAL FIX 2: Salary text triggers high-confidence path automatically
                 val isKnownBank = bankName != null
                 val hasUpiKeyword = messageLower.contains("upi")
                 val isTrustedStream = isKnownBank || hasUpiKeyword || isSalaryTxn

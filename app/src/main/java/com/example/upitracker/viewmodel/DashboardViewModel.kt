@@ -87,11 +87,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             else -> Color(0xFF2E7D32) // Green (Safe)
         }
 
-        // 6. Build Hero State (Status Monitor)
-        // We reuse 'Velocity' to carry the data:
-        // amountLeft = Remaining Budget
-        // daysLeft = Count of Ghosts
-        // dailyLimit = Total Amount of Ghosts
         val heroState = HeroState.Velocity(
             amountLeft = (effectiveTarget - totalSpent).coerceAtLeast(0.0),
             daysLeft = ghostBills.size,
@@ -111,8 +106,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         currencyFormatter.maximumFractionDigits = 0
 
         actions.add(SmartAction("avg", "Daily Avg", "${currencyFormatter.format(dailyAvg)} / day", Icons.Default.Timeline, 2))
-
-        // Card 2: Vs Last Month
 
 
         val diff = totalSpent - lastMonthTotal

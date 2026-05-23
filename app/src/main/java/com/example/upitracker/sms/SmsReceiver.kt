@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class SmsReceiver : BroadcastReceiver() {
 
@@ -35,7 +36,6 @@ class SmsReceiver : BroadcastReceiver() {
                 val archivedSmsDao = db.archivedSmsMessageDao()
                 val upiLiteSummaryDao = db.upiLiteSummaryDao()
 
-                // Safely fetch and compile your custom user-defined regex patterns from storage
                 val storedPatterns = RegexPreference.getRegexPatterns(context).first()
                 val customRegexPatterns = storedPatterns.map { patternStr ->
                     Regex(patternStr, RegexOption.IGNORE_CASE)
@@ -47,7 +47,38 @@ class SmsReceiver : BroadcastReceiver() {
                     val body = sms.displayMessageBody ?: continue
                     val sender = sms.displayOriginatingAddress ?: "Unknown"
                     val smsTimestamp = sms.timestampMillis
-                    val bankName = BankIdentifier.getBankName(sender)
+
+                    // ✨ START: SENDER NORMALIZATION LAYER ✨
+                    // Strips routing prefixes (e.g., "AX-ICICIB" -> "ICICIB", "AD-DISPUTE" -> "DISPUTE")
+                    val normalizedSender = if (sender.contains("-")) {
+                        sender.substringAfter("-").uppercase(Locale.getDefault()).trim()
+                    } else {
+                        sender.uppercase(Locale.getDefault()).trim()
+                    }
+
+                    // Attempt standard resolution first
+                    var bankName = BankIdentifier.getBankName(sender)
+
+                    // If resolution leaks a generic metadata flag, scan the body content contextually
+                    if (bankName.isNullOrBlank() ||
+                        normalizedSender == "DISPUTE" ||
+                        normalizedSender == "ALERT" ||
+                        normalizedSender == "CMPLNT" ||
+                        bankName.uppercase(Locale.getDefault()) == "DISPUTE"
+                    ) {
+                        val bodyLower = body.lowercase(Locale.getDefault())
+                        bankName = when {
+                            bodyLower.contains("icici") -> "ICICI Bank"
+                            bodyLower.contains("hdfc") -> "HDFC Bank"
+                            bodyLower.contains("sbi") || bodyLower.contains("state bank") -> "SBI"
+                            bodyLower.contains("axis") -> "Axis Bank"
+                            bodyLower.contains("kotak") -> "Kotak Bank"
+                            bodyLower.contains("pnb") || bodyLower.contains("punjab national") -> "PNB"
+                            bodyLower.contains("bob") || bodyLower.contains("baroda") -> "Bank of Baroda"
+                            else -> "Other Bank" // Graceful default instead of exposing raw internal channel headers
+                        }
+                    }
+                    // ✨ END: SENDER NORMALIZATION LAYER ✨
 
                     // 1. Parse standard UPI transactions
                     val transaction = parseUpiSms(
@@ -82,7 +113,7 @@ class SmsReceiver : BroadcastReceiver() {
                         }
                     }
 
-                    // 2. Parse UPI Lite Wallet summaries with your precise original conditions
+                    // 2. Parse UPI Lite Wallet summaries
                     val liteSummary = parseUpiLiteSummarySms(body)
                     if (liteSummary != null) {
                         val existingSummary = upiLiteSummaryDao.getSummaryByDateAndBank(

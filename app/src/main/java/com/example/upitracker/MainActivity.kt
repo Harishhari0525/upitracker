@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +60,7 @@ class MainActivity : FragmentActivity() {
 
     private var pendingUpiLiteEnabledState: Boolean = true
 
+    // The single, trusted class-level launcher for tracking structural runtime permission rules
     private val smsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
@@ -74,7 +77,7 @@ class MainActivity : FragmentActivity() {
                 }
             } else {
                 if (readSmsGranted && receiveSmsGranted) {
-                    startFullSmsSync(isInitialImport = true)
+                    startFullSmsSync(isInitialImport = false)
                 } else {
                     mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required.")
                 }
@@ -109,12 +112,25 @@ class MainActivity : FragmentActivity() {
             Theme(mainViewModel = mainViewModel) {
                 var showLottieSplash by remember { mutableStateOf(true) }
 
-                if (showLottieSplash) {
-                    LottieSplashScreen(
-                        onAnimationFinished = { showLottieSplash = false }
-                    )
-                } else {
-                    MainAppRouter()
+                // Enforced status bars handling padding right at structural layout root
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Crossfade(
+                        targetState = showLottieSplash,
+                        animationSpec = tween(durationMillis = 350),
+                        label = "SplashToHomeTransition"
+                    ) { isSplashActive ->
+                        if (isSplashActive) {
+                            LottieSplashScreen(
+                                onAnimationFinished = { showLottieSplash = false }
+                            )
+                        } else {
+                            MainAppRouter()
+                        }
+                    }
                 }
             }
         }
@@ -199,6 +215,7 @@ class MainActivity : FragmentActivity() {
         var restartDialogMessage by remember { mutableStateOf("") }
         var showAddTransactionDialog by remember { mutableStateOf(false) }
 
+        // Core snackbar monitoring pipeline hook
         LaunchedEffect(Unit) {
             mainViewModel.snackbarEvents.collectLatest { snackbarMessageData ->
                 coroutineScope.launch {
@@ -211,35 +228,41 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        // Processing incremental delta sync runs contextually ONLY when permission verification passes cleanly
         LaunchedEffect(Unit) {
-            val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
-            if (lastTimestamp > 0) {
-                val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
-                if (newSmsList.isNotEmpty()) {
-                    processSmsInbox(
-                        smsList = newSmsList,
-                        setLoadingState = { /* Silent */ },
-                        onComplete = { newTxnCount, summaryCount, _ ->
-                            val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
-                            val messageParts = mutableListOf<String>()
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_SMS
+            ) == PackageManager.PERMISSION_GRANTED
 
-                            if (newTxnCount > 0) {
-                                messageParts.add("$newTxnCount new transaction(s)")
+            if (hasPermission) {
+                val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
+                if (lastTimestamp > 0) {
+                    val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
+                    if (newSmsList.isNotEmpty()) {
+                        processSmsInbox(
+                            smsList = newSmsList,
+                            setLoadingState = { /* Silent */ },
+                            onComplete = { newTxnCount, summaryCount, _ ->
+                                val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
+                                val messageParts = mutableListOf<String>()
+
+                                if (newTxnCount > 0) {
+                                    messageParts.add("$newTxnCount new transaction(s)")
+                                }
+                                if (isUpiLiteEnabled && summaryCount > 0) {
+                                    messageParts.add("$summaryCount new UPI Lite summary(s)")
+                                }
+                                if (messageParts.isNotEmpty()) {
+                                    val message = "Silently synced " + messageParts.joinToString(" and ") + "."
+                                    mainViewModel.postSnackbarMessage(message)
+                                }
                             }
-                            if (isUpiLiteEnabled && summaryCount > 0) {
-                                messageParts.add("$summaryCount new UPI Lite summary(s)")
-                            }
-                            val message = if (messageParts.isNotEmpty()) {
-                                "Silently synced " + messageParts.joinToString(" and ") + "."
-                            } else {
-                                "No new transactions found."
-                            }
-                            mainViewModel.postSnackbarMessage(message)
-                        }
-                    )
-                } else {
-                    mainViewModel.postPlainSnackbarMessage("No new transactions found.")
+                        )
+                    }
                 }
+            } else {
+                Log.d("MainActivity", "Skipping background incremental check: permissions absent or loading onboarding pathways.")
             }
 
             try {
@@ -354,6 +377,17 @@ class MainActivity : FragmentActivity() {
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
         val smsList = mutableListOf<Triple<String, String, Long>>()
+
+        val hasPermission = ContextCompat.checkSelfPermission(
+            this@MainActivity,
+            Manifest.permission.READ_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            Log.w("MainActivitySmsRead", "Skipping history import sync loop: READ_SMS permission not granted yet.")
+            return@withContext smsList
+        }
+
         val uriSms = "content://sms/inbox".toUri()
         val projection = arrayOf("address", "date", "body")
         val selection = if (sinceTimestamp > 0) "date > ?" else null
@@ -365,11 +399,17 @@ class MainActivity : FragmentActivity() {
                 val bodyIdx = cursor.getColumnIndexOrThrow("body")
                 val dateIdx = cursor.getColumnIndexOrThrow("date")
                 while (cursor.moveToNext()) {
-                    smsList.add(Triple(cursor.getString(addressIdx) ?: "", cursor.getString(bodyIdx) ?: "", cursor.getLong(dateIdx)))
+                    smsList.add(
+                        Triple(
+                            cursor.getString(addressIdx) ?: "",
+                            cursor.getString(bodyIdx) ?: "",
+                            cursor.getLong(dateIdx)
+                        )
+                    )
                 }
             }
         } catch (e: Exception) {
-            Log.e("MainActivitySmsRead", "Error reading SMS", e)
+            Log.e("MainActivitySmsRead", "Error reading SMS from ContentResolver provider", e)
         }
         smsList
     }
@@ -410,7 +450,6 @@ class MainActivity : FragmentActivity() {
                 parseUpiSms(body, sender, smsDate, customRegexPatterns, bankName)?.let { transaction ->
                     isUpiRelated = true
                     if (dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description) == null) {
-                        // Safe context delegation directly to MainViewModel's handler thread structure
                         withContext(Dispatchers.Main) {
                             mainViewModel.processAndInsertTransaction(transaction)
                         }
@@ -439,8 +478,8 @@ class MainActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             val allSms = getAllSms()
-            val loadingStateSetter = if(isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
-            val onCompleteMessage = if(isInitialImport) "Import" else "Refresh"
+            val loadingStateSetter = if (isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
+            val onCompleteMessage = if (isInitialImport) "Import" else "Refresh"
 
             processSmsInbox(
                 smsList = allSms,
