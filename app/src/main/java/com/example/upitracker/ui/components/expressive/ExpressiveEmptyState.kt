@@ -2,6 +2,7 @@ package com.example.upitracker.ui.components.expressive
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
@@ -33,7 +35,7 @@ fun ExpressiveEmptyState(
     onSecondaryActionClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         shape = ExpressiveTokens.corners.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -43,39 +45,49 @@ fun ExpressiveEmptyState(
         )
     ) {
         Column(
-            modifier = Modifier.padding(ExpressiveTokens.spacing.xxl),
+            modifier = Modifier.padding(
+                horizontal = ExpressiveTokens.spacing.xl,
+                vertical = ExpressiveTokens.spacing.lg
+            ),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(44.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
 
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center
             )
 
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
             if (!primaryActionText.isNullOrBlank() && onPrimaryActionClick != null) {
-                Button(onClick = onPrimaryActionClick) {
+                Button(
+                    onClick = onPrimaryActionClick,
+                    shape = ExpressiveTokens.corners.medium
+                ) {
                     Text(primaryActionText)
                 }
             }
 
             if (!secondaryActionText.isNullOrBlank() && onSecondaryActionClick != null) {
-                OutlinedButton(onClick = onSecondaryActionClick) {
+                OutlinedButton(
+                    onClick = onSecondaryActionClick,
+                    shape = ExpressiveTokens.corners.medium
+                ) {
                     Text(secondaryActionText)
                 }
             }

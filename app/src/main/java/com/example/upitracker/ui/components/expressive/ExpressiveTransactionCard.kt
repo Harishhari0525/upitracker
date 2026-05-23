@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -15,15 +15,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.creditColor
 import com.example.upitracker.util.debitColor
@@ -59,17 +58,20 @@ fun ExpressiveTransactionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.lg),
+                .padding(
+                    horizontal = ExpressiveTokens.compact.cardHorizontal,
+                    vertical = ExpressiveTokens.compact.cardVertical
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
                 tint = amountColor
             )
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+            Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
 
             Column(
                 modifier = Modifier.weight(1f),
@@ -77,7 +79,7 @@ fun ExpressiveTransactionCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -87,7 +89,9 @@ fun ExpressiveTransactionCard(
                 Text(
                     text = buildString {
                         append(dateText)
-                        if (!bankName.isNullOrBlank()) append(" • $bankName")
+                        if (!bankName.isNullOrBlank()) {
+                            append(" • $bankName")
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -123,13 +127,14 @@ fun ExpressiveTransactionCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
 
             Text(
                 text = amount,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = amountColor
+                color = amountColor,
+                maxLines = 1
             )
         }
     }

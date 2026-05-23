@@ -1,18 +1,25 @@
 package com.example.upitracker.ui.components
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.example.upitracker.util.ExpressiveTokens
 import java.text.NumberFormat
-import java.util.*
+import java.util.Locale
 
 @Composable
 fun FilteredTotalsBar(
@@ -20,45 +27,90 @@ fun FilteredTotalsBar(
     totalDebit: Double,
     totalCredit: Double
 ) {
-    val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
-    val creditColor = if (isSystemInDarkTheme()) Color(0xFF63DC94) else Color(0xFF006D3D)
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(
+            Locale.Builder()
+                .setLanguage("en")
+                .setRegion("IN")
+                .build()
+        ).apply {
+            maximumFractionDigits = 0
+        }
+    }
+
+    val creditColor = if (isSystemInDarkTheme()) {
+        Color(0xFF63DC94)
+    } else {
+        Color(0xFF006D3D)
+    }
+
     val debitColor = MaterialTheme.colorScheme.error
 
-    OutlinedCard(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = ExpressiveTokens.compact.cardHorizontal,
+                    vertical = ExpressiveTokens.compact.cardVertical
+                ),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Debit Total
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "DEBIT",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = debitColor
-                )
-                Text(
-                    text = currencyFormatter.format(totalDebit),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = debitColor
-                )
-            }
+            TotalColumn(
+                label = "DEBIT",
+                value = currencyFormatter.format(totalDebit),
+                color = debitColor,
+                modifier = Modifier.weight(1f)
+            )
 
-            // Credit Total
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "CREDIT",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = creditColor
-                )
-                Text(
-                    text = currencyFormatter.format(totalCredit),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = creditColor
-                )
-            }
+            HorizontalDivider(
+                modifier = Modifier
+                    .weight(0.02f)
+            )
+
+            TotalColumn(
+                label = "CREDIT",
+                value = currencyFormatter.format(totalCredit),
+                color = creditColor,
+                modifier = Modifier.weight(1f)
+            )
         }
+    }
+}
+
+@Composable
+private fun TotalColumn(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xxs)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
     }
 }

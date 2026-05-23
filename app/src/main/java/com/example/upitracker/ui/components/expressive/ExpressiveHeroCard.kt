@@ -3,18 +3,20 @@ package com.example.upitracker.ui.components.expressive
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -55,7 +57,10 @@ fun ExpressiveHeroCard(
         Box(
             modifier = Modifier
                 .background(expressiveHeroGradient())
-                .padding(ExpressiveTokens.spacing.xxl)
+                .padding(
+                    horizontal = ExpressiveTokens.spacing.xl,
+                    vertical = ExpressiveTokens.spacing.lg
+                )
         ) {
             Column {
                 Row(
@@ -71,6 +76,7 @@ fun ExpressiveHeroCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -80,14 +86,15 @@ fun ExpressiveHeroCard(
                 AnimatedContent(
                     targetState = amount,
                     transitionSpec = {
-                        fadeIn(animationSpec = spring()) togetherWith fadeOut(animationSpec = spring()) using
+                        fadeIn(animationSpec = spring()) togetherWith
+                                fadeOut(animationSpec = spring()) using
                                 SizeTransform(clip = false)
                     },
                     label = "hero_amount_animation"
                 ) { targetAmount ->
                     Text(
                         text = targetAmount,
-                        style = MaterialTheme.typography.displaySmall,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -95,24 +102,31 @@ fun ExpressiveHeroCard(
 
                 if (!subtitle.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
+
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
                     )
                 }
 
                 if (!debitLabel.isNullOrBlank() || !creditLabel.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.lg))
+                    Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.md))
 
                     Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
                     ) {
                         if (!debitLabel.isNullOrBlank()) {
                             AssistChip(
                                 onClick = {},
                                 enabled = false,
-                                label = { Text(debitLabel) },
+                                label = {
+                                    Text(
+                                        text = debitLabel,
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Rounded.ArrowDownward,
@@ -131,7 +145,12 @@ fun ExpressiveHeroCard(
                             AssistChip(
                                 onClick = {},
                                 enabled = false,
-                                label = { Text(creditLabel) },
+                                label = {
+                                    Text(
+                                        text = creditLabel,
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Rounded.ArrowUpward,
