@@ -13,6 +13,7 @@ import com.example.upitracker.data.UpiLiteSummary
 import com.example.upitracker.util.CsvExporter
 import com.example.upitracker.util.OnboardingPreference
 import com.example.upitracker.util.ThemePreference
+import com.example.upitracker.sms.SmsProcessingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -1506,69 +1507,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun processAndInsertTransaction(transaction: Transaction) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val extractedTags = TagUtils.extractTags("${transaction.description} ${transaction.note}")
-            val transactionWithTags = transaction.copy(tags = extractedTags)
+    suspend fun processAndInsertTransactionSync(transaction: Transaction): Boolean {
+        return withContext(Dispatchers.IO) {
+            val rules = categorySuggestionRules.first()
 
-            if (transaction.category.isNullOrBlank()) {
-                Log.d("AutoCategorize", "Processing new uncategorized transaction: '${transaction.description}'")
+            val finalTransaction = SmsProcessingService.prepareTransactionForInsert(
+                transaction = transaction,
+                rules = rules
+            )
 
-                val rules = categorySuggestionRules.first()
-                Log.d("AutoCategorize", "Found ${rules.size} rules to check against.")
+            val insertedId = transactionDao.insertIfNotDuplicate(finalTransaction)
 
-                var bestMatch: CategorySuggestionRule? = null
-
-                for (rule in rules) {
-                    val textToMatch = when (rule.fieldToMatch) {
-                        RuleField.DESCRIPTION -> transaction.description
-                        RuleField.SENDER_OR_RECEIVER -> transaction.senderOrReceiver
-                    }.lowercase()
-
-                    val keywords = rule.keyword.split(',').map { it.trim().lowercase() }.filter { it.isNotBlank() }
-                    var isMatch = false
-
-                    if (keywords.isNotEmpty()) {
-                        val checkMatch: (String) -> Boolean = { keyword ->
-                            when (rule.matcher) {
-                                RuleMatcher.CONTAINS -> textToMatch.contains(keyword)
-                                RuleMatcher.EQUALS -> textToMatch == keyword
-                                RuleMatcher.STARTS_WITH -> textToMatch.startsWith(keyword)
-                                RuleMatcher.ENDS_WITH -> textToMatch.endsWith(keyword)
-                            }
-                        }
-
-                        isMatch = if (rule.logic == RuleLogic.ALL) {
-                            keywords.all { checkMatch(it) }
-                        } else {
-                            keywords.any { checkMatch(it) }
-                        }
-                    }
-
-                    if (isMatch) {
-                        if (bestMatch == null) {
-                            bestMatch = rule
-                        } else if (rule.priority > bestMatch.priority) {
-                            bestMatch = rule
-                        } else if (rule.priority == bestMatch.priority && rule.keyword.length > bestMatch.keyword.length) {
-                            bestMatch = rule
-                        }
-                    }
-                }
-
-                val finalTransaction = if (bestMatch != null) {
-                    transactionWithTags.copy(category = bestMatch.categoryName) // ✅ Copy from object WITH tags
-                } else {
-                    transactionWithTags // ✅ Fallback to object WITH tags
-                }
-
-                transactionDao.insert(finalTransaction)
-                checkBudgetForNewTransaction(finalTransaction)
-
-            } else {
-                transactionDao.insert(transactionWithTags)
-                checkBudgetForNewTransaction(transactionWithTags)
+            if (insertedId == -1L) {
+                Log.d(
+                    "DuplicateTxnFix",
+                    "Skipped duplicate transaction: amount=${finalTransaction.amount}, type=${finalTransaction.type}, date=${finalTransaction.date}, desc=${finalTransaction.description}"
+                )
+                return@withContext false
             }
+
+            val savedTransaction = finalTransaction.copy(id = insertedId.toInt())
+            checkBudgetForNewTransaction(savedTransaction)
+
+            true
+        }
+    }
+
+    fun processAndInsertTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            processAndInsertTransactionSync(transaction)
         }
     }
 

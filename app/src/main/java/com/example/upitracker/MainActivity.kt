@@ -33,11 +33,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.upitracker.data.AppDatabase
-import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.network.GitHubRelease
 import com.example.upitracker.network.UpdateService
-import com.example.upitracker.sms.parseUpiLiteSummarySms
-import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.ui.components.AddTransactionDialog
 import com.example.upitracker.ui.components.PinLockScreen
 import com.example.upitracker.ui.components.WhatsNewDialog
@@ -46,10 +43,10 @@ import com.example.upitracker.ui.screens.MainNavHost
 import com.example.upitracker.ui.screens.OnboardingScreen
 import com.example.upitracker.util.*
 import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.sms.SmsProcessingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
@@ -65,21 +62,26 @@ class MainActivity : FragmentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
             val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
+            val bothGranted = readSmsGranted && receiveSmsGranted
 
             if (!mainViewModel.isOnboardingCompleted.value) {
                 mainViewModel.setUpiLiteEnabled(pendingUpiLiteEnabledState)
                 mainViewModel.markOnboardingComplete()
 
-                if (readSmsGranted && receiveSmsGranted) {
+                if (bothGranted) {
                     startFullSmsSync(isInitialImport = true)
                 } else {
-                    mainViewModel.postSnackbarMessage("Permissions denied. Automatic tracking disabled.")
+                    mainViewModel.postSnackbarMessage(
+                        "SMS permission not granted. You can enable it later from Data & Sync."
+                    )
                 }
             } else {
-                if (readSmsGranted && receiveSmsGranted) {
+                if (bothGranted) {
                     startFullSmsSync(isInitialImport = false)
                 } else {
-                    mainViewModel.postSnackbarMessage("Both READ_SMS and RECEIVE_SMS permissions are required.")
+                    mainViewModel.postSnackbarMessage(
+                        "Both READ_SMS and RECEIVE_SMS permissions are required."
+                    )
                 }
             }
         }
@@ -99,6 +101,20 @@ class MainActivity : FragmentActivity() {
                 mainViewModel.restoreDatabase(it, contentResolver)
             }
         }
+
+    private fun hasSmsPermissions(): Boolean {
+        val readSmsGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.READ_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val receiveSmsGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECEIVE_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        return readSmsGranted && receiveSmsGranted
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -170,11 +186,19 @@ class MainActivity : FragmentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             onOnboardingComplete = { isUpiLiteEnabled ->
                                 pendingUpiLiteEnabledState = isUpiLiteEnabled
-                                val permissionsToRequest = arrayOf(
-                                    Manifest.permission.READ_SMS,
-                                    Manifest.permission.RECEIVE_SMS
-                                )
-                                smsPermissionLauncher.launch(permissionsToRequest)
+
+                                if (hasSmsPermissions()) {
+                                    mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
+                                    mainViewModel.markOnboardingComplete()
+                                    startFullSmsSync(isInitialImport = true)
+                                } else {
+                                    smsPermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.READ_SMS,
+                                            Manifest.permission.RECEIVE_SMS
+                                        )
+                                    )
+                                }
                             }
                         )
                     }
@@ -236,7 +260,10 @@ class MainActivity : FragmentActivity() {
             ) == PackageManager.PERMISSION_GRANTED
 
             if (hasPermission) {
-                val lastTimestamp = mainViewModel.latestTransactionTimestamp.first()
+                val db = AppDatabase.getDatabase(context)
+                val lastTimestamp = withContext(Dispatchers.IO) {
+                    db.transactionDao().getLatestTransactionTimestampIncludingArchived() ?: 0L
+                }
                 if (lastTimestamp > 0) {
                     val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
                     if (newSmsList.isNotEmpty()) {
@@ -420,52 +447,21 @@ class MainActivity : FragmentActivity() {
         onComplete: (newTxnCount: Int, processedSummaries: Int, archivedCount: Int) -> Unit
     ) {
         setLoadingState(true)
+
         lifecycleScope.launch(Dispatchers.IO) {
-            val db = AppDatabase.getDatabase(this@MainActivity)
-            val dao = db.transactionDao()
-            val liteDao = db.upiLiteSummaryDao()
-            val archivedSmsDao = db.archivedSmsMessageDao()
-            var newTxnCount = 0
-            var processedSummaries = 0
-            var archivedCount = 0
+            val result = SmsProcessingService.processSmsBatch(
+                context = this@MainActivity,
+                smsList = smsList,
+                updateWidget = false
+            )
 
-            val customRegexPatterns = RegexPreference.getRegexPatterns(this@MainActivity).firstOrNull()
-                ?.mapNotNull { patternString -> try { Regex(patternString, RegexOption.IGNORE_CASE) } catch (_: Exception) { null } } ?: emptyList()
-
-            for ((sender, body, smsDate) in smsList) {
-                var isUpiRelated = false
-                val bankName = BankIdentifier.getBankName(sender)
-
-                parseUpiLiteSummarySms(body)?.let { summary ->
-                    isUpiRelated = true
-                    val existing = liteDao.getSummaryByDateAndBank(summary.date, summary.bank)
-                    if (existing == null) {
-                        liteDao.insert(summary)
-                        processedSummaries++
-                    } else if (existing.transactionCount != summary.transactionCount || existing.totalAmount != summary.totalAmount) {
-                        liteDao.update(existing.copy(transactionCount = summary.transactionCount, totalAmount = summary.totalAmount))
-                    }
-                }
-
-                parseUpiSms(body, sender, smsDate, customRegexPatterns, bankName)?.let { transaction ->
-                    isUpiRelated = true
-                    if (dao.getTransactionByDetails(transaction.amount, transaction.date, transaction.description) == null) {
-                        withContext(Dispatchers.Main) {
-                            mainViewModel.processAndInsertTransaction(transaction)
-                        }
-                        newTxnCount++
-                    }
-                }
-
-                if (isUpiRelated) {
-                    val archivedSms = ArchivedSmsMessage(originalSender = sender, originalBody = body, originalTimestamp = smsDate, backupTimestamp = System.currentTimeMillis())
-                    archivedSmsDao.insertArchivedSms(archivedSms)
-                    archivedCount++
-                }
-            }
             withContext(Dispatchers.Main) {
                 setLoadingState(false)
-                onComplete(newTxnCount, processedSummaries, archivedCount)
+                onComplete(
+                    result.newTxnCount,
+                    result.processedSummaries,
+                    result.archivedCount
+                )
             }
         }
     }
