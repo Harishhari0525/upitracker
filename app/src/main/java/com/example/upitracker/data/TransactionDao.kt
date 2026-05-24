@@ -53,7 +53,7 @@ interface TransactionDao {
 
     @androidx.room.Transaction
     suspend fun insertIfNotDuplicate(transaction: Transaction): Long {
-        val timeToleranceMs = 2_000L
+        val timeToleranceMs = 5 * 60 * 1000L
 
         val existing = findDuplicateTransaction(
             amount = transaction.amount,

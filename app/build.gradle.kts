@@ -85,6 +85,7 @@ protobuf {
 
 
 dependencies {
+    implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

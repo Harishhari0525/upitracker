@@ -5,58 +5,20 @@ package com.example.upitracker.ui.screens
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DisplayMode
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.upitracker.R
@@ -69,14 +31,13 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.PassbookTransactionType
 import com.example.upitracker.viewmodel.PassbookViewModel
+import com.example.upitracker.viewmodel.PassbookSummaryState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
+import java.util.*
 
 @Composable
 fun PassbookScreen(
@@ -89,9 +50,11 @@ fun PassbookScreen(
     val startDate by passbookViewModel.startDate.collectAsState()
     val endDate by passbookViewModel.endDate.collectAsState()
 
+    // ✨ NEW OBSERVER: Connect directly to the calculated on-screen ledger sums
+    val accountingSummary by passbookViewModel.passbookSummary.collectAsState()
+
     var isPeriodMenuExpanded by remember { mutableStateOf(false) }
     var selectedPeriodLabel by remember { mutableStateOf("This Month") }
-
     val context = LocalContext.current
 
     var showStartDatePicker by remember { mutableStateOf(false) }
@@ -105,7 +68,6 @@ fun PassbookScreen(
         )
     }
 
-// 2. Safe, dynamic state initialization for the End Date Picker
     val endDatePickerState = key(endDate) {
         rememberDatePickerState(
             initialSelectedDateMillis = endDate,
@@ -117,28 +79,19 @@ fun PassbookScreen(
     val coroutineScope = rememberCoroutineScope()
     var isExportingPdf by remember { mutableStateOf(false) }
 
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-
     val pdfSaverLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf"),
         onResult = { uri ->
             uri?.let { safeUri ->
                 isExportingPdf = true
-
                 coroutineScope.launch {
                     try {
-                        // Shift font rendering and drawing loops completely off the Main UI thread
                         withContext(Dispatchers.IO) {
-                            passbookViewModel.generateAndSavePdf(
-                                context,
-                                safeUri,
-                                primaryColor,
-                                textColor
-                            )
+                            // ✨ CLEAN CALL: Invoking the unified background PDF compiler method
+                            passbookViewModel.generateAndSavePdf(context, safeUri)
                         }
                     } catch (e: Exception) {
-                        Log.e("PdfExportError", "Error compiling PDF document history", e)
+                        Log.e("PdfExportError", "Error compiling PDF passbook document context lines", e)
                     } finally {
                         isExportingPdf = false
                     }
@@ -146,6 +99,14 @@ fun PassbookScreen(
             }
         }
     )
+
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
+        .setLanguage("en")
+        .setRegion("IN")
+        .build()).apply {
+        maximumFractionDigits = 2
+    }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -160,11 +121,11 @@ fun PassbookScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                    val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                     val filename = "Passbook_${dateFormat.format(Date())}.pdf"
                     pdfSaverLauncher.launch(filename)
                 },
-                enabled = !isExportingPdf, // Prevent double-tapping while exporting
+                enabled = !isExportingPdf && transactions.isNotEmpty(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
@@ -178,20 +139,17 @@ fun PassbookScreen(
                 shape = ExpressiveTokens.corners.large
             ) {
                 if (isExportingPdf) {
-                    androidx.compose.material3.CircularProgressIndicator(
+                    CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generating PDF...")
+                    Text("Compiling Passbook Ledger...")
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.PictureAsPdf,
-                        contentDescription = null
-                    )
+                    Icon(imageVector = Icons.Filled.PictureAsPdf, contentDescription = null)
                     Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-                    Text("Generate PDF")
+                    Text("Generate Passbook PDF")
                 }
             }
         }
@@ -218,9 +176,7 @@ fun PassbookScreen(
             item {
                 ExposedDropdownMenuBox(
                     expanded = isPeriodMenuExpanded,
-                    onExpandedChange = {
-                        isPeriodMenuExpanded = !isPeriodMenuExpanded
-                    }
+                    onExpandedChange = { isPeriodMenuExpanded = !isPeriodMenuExpanded }
                 ) {
                     OutlinedTextField(
                         modifier = Modifier
@@ -230,11 +186,7 @@ fun PassbookScreen(
                         value = selectedPeriodLabel,
                         onValueChange = {},
                         label = { Text("Statement Period") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(
-                                expanded = isPeriodMenuExpanded
-                            )
-                        },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPeriodMenuExpanded) },
                         shape = ExpressiveTokens.corners.large
                     )
 
@@ -242,50 +194,22 @@ fun PassbookScreen(
                         expanded = isPeriodMenuExpanded,
                         onDismissRequest = { isPeriodMenuExpanded = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("This Month") },
-                            onClick = {
-                                passbookViewModel.setThisMonth()
-                                selectedPeriodLabel = "This Month"
-                                isPeriodMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Last Month") },
-                            onClick = {
-                                passbookViewModel.setLastMonth()
-                                selectedPeriodLabel = "Last Month"
-                                isPeriodMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("This Year") },
-                            onClick = {
-                                passbookViewModel.setThisYear()
-                                selectedPeriodLabel = "This Year"
-                                isPeriodMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Previous Financial Year") },
-                            onClick = {
-                                passbookViewModel.setPreviousFinancialYear()
-                                selectedPeriodLabel = "Previous Financial Year"
-                                isPeriodMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Current Financial Year") },
-                            onClick = {
-                                passbookViewModel.setFinancialYear()
-                                selectedPeriodLabel = "Current Financial Year"
-                                isPeriodMenuExpanded = false
-                            }
-                        )
+                        listOf(
+                            "This Month" to { passbookViewModel.setThisMonth() },
+                            "Last Month" to { passbookViewModel.setLastMonth() },
+                            "This Year" to { passbookViewModel.setThisYear() },
+                            "Current Financial Year" to { passbookViewModel.setFinancialYear() },
+                            "Previous Financial Year" to { passbookViewModel.setPreviousFinancialYear() }
+                        ).forEach { (label, action) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    action()
+                                    selectedPeriodLabel = label
+                                    isPeriodMenuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -313,14 +237,6 @@ fun PassbookScreen(
             }
 
             item {
-                Text(
-                    text = "Transaction Type",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            item {
                 SingleChoiceSegmentedButtonRow(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -339,16 +255,22 @@ fun PassbookScreen(
                 }
             }
 
+            // ✨ NEW HIGH-DENSITY FEATURE: Live Account Passbook Summary Card Block
             item {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = ExpressiveTokens.spacing.sm)
+                OnScreenSummaryCard(
+                    summary = accountingSummary,
+                    formatter = currencyFormatter
                 )
             }
 
             item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = ExpressiveTokens.spacing.xs))
+            }
+
+            item {
                 ExpressiveSectionHeader(
-                    title = "Preview",
-                    subtitle = "${transactions.size} transactions found"
+                    title = "Ledger Preview",
+                    subtitle = "${transactions.size} transactions matching query bounds"
                 )
             }
 
@@ -357,11 +279,11 @@ fun PassbookScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(320.dp),
+                            .height(280.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         LottieEmptyState(
-                            message = "No transactions found for the selected period.",
+                            message = "No transactions found for the selected parameters.",
                             lottieResourceId = R.raw.empty_box_animation
                         )
                     }
@@ -369,13 +291,10 @@ fun PassbookScreen(
             } else {
                 items(
                     items = transactions,
-                    key = { it.id }
+                    key = { "passbook-txn-${it.id}" }
                 ) { transaction ->
                     val categoryDetails = allCategories.find { category ->
-                        category.name.equals(
-                            transaction.category,
-                            ignoreCase = true
-                        )
+                        category.name.equals(transaction.category, ignoreCase = true)
                     }
 
                     TransactionCard(
@@ -391,6 +310,7 @@ fun PassbookScreen(
         }
     }
 
+    // --- Date Picker Dialog Management Windows ---
     if (showStartDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showStartDatePicker = false },
@@ -398,33 +318,19 @@ fun PassbookScreen(
                 TextButton(
                     onClick = {
                         showStartDatePicker = false
-
                         val selectedMillis = startDatePickerState.selectedDateMillis?.let {
-                            val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                            calendar.timeInMillis = it
-                            calendar.set(Calendar.HOUR_OF_DAY, 0)
-                            calendar.set(Calendar.MINUTE, 0)
-                            calendar.set(Calendar.SECOND, 0)
-                            calendar.set(Calendar.MILLISECOND, 0)
-                            calendar.timeInMillis
+                            Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = it
+                                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
                         }
-
                         passbookViewModel.setDateRange(selectedMillis, endDate)
                     }
-                ) {
-                    Text("OK")
-                }
+                ) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { showStartDatePicker = false }
-                ) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = startDatePickerState)
-        }
+            dismissButton = { TextButton(onClick = { showStartDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = startDatePickerState) }
     }
 
     if (showEndDatePicker) {
@@ -434,32 +340,91 @@ fun PassbookScreen(
                 TextButton(
                     onClick = {
                         showEndDatePicker = false
-
                         val selectedMillis = endDatePickerState.selectedDateMillis?.let {
-                            val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                            calendar.timeInMillis = it
-                            calendar.set(Calendar.HOUR_OF_DAY, 23)
-                            calendar.set(Calendar.MINUTE, 59)
-                            calendar.set(Calendar.SECOND, 59)
-                            calendar.set(Calendar.MILLISECOND, 999)
-                            calendar.timeInMillis
+                            Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = it
+                                set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59)
+                                set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+                            }.timeInMillis
                         }
-
                         passbookViewModel.setDateRange(startDate, selectedMillis)
                     }
-                ) {
-                    Text("OK")
-                }
+                ) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { showEndDatePicker = false }
-                ) {
-                    Text("Cancel")
+            dismissButton = { TextButton(onClick = { showEndDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = endDatePickerState) }
+    }
+}
+
+// ✨ COMPONENT DESIGN: High-Density Premium Accounting Aggregate Card View Block
+@Composable
+private fun OnScreenSummaryCard(
+    summary: PassbookSummaryState,
+    formatter: NumberFormat
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "ACCOUNT FLOW DIAGNOSTICS",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = "Total Credits (+)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = formatter.format(summary.totalCredit),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF16A34A) // Handled dynamically via text color tokens
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = "Total Debits (-)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = formatter.format(summary.totalDebit),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
-        ) {
-            DatePicker(state = endDatePickerState)
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Net Velocity Shift",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${if (summary.netBalance >= 0) "+" else ""}${formatter.format(summary.netBalance)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (summary.netBalance >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
+                )
+            }
         }
     }
 }
@@ -471,13 +436,8 @@ private fun DateChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val displayDateFormat = remember {
-        SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    }
-
-    val displayText = timestamp?.let {
-        displayDateFormat.format(Date(it))
-    } ?: label
+    val displayDateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val displayText = timestamp?.let { displayDateFormat.format(Date(it)) } ?: label
 
     OutlinedButton(
         onClick = onClick,
@@ -489,9 +449,7 @@ private fun DateChip(
             contentDescription = label,
             modifier = Modifier.size(ButtonDefaults.IconSize)
         )
-
         Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-
         Text(displayText)
     }
 }

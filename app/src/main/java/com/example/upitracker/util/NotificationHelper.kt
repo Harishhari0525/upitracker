@@ -138,7 +138,7 @@ object NotificationHelper {
         }
 
         val notificationId = transaction.id
-        val currencyFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+        val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
 
         // 2. Create Action Intents for common categories
         val commonCategories = listOf("Food", "Transport", "Bills")

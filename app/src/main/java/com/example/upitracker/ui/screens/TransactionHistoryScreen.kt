@@ -52,13 +52,11 @@ import com.example.upitracker.ui.components.CategoryIconView
 import com.example.upitracker.ui.components.FilteredTotalsBar
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.util.DecimalInputVisualTransformation
-import com.example.upitracker.util.animateEnter
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import kotlinx.coroutines.flow.drop
 import java.text.NumberFormat
 import androidx.compose.ui.platform.LocalLocale
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +65,7 @@ fun TransactionHistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
-    val pageCount = if (isUpiLiteEnabled) 2 else 1
+    val pageCount = if (isUpiLiteEnabled) { 2 } else { 1 }
     val pagerState = rememberPagerState { pageCount }
     val coroutineScope = rememberCoroutineScope()
 
@@ -82,6 +80,9 @@ fun TransactionHistoryScreen(
     val filters by mainViewModel.filters.collectAsState()
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
     val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
+
+    // ✨ NEW STATE OBSERVER: Streams real-time progress calculations directly into the layout tree
+    val syncProgress by mainViewModel.smsSyncProgress.collectAsState()
 
     DisposableEffect(Unit) {
         onDispose {
@@ -121,6 +122,70 @@ fun TransactionHistoryScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // ✨ NEW UI FEATURE: Real-Time SMS Processing Status Dashboard Card
+            AnimatedVisibility(
+                visible = syncProgress.isSyncing,
+                enter = fadeIn() + slideInVertically { -it / 3 },
+                exit = fadeOut() + slideOutVertically { -it / 3 }
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = ExpressiveTokens.spacing.lg,
+                            end = ExpressiveTokens.spacing.lg,
+                            bottom = ExpressiveTokens.spacing.sm
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (syncProgress.isInitialImport) "Importing SMS Ledger..." else "Refreshing Transactions...",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Text(
+                                text = "${syncProgress.currentProgress} / ${syncProgress.totalMessages}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        LinearProgressIndicator(
+                            progress = { syncProgress.percentage },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = filters.searchQuery,
                 onValueChange = { mainViewModel.setSearchQuery(it) },
@@ -359,7 +424,6 @@ private fun UpiTransactionsList(
     Column(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(visible = !isSelectionMode) {
             Column {
-                // 1. A single Row for Filter Chips and the Select/Filter Icons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -375,7 +439,7 @@ private fun UpiTransactionsList(
                             leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
                         )
                     }
-                    Spacer(Modifier.weight(1f)) // This pushes the icons to the end
+                    Spacer(Modifier.weight(1f))
                     IconButton(onClick = { mainViewModel.enterSelectionMode() }) {
                         Icon(Icons.Default.Checklist, contentDescription = "Enter Selection Mode")
                     }
@@ -403,10 +467,10 @@ private fun UpiTransactionsList(
             if (isLoading) {
                 CircularProgressIndicator()
             } else if (groupedTransactions.isEmpty()) {
-            LottieEmptyState(
-                message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered),
-                lottieResourceId = R.raw.empty_box_animation
-            )
+                LottieEmptyState(
+                    message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered),
+                    lottieResourceId = R.raw.empty_box_animation
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -415,19 +479,17 @@ private fun UpiTransactionsList(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
-                        stickyHeader(key = monthYear)
-                        {
+                        stickyHeader(key = monthYear) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 0.dp) // Give it space from the items above/below
-                                    .background(MaterialTheme.colorScheme.surface), // Match screen background
-                                contentAlignment = Alignment.Center // Center the pill
+                                    .background(MaterialTheme.colorScheme.surface),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.secondaryContainer,
-                                    tonalElevation = 3.dp // Give it a subtle lift
+                                    tonalElevation = 3.dp
                                 ) {
                                     Text(
                                         text = monthYear,
@@ -443,29 +505,26 @@ private fun UpiTransactionsList(
                         }
                         itemsIndexed(
                             items = transactionsInMonth,
-                            key = { _, txn -> "txn-${txn.id}" }
-                        ) { index, transaction ->
+                            key = { _, txn -> "txn-${txn.id}" },
+                            contentType = { _, _ -> "TransactionItem" }
+                        ) { _, transaction ->
                             val isSelected = selectedIds.contains(transaction.id)
                             val categoryDetails = allCategories.find { c ->
-                                c.name.equals(
-                                    transaction.category,
-                                    ignoreCase = true
-                                )
+                                c.name.equals(transaction.category, ignoreCase = true)
                             }
                             val categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080")
                             val categoryIcon = getCategoryIcon(categoryDetails)
 
-                            // ✨ FIX: The `onClick` in this card now has the correct logic
                             TransactionCardWithMenu(
                                 modifier = Modifier
                                     .animateItem(
-                                    fadeInSpec = tween(durationMillis = 300),
-                                    placementSpec = spring(
-                                        dampingRatio = Spring.DampingRatioLowBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    )
-
-                                ).animateEnter(index),
+                                        fadeInSpec = tween(durationMillis = 200),
+                                        placementSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMedium
+                                        ),
+                                        fadeOutSpec = tween(durationMillis = 150)
+                                    ),
                                 transaction = transaction,
                                 isSelectionMode = isSelectionMode,
                                 isSelected = isSelected,
@@ -477,19 +536,14 @@ private fun UpiTransactionsList(
                                 },
                                 onDelete = { mainViewModel.deleteTransaction(it) },
                                 onArchiveAction = {
-                                    mainViewModel.toggleTransactionArchiveStatus(
-                                        it,
-                                        true
-                                    )
+                                    mainViewModel.toggleTransactionArchiveStatus(it, true)
                                 },
                                 archiveActionText = "Archive",
                                 archiveActionIcon = Icons.Default.Archive,
                                 categoryColor = categoryColor,
                                 categoryIcon = categoryIcon,
                                 onCategoryClick = { categoryName ->
-                                    if (!isSelectionMode) mainViewModel.toggleCategoryFilter(
-                                        categoryName
-                                    )
+                                    if (!isSelectionMode) mainViewModel.toggleCategoryFilter(categoryName)
                                 }
                             )
                         }
@@ -680,7 +734,7 @@ private fun ActiveFiltersRow(
                     val start = formatter.format(Date(filters.startDate))
                     val end = filters.endDate?.let { formatter.format(Date(it)) } ?: "Now"
                     FilterChip(
-                        selected = true, // Make active filters look selected
+                        selected = true,
                         onClick = onDateFilterClick,
                         label = { Text("$start - $end") },
                         trailingIcon = {
@@ -698,10 +752,8 @@ private fun ActiveFiltersRow(
 
             if (filters.amountType != AmountFilterType.ALL) {
                 item {
-                    // ✨ START OF THE FIX ✨
                     val amountFilterText =
                         remember(filters.amountType, filters.amountValue1, filters.amountValue2) {
-                            // Using the elvis operator `?: ""` replaces a null value with an empty string
                             val val1 = filters.amountValue1?.toInt()
                             val val2 = filters.amountValue2?.toInt()
                             when (filters.amountType) {
@@ -710,10 +762,9 @@ private fun ActiveFiltersRow(
                                 AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
                             }
                         }
-                    // ✨ END OF THE FIX ✨
 
                     FilterChip(
-                        selected = true, // Make active filters look selected
+                        selected = true,
                         onClick = onAmountFilterClick,
                         label = { Text(amountFilterText) },
                         trailingIcon = {
@@ -732,7 +783,7 @@ private fun ActiveFiltersRow(
             if (filters.showUncategorized) {
                 item {
                     FilterChip(
-                        selected = true, // Make active filters look selected
+                        selected = true,
                         onClick = onUncategorizedFilterClick,
                         label = { Text("Uncategorized") },
                         trailingIcon = {
@@ -750,7 +801,7 @@ private fun ActiveFiltersRow(
             items(filters.selectedCategories.toList()) { categoryName ->
                 FilterChip(
                     selected = true,
-                    onClick = { /* Tapping the chip itself does nothing */ },
+                    onClick = { },
                     label = { Text(categoryName) },
                     trailingIcon = {
                         Icon(
@@ -758,7 +809,7 @@ private fun ActiveFiltersRow(
                             contentDescription = "Clear $categoryName filter",
                             modifier = Modifier
                                 .size(FilterChipDefaults.IconSize)
-                                .clickable { onCategoryChipClick(categoryName) } // Click the 'X' to remove
+                                .clickable { onCategoryChipClick(categoryName) }
                         )
                     }
                 )
@@ -768,7 +819,7 @@ private fun ActiveFiltersRow(
                 item {
                     FilterChip(
                         selected = true,
-                        onClick = { /* No action on click */ },
+                        onClick = { },
                         label = { Text(filters.bankNameFilter) },
                         leadingIcon = { Icon(Icons.Filled.AccountBalance, contentDescription = "Bank Filter") },
                         trailingIcon = {
@@ -787,10 +838,10 @@ private fun ActiveFiltersRow(
             if (filters.selectedCategories.size > 1) {
                 item {
                     InputChip(
-                        selected = false, // ✨ ADD THIS LINE
+                        selected = false,
                         onClick = onClearAllCategories,
                         label = { Text("Clear All") },
-                        enabled = true, // ✨ ADD THIS LINE
+                        enabled = true,
                         colors = InputChipDefaults.inputChipColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer
                         ),
@@ -859,7 +910,7 @@ fun DateFilterControls(
                 )
             }
         } else {
-            Spacer(Modifier.width(48.dp)) // Placeholder for consistent height
+            Spacer(Modifier.width(48.dp))
         }
     }
 }
@@ -873,11 +924,11 @@ fun SortButton(
 ) {
     TextButton(
         onClick = onClick,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp) // Compact button
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelMedium, // Smaller text for sort buttons
+            style = MaterialTheme.typography.labelMedium,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (isSelected) {
@@ -885,7 +936,7 @@ fun SortButton(
                 imageVector = if (sortOrder == SortOrder.ASCENDING) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
                 contentDescription = stringResource(if (sortOrder == SortOrder.ASCENDING) R.string.history_sort_order_ascending_desc else R.string.history_sort_order_descending_desc),
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp).padding(start = 2.dp) // Smaller icon
+                modifier = Modifier.size(16.dp).padding(start = 2.dp)
             )
         }
     }
@@ -901,16 +952,16 @@ fun SortControls(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 0.dp), // Reduced vertical padding
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End), // Align to end, less space
+            .padding(horizontal = 16.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall) // Smaller label
+        Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
 
         SortButton(
             text = stringResource(R.string.history_sort_by_date),
             isSelected = currentSortField == SortableTransactionField.DATE,
-            sortOrder = if (currentSortField == SortableTransactionField.DATE) currentSortOrder else SortOrder.DESCENDING, // Default for non-active
+            sortOrder = if (currentSortField == SortableTransactionField.DATE) currentSortOrder else SortOrder.DESCENDING,
             onClick = { onSortFieldSelected(SortableTransactionField.DATE) }
         )
         SortButton(
@@ -922,13 +973,12 @@ fun SortControls(
         SortButton(
             text = stringResource(R.string.history_sort_by_category),
             isSelected = currentSortField == SortableTransactionField.CATEGORY,
-            sortOrder = if (currentSortField == SortableTransactionField.CATEGORY) currentSortOrder else SortOrder.ASCENDING, // Default category to Asc
+            sortOrder = if (currentSortField == SortableTransactionField.CATEGORY) currentSortOrder else SortOrder.ASCENDING,
             onClick = { onSortFieldSelected(SortableTransactionField.CATEGORY) }
         )
     }
 }
 
-// ✨ New: SortControls for UPI Lite Summaries ✨
 @Composable
 fun UpiLiteSummarySortControls(
     currentSortField: SortableUpiLiteSummaryField,
@@ -942,10 +992,9 @@ fun UpiLiteSummarySortControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
-        // Define display names or string resources for SortableUpiLiteSummaryField values
         SortableUpiLiteSummaryField.entries.forEach { field ->
             SortButton(
-                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(LocalLocale.current.platformLocale) else it.toString() }, // Or use stringResource
+                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(LocalLocale.current.platformLocale) else it.toString() },
                 isSelected = currentSortField == field,
                 sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING,
                 onClick = { onSortFieldSelected(field) }
@@ -953,7 +1002,6 @@ fun UpiLiteSummarySortControls(
         }
     }
 }
-// In TransactionHistoryScreen.kt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1017,7 +1065,6 @@ fun AdvancedFilterControls(
             OutlinedTextField(
                 value = amountValue1,
                 onValueChange = { newValue ->
-                    // ✨ FIX 1: Correctly handle decimal input ✨
                     val cleaned = newValue.filter { it.isDigit() || it == '.' }
                     if (cleaned.count { it == '.' } <= 1) {
                         amountValue1 = cleaned
@@ -1038,8 +1085,8 @@ fun AdvancedFilterControls(
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                prefix = { Text("₹") }, // ✨ Add Rupee symbol prefix ✨
-                visualTransformation = DecimalInputVisualTransformation(), // ✨ Use our currency formatter ✨
+                prefix = { Text("₹") },
+                visualTransformation = DecimalInputVisualTransformation(),
                 modifier = Modifier.weight(1f)
             )
 
@@ -1047,7 +1094,6 @@ fun AdvancedFilterControls(
                 OutlinedTextField(
                     value = amountValue2,
                     onValueChange = { newValue ->
-                        // ✨ FIX 2: Apply same logic to the second field ✨
                         val cleaned = newValue.filter { it.isDigit() || it == '.' }
                         if (cleaned.count { it == '.' } <= 1) {
                             amountValue2 = cleaned
@@ -1061,14 +1107,15 @@ fun AdvancedFilterControls(
                     label = { Text("Max Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    prefix = { Text("₹") }, // ✨ Add Rupee symbol prefix ✨
-                    visualTransformation = DecimalInputVisualTransformation(), // ✨ Use our currency formatter ✨
+                    prefix = { Text("₹") },
+                    visualTransformation = DecimalInputVisualTransformation(),
                     modifier = Modifier.weight(1f)
                 )
             }
         }
     }
 }
+
 @Composable
 private fun BulkCategorizeDialog(
     categories: List<Category>,
@@ -1089,10 +1136,8 @@ private fun BulkCategorizeDialog(
                             CategoryIconView(
                                 categoryIcon = categoryIcon,
                                 size = FilterChipDefaults.IconSize,
-                                // Match the style used in the manual code (Secondary Container)
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                // Tint vector icons to match the text/chip content usually
                                 iconTint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1107,6 +1152,7 @@ private fun BulkCategorizeDialog(
         }
     )
 }
+
 @Composable
 private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Unit, onCategorizeClick: () -> Unit) {
     TopAppBar(
@@ -1117,6 +1163,7 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
         windowInsets = WindowInsets(0)
     )
 }
+
 @Composable
 private fun MonthlyHeader(title: String, total: Double, count: Int) {
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
@@ -1132,7 +1179,6 @@ private fun MonthlyHeader(title: String, total: Double, count: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Left Side: Month Name
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
@@ -1140,7 +1186,6 @@ private fun MonthlyHeader(title: String, total: Double, count: Int) {
             color = MaterialTheme.colorScheme.primary
         )
 
-        // Right Side: Total Amount (and small count)
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = currencyFormatter.format(total),

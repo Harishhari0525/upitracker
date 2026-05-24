@@ -207,6 +207,16 @@ data class GroupedUpiLiteSummaries(
     val count: Int
 )
 
+data class SmsSyncProgressState(
+    val isSyncing: Boolean = false,
+    val currentProgress: Int = 0,
+    val totalMessages: Int = 0,
+    val isInitialImport: Boolean = false
+) {
+    val percentage: Float
+        get() = if (totalMessages > 0) currentProgress.toFloat() / totalMessages else 0f
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val transactionDao = db.transactionDao()
@@ -285,6 +295,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isImportingSms: StateFlow<Boolean> = _isImportingSms.asStateFlow()
 
     private val _isRefreshingSmsArchive = MutableStateFlow(false)
+
+    private val _smsSyncProgress = MutableStateFlow(SmsSyncProgressState())
+    val smsSyncProgress: StateFlow<SmsSyncProgressState> = _smsSyncProgress.asStateFlow()
 
     private val _showHistoryFilterSheet = MutableStateFlow(false)
     val showHistoryFilterSheet: StateFlow<Boolean> = _showHistoryFilterSheet.asStateFlow()
@@ -1188,21 +1201,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGraphPeriod.value = period
     }
 
-    private fun calculateNextDueDate(startFrom: Long, dayOfPeriod: Int, periodType: BudgetPeriod): Long {
+    // ✨ FIX: Removed the unused 'startFrom' parameter for a clean, clock-anchored signature
+    private fun calculateNextDueDate(dayOfPeriod: Int, periodType: BudgetPeriod): Long {
         val calendar = Calendar.getInstance().apply {
-            timeInMillis = startFrom
+            timeInMillis = System.currentTimeMillis() // Firm anchor on live execution time
         }
+
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
 
         when (periodType) {
-            BudgetPeriod.MONTHLY -> calendar.add(Calendar.MONTH, 1)
-            BudgetPeriod.WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
-            BudgetPeriod.YEARLY -> calendar.add(Calendar.YEAR, 1)
+            BudgetPeriod.MONTHLY -> {
+                if (currentDay >= dayOfPeriod) {
+                    calendar.add(Calendar.MONTH, 1)
+                }
+                val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod.coerceAtMost(maxDayInMonth))
+            }
+            BudgetPeriod.WEEKLY -> {
+                calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            }
+            BudgetPeriod.YEARLY -> {
+                if (calendar.get(Calendar.DAY_OF_YEAR) >= dayOfPeriod) {
+                    calendar.add(Calendar.YEAR, 1)
+                }
+            }
         }
 
-        val maxDayInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-        calendar.set(Calendar.DAY_OF_MONTH, dayOfPeriod.coerceAtMost(maxDayInMonth))
-
-        calendar.set(Calendar.HOUR_OF_DAY, 12)
+        calendar.set(Calendar.HOUR_OF_DAY, 9)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
@@ -1223,9 +1248,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            val calendar = Calendar.getInstance()
-            calendar.add(Calendar.MONTH, -1)
-            val firstDueDate = calculateNextDueDate(calendar.timeInMillis, dayOfPeriod, period)
+            // ✨ FIX: Matching the clean signature pass
+            val firstDueDate = calculateNextDueDate(dayOfPeriod, period)
 
             val newRule = RecurringRule(
                 amount = amount,
@@ -1245,6 +1269,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             recurringRuleDao.delete(rule)
             postPlainSnackbarMessage("Recurring transaction deleted.")
         }
+    }
+
+    // ✨ NEW METHOD: Updates the global progress frame data fields during asynchronous batch executions
+    fun updateSmsSyncProgress(current: Int, total: Int, isInitial: Boolean) {
+        _smsSyncProgress.value = SmsSyncProgressState(
+            isSyncing = current < total,
+            currentProgress = current,
+            totalMessages = total,
+            isInitialImport = isInitial
+        )
+    }
+
+    // ✨ NEW METHOD: Safely terminates the syncing animation sequence state parameters once database passes finish writing
+    fun clearSmsSyncProgress() {
+        _smsSyncProgress.value = SmsSyncProgressState(isSyncing = false, currentProgress = 0, totalMessages = 0)
+        _isImportingSms.value = false
+        _isRefreshingSmsArchive.value = false
     }
 
     fun backfillBankNames() {
@@ -1289,10 +1330,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val originalRule = recurringRuleDao.getRuleById(ruleId) ?: return@launch
 
+            // ✨ FIX: Strip out the dead calendar instantiations and pass exactly 2 parameters
             val nextDueDate = if (originalRule.dayOfPeriod != newDay || originalRule.periodType != newPeriod) {
-                val calendar = Calendar.getInstance()
-                calendar.add(Calendar.MONTH, -1)
-                calculateNextDueDate(calendar.timeInMillis, newDay, newPeriod)
+                calculateNextDueDate(newDay, newPeriod)
             } else {
                 originalRule.nextDueDate
             }

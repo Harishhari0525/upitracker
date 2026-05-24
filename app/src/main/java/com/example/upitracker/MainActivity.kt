@@ -44,6 +44,7 @@ import com.example.upitracker.ui.screens.OnboardingScreen
 import com.example.upitracker.util.*
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.sms.SmsProcessingService
+import com.example.upitracker.ui.components.PremiumFloatingSnackbarHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -269,6 +270,7 @@ class MainActivity : FragmentActivity() {
                     if (newSmsList.isNotEmpty()) {
                         processSmsInbox(
                             smsList = newSmsList,
+                            isInitialImport = false,
                             setLoadingState = { /* Silent */ },
                             onComplete = { newTxnCount, summaryCount, _ ->
                                 val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
@@ -316,7 +318,10 @@ class MainActivity : FragmentActivity() {
         }
 
         Scaffold(
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            snackbarHost = {
+                PremiumFloatingSnackbarHost(
+                    hostState = snackbarHostState
+                ) },
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { innerPadding ->
             MainNavHost(
@@ -443,25 +448,60 @@ class MainActivity : FragmentActivity() {
 
     private fun processSmsInbox(
         smsList: List<Triple<String, String, Long>>,
+        isInitialImport: Boolean, // Pass context down to tell if this is a fresh database seed pass
         setLoadingState: (Boolean) -> Unit,
         onComplete: (newTxnCount: Int, processedSummaries: Int, archivedCount: Int) -> Unit
     ) {
         setLoadingState(true)
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val result = SmsProcessingService.processSmsBatch(
-                context = this@MainActivity,
-                smsList = smsList,
-                updateWidget = false
-            )
+            val totalMessages = smsList.size
+            var globalNewTxn = 0
+            var globalSummaries = 0
+            var globalArchived = 0
+
+            if (totalMessages == 0) {
+                withContext(Dispatchers.Main) {
+                    mainViewModel.clearSmsSyncProgress()
+                    setLoadingState(false)
+                    onComplete(0, 0, 0)
+                }
+                return@launch
+            }
+
+            // Chunk messages into sub-batches of 15 to allow the main thread UI state definitions to breathe
+            val chunkSize = 15
+            val chunks = smsList.chunked(chunkSize)
+            var processedCount = 0
+
+            for (chunk in chunks) {
+                // Execute database writing pass for the current chunk
+                val result = SmsProcessingService.processSmsBatch(
+                    context = this@MainActivity,
+                    smsList = chunk,
+                    updateWidget = false
+                )
+
+                globalNewTxn += result.newTxnCount
+                globalSummaries += result.processedSummaries
+                globalArchived += result.archivedCount
+                processedCount += chunk.size
+
+                // ✨ PROGRESS ACCUMULATION HOOK: Stream updated counts straight to our state engine flow parameters
+                withContext(Dispatchers.Main) {
+                    mainViewModel.updateSmsSyncProgress(
+                        current = processedCount.coerceAtMost(totalMessages),
+                        total = totalMessages,
+                        isInitial = isInitialImport
+                    )
+                }
+            }
 
             withContext(Dispatchers.Main) {
+                // ✨ TERMINATION HOOK: Flush and reset states once all batch passes complete successfully
+                mainViewModel.clearSmsSyncProgress()
                 setLoadingState(false)
-                onComplete(
-                    result.newTxnCount,
-                    result.processedSummaries,
-                    result.archivedCount
-                )
+                onComplete(globalNewTxn, globalSummaries, globalArchived)
             }
         }
     }
@@ -477,8 +517,10 @@ class MainActivity : FragmentActivity() {
             val loadingStateSetter = if (isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
             val onCompleteMessage = if (isInitialImport) "Import" else "Refresh"
 
+            // Forward current sync intent cleanly down to the processing layer loop engine
             processSmsInbox(
                 smsList = allSms,
+                isInitialImport = isInitialImport,
                 setLoadingState = loadingStateSetter,
                 onComplete = { txnCount, summaryCount, _ ->
                     val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value

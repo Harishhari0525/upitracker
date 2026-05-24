@@ -42,6 +42,7 @@ vico = "3.1.0"
 workRuntimeKtx = "2.11.2"
 coreAnimation = "1.0.0"
 animationGraphicsAndroid = "1.11.2"
+uiGraphics = "1.11.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -91,6 +92,7 @@ androidx-animation-graphics-android = { group = "androidx.compose.animation", na
 tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tinkAndroid" }
 androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "uiGraphics" }
 
 
 [plugins]

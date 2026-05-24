@@ -11,13 +11,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.example.upitracker.data.Category
 import com.example.upitracker.util.PdfGenerator
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -25,15 +23,18 @@ import java.util.Locale
 
 enum class PassbookTransactionType { ALL, DEBIT, CREDIT }
 
+data class PassbookSummaryState(
+    val totalDebit: Double = 0.0,
+    val totalCredit: Double = 0.0,
+    val netBalance: Double = 0.0
+)
+
 class PassbookViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transactionDao = AppDatabase.getDatabase(application).transactionDao()
     private val categoryDao = AppDatabase.getDatabase(application).categoryDao()
-    private val _filteredTransactions = MutableStateFlow<List<Transaction>>(emptyList())
 
-
-
-    // Private state holders for the filters
+    // Base filter state streams
     private val _startDate = MutableStateFlow<Long?>(null)
     val startDate: StateFlow<Long?> = _startDate.asStateFlow()
 
@@ -43,32 +44,19 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
     private val _transactionType = MutableStateFlow(PassbookTransactionType.ALL)
     val transactionType: StateFlow<PassbookTransactionType> = _transactionType.asStateFlow()
 
-    // The final list of transactions to be displayed, reacts to filter changes
-    val filteredTransactions: StateFlow<List<Transaction>> = _filteredTransactions.asStateFlow()
-
-    val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
+    // 1. Core Transaction Database Stream Hook
+    private val _allTransactions = transactionDao.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-
-    init {
-        // Refresh the list whenever a filter changes
-        viewModelScope.launch {
-            combine(
-                _startDate,
-                _endDate,
-                _transactionType
-            ) { start, end, type ->
-                updateTransactionList(start, end, type)
-            }.collect {}
-        }
-        // Set initial date range to "This Month"
-        setThisMonth()
-    }
-
-    private suspend fun updateTransactionList(start: Long?, end: Long?, type: PassbookTransactionType) {
-        // This is a temporary, non-reactive way to fetch data. We will improve this later.
-        val allTransactions = transactionDao.getAllTransactions().first() // Gets all transactions
-        _filteredTransactions.value = allTransactions.filter { txn ->
+    // 2. ✨ AIRTIGHT REACTIVE PIPELINE: Dynamically filters your transaction ledger list on the fly
+    val filteredTransactions: StateFlow<List<Transaction>> = combine(
+        _allTransactions,
+        _startDate,
+        _endDate,
+        _transactionType
+    ) { txns, start, end, type ->
+        txns.filter { txn ->
+            if (txn.pendingDeletionTimestamp != null) return@filter false
             val dateMatch = (start == null || txn.date >= start) && (end == null || txn.date <= end)
             val typeMatch = when (type) {
                 PassbookTransactionType.ALL -> true
@@ -77,6 +65,25 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
             }
             dateMatch && typeMatch
         }.sortedByDescending { it.date }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val passbookSummary: StateFlow<PassbookSummaryState> = filteredTransactions
+        .map { txns ->
+            val debits = txns.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
+            val credits = txns.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amount }
+            PassbookSummaryState(
+                totalDebit = debits,
+                totalCredit = credits,
+                netBalance = credits - debits
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PassbookSummaryState())
+
+    val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // Set initialization boundary target to current calendar parameters
+        setThisMonth()
     }
 
     fun setTransactionType(type: PassbookTransactionType) {
@@ -103,12 +110,12 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
 
     fun setThisYear() {
         val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_YEAR, 1) // First day of the current year
+        calendar.set(Calendar.DAY_OF_YEAR, 1)
         setDayToStart(calendar)
         val start = calendar.timeInMillis
 
-        calendar.set(Calendar.MONTH, Calendar.DECEMBER) // Go to December
-        calendar.set(Calendar.DAY_OF_MONTH, 31) // Last day of December
+        calendar.set(Calendar.MONTH, Calendar.DECEMBER)
+        calendar.set(Calendar.DAY_OF_MONTH, 31)
         setDayToEnd(calendar)
         val end = calendar.timeInMillis
         setDateRange(start, end)
@@ -130,7 +137,7 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
 
     fun setFinancialYear() {
         val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH) // January is 0
+        val currentMonth = calendar.get(Calendar.MONTH)
         val currentYear = calendar.get(Calendar.YEAR)
 
         val startYear = if (currentMonth >= Calendar.APRIL) currentYear else currentYear - 1
@@ -146,20 +153,11 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
         setDateRange(start, end)
     }
 
-    // --- Helper functions ---
-    private fun setDayToStart(calendar: Calendar) {
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-    }
-
     fun setPreviousFinancialYear() {
         val calendar = Calendar.getInstance()
         val currentMonth = calendar.get(Calendar.MONTH)
         val currentYear = calendar.get(Calendar.YEAR)
 
-        // Go back one year from the current financial year's logic
         val startYear = (if (currentMonth >= Calendar.APRIL) currentYear else currentYear - 1) - 1
         val endYear = startYear + 1
 
@@ -173,40 +171,34 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
         setDateRange(start, end)
     }
 
+    private fun setDayToStart(calendar: Calendar) {
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+    }
+
     private fun setDayToEnd(calendar: Calendar) {
         calendar.set(Calendar.HOUR_OF_DAY, 23)
         calendar.set(Calendar.MINUTE, 59)
         calendar.set(Calendar.SECOND, 59)
         calendar.set(Calendar.MILLISECOND, 999)
     }
-    /**
-     * Generates a PDF of the passbook transactions and saves it to the specified URI.
-     * This function runs in a background thread to avoid blocking the UI.
-     *
-     * @param context The application context.
-     * @param uri The URI where the PDF should be saved.
-     */
-    fun generateAndSavePdf
-                (context: Context,
-                 uri: Uri,
-                 primaryColor: Int,
-                 textColor: Int
-    ) {
-        viewModelScope.launch(Dispatchers.IO) { // Run PDF generation on a background thread
-            val transactionsToExport = filteredTransactions.value
-            if (transactionsToExport.isEmpty()) return@launch
 
-            val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-            val start = startDate.value?.let { dateFormat.format(Date(it)) } ?: "Start"
-            val end = endDate.value?.let { dateFormat.format(Date(it)) } ?: "End"
-            val statementPeriod = "For period: $start to $end"
+    fun generateAndSavePdf(context: Context, uri: Uri) {
+        val transactionsToExport = filteredTransactions.value
+        if (transactionsToExport.isEmpty()) return
 
-            PdfGenerator.generatePassbookPdf(
-                context = context,
-                transactions = transactionsToExport,
-                statementPeriod = statementPeriod,
-                targetUri = uri
-            )
-        }
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val start = startDate.value?.let { dateFormat.format(Date(it)) } ?: "Start"
+        val end = endDate.value?.let { dateFormat.format(Date(it)) } ?: "End"
+        val statementPeriod = "For period: $start to $end"
+
+        PdfGenerator.generatePassbookPdf(
+            context = context,
+            transactions = transactionsToExport,
+            statementPeriod = statementPeriod,
+            targetUri = uri
+        )
     }
 }
