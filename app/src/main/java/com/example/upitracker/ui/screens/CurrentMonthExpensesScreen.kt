@@ -37,6 +37,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -110,6 +113,10 @@ fun CurrentMonthExpensesScreen(
     val allCategories by mainViewModel.allCategories.collectAsState()
     val isDashboardLoading by mainViewModel.isDashboardLoading.collectAsState()
 
+    val smsSyncState by mainViewModel.smsSyncProgress.collectAsState()
+    val isSyncingAllSms = smsSyncState.isSyncing
+    val smsSyncProgressFloat = smsSyncState.percentage
+
     val pullRefreshState = rememberPullToRefreshState()
     val listState = rememberLazyListState()
 
@@ -142,126 +149,179 @@ fun CurrentMonthExpensesScreen(
                 )
             }
         ) { paddingValues ->
-            PullToRefreshBox(
+            // Root scaffolding box container wrapper allows for absolute structural overlay elements
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                isRefreshing = isImporting,
-                onRefresh = onRefresh,
-                state = pullRefreshState,
-                indicator = {
-                    if (isImporting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.TopCenter)
+                    .padding(paddingValues)
+            ) {
+                PullToRefreshBox(
+                    modifier = Modifier.fillMaxSize(),
+                    isRefreshing = isImporting,
+                    onRefresh = onRefresh,
+                    state = pullRefreshState,
+                    indicator = {
+                        PullToRefreshDefaults.Indicator(
+                            state = pullRefreshState,
+                            isRefreshing = isImporting,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            color = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                         )
                     }
-                }
-            ) {
-                if (isDashboardLoading) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-
-                    val dragPushOffset = remember(pullRefreshState.distanceFraction) {
-                        derivedStateOf { (pullRefreshState.distanceFraction * 80).dp }
-                    }
-
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { translationY = dragPushOffset.value.toPx() },
-                        contentPadding = PaddingValues(
-                            start = ExpressiveTokens.spacing.lg,
-                            top = ExpressiveTokens.spacing.lg,
-                            end = ExpressiveTokens.spacing.lg,
-                            bottom = 120.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.lg)
-                    ) {
-                        item {
-                            TotalExpensesHeroCard(
-                                total = currentMonthExpensesTotal,
-                                modifier = Modifier.introShowCaseTarget(
-                                    index = 0,
-                                    content = {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                text = "Monthly Snapshot",
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-
-                                            Text(
-                                                text = "Swipe down from the top to import old SMS messages. This card shows your total spending for the current month.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                )
-                            )
+                ) {
+                    if (isDashboardLoading) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        val dragPushOffset = remember(pullRefreshState.distanceFraction) {
+                            derivedStateOf { (pullRefreshState.distanceFraction * 80).dp }
                         }
 
-                        item {
-                            MonthlyQuickStatsSection(
-                                transactionCount = transactionCount,
-                                totalSpent = currentMonthExpensesTotal
-                            )
-                        }
-
-                        if (velocityState.totalBudget > 0) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { translationY = dragPushOffset.value.toPx() },
+                            contentPadding = PaddingValues(
+                                start = ExpressiveTokens.spacing.lg,
+                                top = ExpressiveTokens.spacing.lg,
+                                end = ExpressiveTokens.spacing.lg,
+                                bottom = 120.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.lg)
+                        ) {
                             item {
-                                SpendingVelocityCard(
-                                    totalBudget = velocityState.totalBudget,
-                                    totalSpent = velocityState.totalSpent,
-                                    daysRemaining = velocityState.daysRemaining
+                                TotalExpensesHeroCard(
+                                    total = currentMonthExpensesTotal,
+                                    modifier = Modifier.introShowCaseTarget(
+                                        index = 0,
+                                        content = {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = "Monthly Snapshot",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+
+                                                Spacer(modifier = Modifier.height(8.dp))
+
+                                                Text(
+                                                    text = "Swipe down from the top to import old SMS messages. This card shows your total spending for the current month.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    )
+                                )
+                            }
+
+                            item {
+                                MonthlyQuickStatsSection(
+                                    transactionCount = transactionCount,
+                                    totalSpent = currentMonthExpensesTotal
+                                )
+                            }
+
+                            if (velocityState.totalBudget > 0) {
+                                item {
+                                    SpendingVelocityCard(
+                                        totalBudget = velocityState.totalBudget,
+                                        totalSpent = velocityState.totalSpent,
+                                        daysRemaining = velocityState.daysRemaining
+                                    )
+                                }
+                            }
+
+                            item {
+                                UpcomingPaymentsSection(rules = recurringRules)
+                            }
+
+                            item {
+                                RecentTransactionsSection(
+                                    recentTransactions = recentTransactions,
+                                    allCategories = allCategories,
+                                    mainViewModel = mainViewModel,
+                                    onViewAllClick = onViewAllClick,
+                                    modifier = Modifier.introShowCaseTarget(
+                                        index = 1,
+                                        content = {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = "Full History",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+
+                                                Spacer(modifier = Modifier.height(8.dp))
+
+                                                Text(
+                                                    text = "Tap View All to see your complete transaction history with sorting and filtering options.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    )
                                 )
                             }
                         }
+                    }
+                }
 
-                        item {
-                            UpcomingPaymentsSection(rules = recurringRules)
-                        }
-
-                        item {
-                            RecentTransactionsSection(
-                                recentTransactions = recentTransactions,
-                                allCategories = allCategories,
-                                mainViewModel = mainViewModel,
-                                onViewAllClick = onViewAllClick,
-                                modifier = Modifier.introShowCaseTarget(
-                                    index = 1,
-                                    content = {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                text = "Full History",
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-
-                                            Text(
-                                                text = "Tap View All to see your complete transaction history with sorting and filtering options.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
+                // ✨ GLOBAL PROGRESS OVERLAY CARD: Dynamically floats above content layers during a heavy parse execution
+                if (isSyncingAllSms) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .padding(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Synchronizing SMS Archive...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Text(
+                                    text = "${(smsSyncProgressFloat * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            LinearProgressIndicator(
+                                progress = { smsSyncProgressFloat },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                strokeCap = StrokeCap.Round
                             )
                         }
                     }
