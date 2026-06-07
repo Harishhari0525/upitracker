@@ -2,11 +2,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     id("com.google.protobuf") version "0.10.0"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.0"
 }
 
 android {
@@ -55,18 +54,18 @@ android {
     buildFeatures {
         compose = true
     }
-
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-            javaParameters.set(true)
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 
-    sourceSets {
-        getByName("main") {
-            java.srcDir("build/generated/source/proto/main/java")
-        }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        javaParameters.set(true)
     }
 }
 
@@ -115,7 +114,6 @@ dependencies {
     implementation(libs.androidx.compose.material.material)
     implementation(libs.androidx.ui.text)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.androidx.foundation)
     implementation(libs.androidx.animation)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.introshowcaseview)

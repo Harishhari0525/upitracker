@@ -56,7 +56,6 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import kotlinx.coroutines.flow.drop
 import java.text.NumberFormat
-import androidx.compose.ui.platform.LocalLocale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +80,7 @@ fun TransactionHistoryScreen(
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
     val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
 
-    // ✨ NEW STATE OBSERVER: Streams real-time progress calculations directly into the layout tree
+    // ✨ Streams real-time progress calculations directly into the layout tree
     val syncProgress by mainViewModel.smsSyncProgress.collectAsState()
 
     DisposableEffect(Unit) {
@@ -122,7 +121,7 @@ fun TransactionHistoryScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ✨ NEW UI FEATURE: Real-Time SMS Processing Status Dashboard Card
+            // ✨ Real-Time SMS Processing Status Dashboard Card Overlay Banner
             AnimatedVisibility(
                 visible = syncProgress.isSyncing,
                 enter = fadeIn() + slideInVertically { -it / 3 },
@@ -431,11 +430,15 @@ private fun UpiTransactionsList(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpiTransactionTypeFilter.entries.forEach { filterType ->
+                        // ✨ FIX 2: Safely formatting the text title string configuration map cleanly
+                        val filterLabelText = remember(filterType) {
+                            filterType.name.lowercase().replaceFirstChar { it.uppercase() }
+                        }
                         FilterChip(
                             modifier = Modifier.padding(end = 8.dp),
                             selected = selectedUpiFilterType == filterType,
                             onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                            label = { Text(filterType.name.replaceFirstChar { it.titlecase(LocalLocale.current.platformLocale) }) },
+                            label = { Text(filterLabelText) },
                             leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
                         )
                     }
@@ -554,7 +557,6 @@ private fun UpiTransactionsList(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
     val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
@@ -563,6 +565,7 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
     val groupedSummaries by mainViewModel.groupedUpiLiteSummaries.collectAsState()
     val filters by mainViewModel.filters.collectAsState()
 
+    // ✨ FIX 1: Explicitly allocate and instantiate the state within the remember block so it doesn't return Unit
     val listState = remember(filters, upiLiteSortField, upiLiteSortOrder) {
         LazyListState()
     }
@@ -756,10 +759,12 @@ private fun ActiveFiltersRow(
                         remember(filters.amountType, filters.amountValue1, filters.amountValue2) {
                             val val1 = filters.amountValue1?.toInt()
                             val val2 = filters.amountValue2?.toInt()
+                            // ✨ FIX 3: Fully exhaustive branch match tracking criteria options
                             when (filters.amountType) {
                                 AmountFilterType.GREATER_THAN -> "> ₹${val1 ?: ""}"
                                 AmountFilterType.LESS_THAN -> "< ₹${val1 ?: ""}"
                                 AmountFilterType.RANGE -> "₹${val1 ?: ""} - ₹${val2 ?: ""}"
+                                AmountFilterType.ALL -> "All Amounts"
                             }
                         }
 
@@ -994,7 +999,7 @@ fun UpiLiteSummarySortControls(
         Text(stringResource(R.string.history_sort_by_label), style = MaterialTheme.typography.labelSmall)
         SortableUpiLiteSummaryField.entries.forEach { field ->
             SortButton(
-                text = field.name.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(LocalLocale.current.platformLocale) else it.toString() },
+                text = field.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
                 isSelected = currentSortField == field,
                 sortOrder = if (currentSortField == field) currentSortOrder else SortOrder.DESCENDING,
                 onClick = { onSortFieldSelected(field) }
@@ -1076,10 +1081,12 @@ fun AdvancedFilterControls(
                     }
                 },
                 label = {
+                    // ✨ FIX 3: Fully exhaustive when branch condition mapping parameters safely
                     val label = when (filters.amountType) {
                         AmountFilterType.GREATER_THAN -> "Greater Than"
                         AmountFilterType.LESS_THAN -> "Less Than"
                         AmountFilterType.RANGE -> "Min Amount"
+                        AmountFilterType.ALL -> "Amount"
                     }
                     Text(label)
                 },
