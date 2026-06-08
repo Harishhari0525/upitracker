@@ -27,6 +27,9 @@ import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -55,6 +58,13 @@ import java.util.concurrent.TimeUnit
 class MainActivity : FragmentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
+
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStop(owner: LifecycleOwner) {
+            // Re-lock the app when it goes to the background
+            mainViewModel.setPinUnlocked(false)
+        }
+    }
 
     private var pendingUpiLiteEnabledState: Boolean = true
 
@@ -125,6 +135,8 @@ class MainActivity : FragmentActivity() {
         NotificationHelper.createNotificationChannels(this)
         scheduleAllWorkers()
 
+        ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+
         setContent {
             Theme(mainViewModel = mainViewModel) {
                 var showLottieSplash by remember { mutableStateOf(true) }
@@ -156,7 +168,7 @@ class MainActivity : FragmentActivity() {
     @Composable
     private fun MainAppRouter() {
         val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
-        var pinUnlocked by rememberSaveable { mutableStateOf(false) }
+        val pinUnlocked by mainViewModel.pinUnlocked.collectAsState()
 
         val pinIsActuallySet by produceState<Boolean?>(initialValue = null) {
             try {
@@ -171,7 +183,7 @@ class MainActivity : FragmentActivity() {
 
         LaunchedEffect(pinIsActuallySet) {
             if (pinIsActuallySet == false) {
-                pinUnlocked = true
+                mainViewModel.setPinUnlocked(true)
             }
         }
 
@@ -213,10 +225,10 @@ class MainActivity : FragmentActivity() {
                     !pinUnlocked && pinIsActuallySet == true -> {
                         PinLockScreen(
                             modifier = Modifier.fillMaxSize(),
-                            onUnlock = { pinUnlocked = true },
-                            onSetPin = { pinUnlocked = true },
+                            onUnlock = { mainViewModel.setPinUnlocked(true) },
+                            onSetPin = { mainViewModel.setPinUnlocked(true) },
                             onAttemptBiometricUnlock = {
-                                handleBiometricUnlock { pinUnlocked = true }
+                                handleBiometricUnlock { mainViewModel.setPinUnlocked(true) }
                             }
                         )
                     }
@@ -405,6 +417,10 @@ class MainActivity : FragmentActivity() {
             .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
             .build()
         workManager.enqueueUniquePeriodicWork(UpdateCheckWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, updateCheckRequest)
+        
+        // ✨ Schedule Monthly Statement Worker
+        val statementRequest = PeriodicWorkRequestBuilder<com.example.upitracker.util.MonthlyStatementWorker>(1, TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(com.example.upitracker.util.MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, statementRequest)
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
@@ -469,6 +485,8 @@ class MainActivity : FragmentActivity() {
                 return@launch
             }
 
+            val config = SmsProcessingService.fetchProcessingConfig(this@MainActivity)
+
             // Chunk messages into sub-batches of 15 to allow the main thread UI state definitions to breathe
             val chunkSize = 15
             val chunks = smsList.chunked(chunkSize)
@@ -479,13 +497,18 @@ class MainActivity : FragmentActivity() {
                 val result = SmsProcessingService.processSmsBatch(
                     context = this@MainActivity,
                     smsList = chunk,
-                    updateWidget = false
+                    updateWidget = false,
+                    config = config
                 )
 
                 globalNewTxn += result.newTxnCount
                 globalSummaries += result.processedSummaries
                 globalArchived += result.archivedCount
                 processedCount += chunk.size
+
+                // ✨ Update last processed timestamp to avoid re-scanning these in the future
+                val latestInBatch = chunk.maxOf { it.third }
+                ThemePreference.setLastProcessedSmsTimestamp(this@MainActivity, latestInBatch)
 
                 // ✨ PROGRESS ACCUMULATION HOOK: Stream updated counts straight to our state engine flow parameters
                 withContext(Dispatchers.Main) {
@@ -513,7 +536,10 @@ class MainActivity : FragmentActivity() {
         }
 
         lifecycleScope.launch {
-            val allSms = getAllSms()
+            // ✨ Logic Fix: Use last processed timestamp for incremental sync, or 0 for initial/full refresh
+            val lastProcessed = if (isInitialImport) 0L else ThemePreference.getLastProcessedSmsTimestampFlow(this@MainActivity).first()
+            
+            val allSms = getAllSms(sinceTimestamp = lastProcessed)
             val loadingStateSetter = if (isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
             val onCompleteMessage = if (isInitialImport) "Import" else "Refresh"
 

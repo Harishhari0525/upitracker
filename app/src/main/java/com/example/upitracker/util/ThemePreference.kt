@@ -112,6 +112,22 @@ object ThemePreference {
         }
     }
 
+    private val LAST_PROCESSED_SMS_TIMESTAMP_KEY = androidx.datastore.preferences.core.longPreferencesKey("last_processed_sms_timestamp")
+
+    fun getLastProcessedSmsTimestampFlow(context: Context): Flow<Long> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[LAST_PROCESSED_SMS_TIMESTAMP_KEY] ?: 0L
+        }
+
+    suspend fun setLastProcessedSmsTimestamp(context: Context, timestamp: Long) {
+        context.settingsDataStore.edit { prefs ->
+            val current = prefs[LAST_PROCESSED_SMS_TIMESTAMP_KEY] ?: 0L
+            if (timestamp > current) {
+                prefs[LAST_PROCESSED_SMS_TIMESTAMP_KEY] = timestamp
+            }
+        }
+    }
+
     fun getHomeScreenStyleFlow(context: Context): Flow<HomeScreenStyle> =
         context.settingsDataStore.data.map { prefs ->
             val savedValue = prefs[HOME_SCREEN_STYLE_KEY] ?: HomeScreenStyle.CURRENT_MONTH.name

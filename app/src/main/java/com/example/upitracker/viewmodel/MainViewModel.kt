@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow // Add this import
 import kotlinx.coroutines.flow.asSharedFlow
+import com.example.upitracker.data.TransactionDao
+import com.example.upitracker.util.CryptoManager
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
@@ -47,6 +49,7 @@ import com.example.upitracker.util.PinStorage
 import com.example.upitracker.util.TagUtils
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 
 
 // --- Data classes and Enums (should be defined here or imported if in separate files) ---
@@ -61,7 +64,8 @@ data class MerchantDna(
     val transactionCount: Int,
     val averageSpend: Double,
     val favoriteDay: String, // e.g., "Friday"
-    val recentTrend: String  // "↑ 10% vs last month" (Optional, we'll keep it simple for now)
+    val recentTrend: String,  // "↑ 10% vs last month" (Optional, we'll keep it simple for now)
+    val loyaltyShare: Float // ✨ New Field: Percentage of category spend
 )
 
 data class VelocityState(
@@ -308,7 +312,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val latestBankBalances: StateFlow<List<TransactionDao.BankBalance>> = transactionDao.getLatestBankBalances()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // --- Smart Subscription Detector ---
+    data class DetectedSubscription(val merchant: String, val amount: Double, val frequencyDays: Int, val confidenceScore: Float)
+    
+    val detectedSubscriptions: StateFlow<List<DetectedSubscription>> = combine(
+        _transactions,
+        recurringRules
+    ) { transactions, rules ->
+        val debits = transactions.filter { it.type == "DEBIT" }
+        val potentialSubs = mutableListOf<DetectedSubscription>()
+        
+        // Group by Merchant and Amount
+        val groups = debits.groupBy { Pair(it.senderOrReceiver.uppercase(), it.amount) }
+        
+        for ((key, txns) in groups) {
+            val merchant = key.first
+            val amount = key.second
+            
+            // Skip if already in rules
+            if (rules.any { it.description.equals(merchant, ignoreCase = true) || it.amount == amount }) continue
+            
+            if (txns.size >= 3) {
+                // Sort by date descending
+                val sortedTxns = txns.sortedByDescending { it.date }
+                val intervals = mutableListOf<Long>()
+                
+                for (i in 0 until sortedTxns.size - 1) {
+                    val diff = sortedTxns[i].date - sortedTxns[i+1].date
+                    val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diff).toInt()
+                    intervals.add(days.toLong())
+                }
+                
+                val avgInterval = intervals.average()
+                
+                // If it happens roughly monthly (25-35 days) or weekly (6-8 days)
+                if ((avgInterval in 25.0..35.0) || (avgInterval in 6.0..8.0)) {
+                    val variance = intervals.map { abs(it - avgInterval) }.average()
+                    val confidence = if (variance < 3) 0.9f else if (variance < 5) 0.7f else 0.5f
+                    
+                    if (confidence > 0.6f) {
+                        potentialSubs.add(
+                            DetectedSubscription(
+                                merchant = merchant,
+                                amount = amount,
+                                frequencyDays = avgInterval.toInt(),
+                                confidenceScore = confidence
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        
+        potentialSubs.sortedByDescending { it.confidenceScore }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Refund")
@@ -371,13 +433,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val topDayInt = dayCounts.maxByOrNull { it.value }?.key ?: Calendar.MONDAY
             val days = arrayOf("", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
             val favDay = days.getOrElse(topDayInt) { "Monday" }
+            
+            // Calculate Loyalty Share (Percentage of total spend in their primary category)
+            val primaryCategory = history.groupingBy { it.category }.eachCount().maxByOrNull { it.value }?.key
+            val loyaltyShare = if (!primaryCategory.isNullOrBlank()) {
+                val allCategoryTxns = _transactions.value.filter { it.category == primaryCategory && it.type == "DEBIT" && !it.isArchived && it.pendingDeletionTimestamp == null }
+                val categoryTotal = allCategoryTxns.sumOf { it.amount }
+                if (categoryTotal > 0) (total / categoryTotal).toFloat() else 1f
+            } else {
+                1f // If uncategorized, they have 100% share of "uncategorized" effectively
+            }
 
             _merchantDna.value = MerchantDna(
                 totalSpent = total,
                 transactionCount = count,
                 averageSpend = avg,
                 favoriteDay = favDay,
-                recentTrend = ""
+                recentTrend = "",
+                loyaltyShare = loyaltyShare
             )
         }
     }
@@ -538,14 +611,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isBackingUp.value = true
             try {
                 val sourceDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
+                val dbBytes = sourceDbFile.readBytes()
+                
+                // Encrypt the entire database byte array using hardware-backed Tink AEAD
+                val encryptedDbBytes = CryptoManager.getAead().encrypt(dbBytes, null)
 
                 contentResolver.openOutputStream(targetUri)?.use { outputStream ->
-                    sourceDbFile.inputStream().use { inputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
+                    outputStream.write(encryptedDbBytes)
                 } ?: throw IOException("Failed to open output stream for URI: $targetUri")
 
-                postPlainSnackbarMessage("Backup successful!")
+                postPlainSnackbarMessage("Backup successful (Encrypted)!")
 
             } catch (e: Exception) {
                 Log.e("BackupRestore", "Error during database backup", e)
@@ -563,16 +638,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val targetDbFile = getApplication<Application>().getDatabasePath("upi_tracker_db")
 
                 contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                    val encryptedBytes = inputStream.readBytes()
+                    
+                    // Decrypt the backup before writing it to the app's internal database path
+                    val decryptedBytes = CryptoManager.getAead().decrypt(encryptedBytes, null)
+                    
                     targetDbFile.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
+                        outputStream.write(decryptedBytes)
                     }
                 } ?: throw IOException("Failed to open input stream for URI: $sourceUri")
 
                 _uiEvents.emit(UiEvent.RestartRequired("Restore successful! The app must now restart to apply changes."))
 
             } catch (e: Exception) {
-                Log.e("BackupRestore", "Error during database restore", e)
-                postPlainSnackbarMessage("Error: Restore failed. Invalid file? ${e.message}")
+                Log.e("BackupRestore", "Error during database restore (Decryption failed?)", e)
+                postPlainSnackbarMessage("Error: Restore failed. Is this a valid encrypted backup?")
             } finally {
                 _isRestoring.value = false
             }
@@ -2052,6 +2132,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isHistoryLoading = MutableStateFlow(true)
     val isHistoryLoading: StateFlow<Boolean> = _isHistoryLoading.asStateFlow()
+
+    private val _pinUnlocked = MutableStateFlow(false)
+    val pinUnlocked: StateFlow<Boolean> = _pinUnlocked.asStateFlow()
+
+    fun setPinUnlocked(unlocked: Boolean) {
+        _pinUnlocked.value = unlocked
+    }
 
     fun updateCategoryRule(
         ruleId: Int, // ✨ We need the ID to update the correct rule

@@ -108,7 +108,7 @@ interface TransactionDao {
     @Query("UPDATE transactions SET category = NULL WHERE category = :categoryName")
     suspend fun clearCategoryForTransactions(categoryName: String)
 
-    @Query("SELECT * FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
+    @Query("SELECT * FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
     suspend fun getTransactionsForBudgetCheck(
         categoryName: String,
         startDate: Long,
@@ -116,7 +116,7 @@ interface TransactionDao {
         refundCategory: String
     ): List<Transaction>
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
     suspend fun getSpentAmountInRangeSync(
         startDate: Long,
         endDate: Long,
@@ -125,4 +125,14 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE senderOrReceiver = :sender AND isArchived = 0 ORDER BY date DESC")
     suspend fun getHistoryForMerchant(sender: String): List<Transaction>
+
+    data class BankBalance(val bankName: String, val latestBalance: Double, val lastUpdated: Long)
+
+    @Query("""
+        SELECT bankName, balanceAfterTransaction AS latestBalance, MAX(date) AS lastUpdated 
+        FROM transactions 
+        WHERE bankName IS NOT NULL AND balanceAfterTransaction IS NOT NULL AND isArchived = 0 AND pendingDeletionTimestamp IS NULL 
+        GROUP BY bankName
+    """)
+    fun getLatestBankBalances(): Flow<List<BankBalance>>
 }

@@ -32,6 +32,8 @@ import com.example.upitracker.viewmodel.MerchantDna
 import java.text.NumberFormat
 import java.util.Locale
 
+import androidx.compose.material.icons.filled.StarRate
+
 @Composable
 fun MerchantDnaCard(
     merchantName: String,
@@ -94,11 +96,12 @@ fun MerchantDnaCard(
                         value = "${dna.transactionCount}",
                         icon = Icons.Default.History
                     )
-
+                    
+                    // ✨ Replaced Peak day with Loyalty Share
                     DnaStat(
-                        label = "Peak",
-                        value = dna.favoriteDay.take(3),
-                        icon = Icons.Default.CalendarToday
+                        label = "Loyalty",
+                        value = "${(dna.loyaltyShare * 100).toInt()}%",
+                        icon = Icons.Default.StarRate
                     )
                 }
             }

@@ -29,7 +29,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -46,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
-import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
@@ -63,6 +61,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import com.example.upitracker.data.BudgetPeriod
 
 @Composable
 fun BudgetScreen(
@@ -369,8 +375,9 @@ private fun RecurringList(
     onViewForecast: (RecurringRule) -> Unit
 ) {
     val recurringRules by mainViewModel.recurringRules.collectAsState()
+    val detectedSubscriptions by mainViewModel.detectedSubscriptions.collectAsState()
 
-    if (recurringRules.isEmpty()) {
+    if (recurringRules.isEmpty() && detectedSubscriptions.isEmpty()) {
         LottieEmptyState(
             modifier = Modifier
                 .fillMaxSize()
@@ -389,6 +396,42 @@ private fun RecurringList(
             ),
             verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
         ) {
+            if (detectedSubscriptions.isNotEmpty()) {
+                item {
+                    val sub = detectedSubscriptions.first()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveTokens.corners.large,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(ExpressiveTokens.spacing.md)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Smart Suggestion", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("We noticed a repeating payment of ₹${sub.amount} to ${sub.merchant}. Track this as a subscription?", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = {
+                                val period = if (sub.frequencyDays in 25..35) BudgetPeriod.MONTHLY else BudgetPeriod.WEEKLY
+                                mainViewModel.addRecurringRule(
+                                    description = sub.merchant,
+                                    amount = sub.amount,
+                                    category = "Subscriptions", // Default category
+                                    period = period,
+                                    dayOfPeriod = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+                                )
+                            }) {
+                                Text("Add to Tracking")
+                            }
+                        }
+                    }
+                }
+            }
+            
             items(
                 items = recurringRules,
                 key = { it.id }

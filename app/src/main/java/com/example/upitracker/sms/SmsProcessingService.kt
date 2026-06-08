@@ -31,16 +31,50 @@ data class SmsProcessingResult(
     val archivedCount: Int = 0
 )
 
+data class SmsProcessingConfig(
+    val customRegexPatterns: List<Regex>,
+    val categoryRules: List<CategorySuggestionRule>,
+    val activeBudgets: List<Budget>,
+    val refundKeyword: String,
+    val upiLiteEnabled: Boolean
+)
+
 object SmsProcessingService {
+
+    suspend fun fetchProcessingConfig(context: Context): SmsProcessingConfig = withContext(Dispatchers.IO) {
+        val appContext = context.applicationContext
+        val db = AppDatabase.getDatabase(appContext)
+
+        val storedPatterns = RegexPreference.getRegexPatterns(appContext).firstOrNull().orEmpty()
+        val customRegexPatterns = storedPatterns.mapNotNull { pattern ->
+            try {
+                Regex(pattern, RegexOption.IGNORE_CASE)
+            } catch (e: Exception) {
+                Log.w("SmsProcessingService", "Invalid custom regex skipped: $pattern", e)
+                null
+            }
+        }
+
+        SmsProcessingConfig(
+            customRegexPatterns = customRegexPatterns,
+            categoryRules = db.categorySuggestionRuleDao().getAllRules().first(),
+            activeBudgets = db.budgetDao().getAllActiveBudgets().first(),
+            refundKeyword = ThemePreference.getRefundKeywordFlow(appContext).first(),
+            upiLiteEnabled = ThemePreference.isUpiLiteEnabledFlow(appContext).first()
+        )
+    }
 
     suspend fun processSmsBatch(
         context: Context,
         smsList: List<Triple<String, String, Long>>,
-        updateWidget: Boolean = false
+        updateWidget: Boolean = false,
+        config: SmsProcessingConfig? = null
     ): SmsProcessingResult = withContext(Dispatchers.IO) {
         var newTxnCount = 0
         var processedSummaries = 0
         var archivedCount = 0
+
+        val currentConfig = config ?: fetchProcessingConfig(context)
 
         smsList.forEach { (sender, body, smsDate) ->
             val result = processSingleSms(
@@ -48,7 +82,8 @@ object SmsProcessingService {
                 sender = sender,
                 body = body,
                 smsDate = smsDate,
-                updateWidget = updateWidget
+                updateWidget = updateWidget,
+                config = currentConfig
             )
 
             newTxnCount += result.newTxnCount
@@ -68,7 +103,8 @@ object SmsProcessingService {
         sender: String,
         body: String,
         smsDate: Long,
-        updateWidget: Boolean = false
+        updateWidget: Boolean = false,
+        config: SmsProcessingConfig? = null
     ): SmsProcessingResult = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
         val db = AppDatabase.getDatabase(appContext)
@@ -76,23 +112,13 @@ object SmsProcessingService {
         val transactionDao = db.transactionDao()
         val archivedSmsDao = db.archivedSmsMessageDao()
         val upiLiteSummaryDao = db.upiLiteSummaryDao()
-        val categoryRuleDao = db.categorySuggestionRuleDao()
-        val budgetDao = db.budgetDao()
 
         var isUpiRelated = false
         var newTxnCount = 0
         var processedSummaries = 0
         var archivedCount = 0
 
-        val storedPatterns = RegexPreference.getRegexPatterns(appContext).firstOrNull().orEmpty()
-        val customRegexPatterns = storedPatterns.mapNotNull { pattern ->
-            try {
-                Regex(pattern, RegexOption.IGNORE_CASE)
-            } catch (e: Exception) {
-                Log.w("SmsProcessingService", "Invalid custom regex skipped: $pattern", e)
-                null
-            }
-        }
+        val currentConfig = config ?: fetchProcessingConfig(appContext)
 
         val bankName = resolveBankName(sender = sender, body = body)
 
@@ -100,17 +126,16 @@ object SmsProcessingService {
             message = body,
             sender = sender,
             smsDate = smsDate,
-            customRegexList = customRegexPatterns,
+            customRegexList = currentConfig.customRegexPatterns,
             bankName = bankName
         )
 
         if (parsedTransaction != null) {
             isUpiRelated = true
 
-            val rules = categoryRuleDao.getAllRules().first()
             val finalTransaction = prepareTransactionForInsert(
                 transaction = parsedTransaction,
-                rules = rules
+                rules = currentConfig.categoryRules
             )
 
             val insertedId = transactionDao.insertIfNotDuplicate(finalTransaction)
@@ -127,10 +152,10 @@ object SmsProcessingService {
                 checkBudgetForNewTransaction(
                     context = appContext,
                     transaction = savedTransaction,
-                    refundCategory = ThemePreference.getRefundKeywordFlow(appContext).first(),
-                    budgets = budgetDao.getAllActiveBudgets().first(),
+                    refundCategory = currentConfig.refundKeyword,
+                    budgets = currentConfig.activeBudgets,
                     transactionDao = transactionDao,
-                    budgetDao = budgetDao
+                    budgetDao = db.budgetDao()
                 )
 
                 if (updateWidget) {
@@ -144,9 +169,7 @@ object SmsProcessingService {
             }
         }
 
-        val upiLiteEnabled = ThemePreference.isUpiLiteEnabledFlow(appContext).first()
-
-        if (upiLiteEnabled) {
+        if (currentConfig.upiLiteEnabled) {
             val liteSummary = parseUpiLiteSummarySms(body)
 
             if (liteSummary != null) {
@@ -252,7 +275,7 @@ object SmsProcessingService {
         }
     }
 
-    private fun resolveBankName(sender: String, body: String): String {
+    fun resolveBankName(sender: String, body: String): String {
         val normalizedSender = if (sender.contains("-")) {
             sender.substringAfter("-").uppercase(Locale.getDefault()).trim()
         } else {

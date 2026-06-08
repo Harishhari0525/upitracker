@@ -117,25 +117,25 @@ fun TransactionDetailSheetContent(
             .padding(
                 start = ExpressiveTokens.spacing.lg,
                 end = ExpressiveTokens.spacing.lg,
-                top = ExpressiveTokens.spacing.md,
-                bottom = ExpressiveTokens.spacing.xl
+                top = ExpressiveTokens.spacing.sm,
+                bottom = ExpressiveTokens.spacing.lg
             )
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
     ) {
         if (isEditMode) {
             val title = if (isManualEntry) "Edit Transaction Details" else "Edit Category Details"
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = "Update category, note, and receipt details",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
@@ -150,8 +150,6 @@ fun TransactionDetailSheetContent(
                 shape = ExpressiveTokens.corners.large
             )
 
-            Spacer(Modifier.height(8.dp))
-
             val filteredSuggestions = remember(key1 = categoryText, key2 = userCategories) {
                 if (categoryText.isBlank()) {
                     userCategories
@@ -161,8 +159,7 @@ fun TransactionDetailSheetContent(
                 }
             }
             if (filteredSuggestions.isNotEmpty()) {
-                Text("Suggestions", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(8.dp))
+                Text("Suggestions", style = MaterialTheme.typography.labelMedium)
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -189,7 +186,7 @@ fun TransactionDetailSheetContent(
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             if (isManualEntry) {
                 // For manual entries, show editable TextFields
@@ -200,13 +197,12 @@ fun TransactionDetailSheetContent(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveTokens.corners.large
                 )
-                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     prefix = { Text("₹") },
                     shape = ExpressiveTokens.corners.large
                 )
@@ -220,35 +216,38 @@ fun TransactionDetailSheetContent(
                 value = noteText,
                 onValueChange = { noteText = it },
                 label = { Text("Note") },
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 shape = ExpressiveTokens.corners.large
             )
 
-            Spacer(Modifier.height(16.dp))
             val imageToShow = imageUri ?: receiptPath?.let { Uri.fromFile(File(it)) }
             if (imageToShow != null) {
+                Spacer(Modifier.height(8.dp))
                 AsyncImage(
                     model = imageToShow,
                     contentDescription = "Receipt",
-                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(ExpressiveTokens.corners.large),
+                    modifier = Modifier.fillMaxWidth().height(120.dp).clip(ExpressiveTokens.corners.large),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(Modifier.height(8.dp))
             }
-            Button(onClick = { imagePickerLauncher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { imagePickerLauncher.launch("image/*") },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                shape = ExpressiveTokens.corners.large
+            ) {
                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                 Text(if (imageToShow != null) "Change Receipt" else "Add Receipt")
             }
 
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Action buttons for Edit Mode
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { isEditMode = false },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(50.dp),
                     shape = ExpressiveTokens.corners.large) {
                     Text("Cancel")
                 }
@@ -268,7 +267,8 @@ fun TransactionDetailSheetContent(
                             onDismiss()
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    shape = ExpressiveTokens.corners.large
                 ) {
                     Text("Save")
                 }
@@ -276,42 +276,55 @@ fun TransactionDetailSheetContent(
         } else {
             // --- VIEW MODE UI ---
             TransactionDetailHeader(transaction!!)
-            Spacer(Modifier.height(20.dp))
 
-            // ✨ 3. Show DNA Card if available
+            // ✨ DNA Card if available
             if (merchantDna != null) {
                 MerchantDnaCard(
                     merchantName = transaction!!.senderOrReceiver,
                     dna = merchantDna!!
                 )
-                Spacer(Modifier.height(20.dp))
-            } else {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
-            DetailRow(label = stringResource(R.string.detail_label_category), value = transaction!!.category ?: "Uncategorized")
-            DetailRow(label = stringResource(R.string.detail_label_party), value = transaction!!.senderOrReceiver)
-            DetailRow(label = stringResource(R.string.detail_label_date_time), value = formatFullDateTime(transaction!!.date))
-            if (transaction!!.note.isNotBlank()) {
-                DetailRow(label = stringResource(R.string.detail_label_note), value = transaction!!.note)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ExpressiveTokens.corners.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            ) {
+                Column(modifier = Modifier.padding(vertical = ExpressiveTokens.spacing.sm)) {
+                    DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
+                    DetailRow(label = stringResource(R.string.detail_label_category), value = transaction!!.category ?: "Uncategorized")
+                    DetailRow(label = stringResource(R.string.detail_label_party), value = transaction!!.senderOrReceiver)
+                    DetailRow(label = stringResource(R.string.detail_label_date_time), value = formatFullDateTime(transaction!!.date))
+                    if (transaction!!.note.isNotBlank()) {
+                        DetailRow(label = stringResource(R.string.detail_label_note), value = transaction!!.note)
+                    }
+                }
             }
 
             if (!transaction!!.receiptImagePath.isNullOrBlank()) {
-                Spacer(Modifier.height(16.dp))
-                Text("Receipt", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Receipt",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
                 AsyncImage(
                     model = File(transaction!!.receiptImagePath!!),
                     contentDescription = "Receipt",
-                    modifier = Modifier.fillMaxWidth().height(200.dp).clip(MaterialTheme.shapes.large).clickable { showFullScreenImage = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(ExpressiveTokens.corners.large)
+                        .clickable { showFullScreenImage = true },
                     contentScale = ContentScale.Crop
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(8.dp))
 
-            val buttonModifier = Modifier.weight(1f).height(56.dp)
+            val buttonModifier = Modifier.weight(1f).height(50.dp)
 
             if (showFullScreenImage) {
                 FullScreenImageViewer(
@@ -321,13 +334,13 @@ fun TransactionDetailSheetContent(
             }
 
             // Action Buttons for View Mode
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(
                     onClick = { isEditMode = true },
                     modifier = buttonModifier,
                     shape = ExpressiveTokens.corners.large
                 ) {
-                    Icon(Icons.Default.Edit, null)
+                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Edit")
                 }
@@ -335,18 +348,16 @@ fun TransactionDetailSheetContent(
                 FilledTonalButton(
                     onClick = { shareTransactionDetails(context, transaction!!) },
                     modifier = buttonModifier,
-                    shape = MaterialTheme.shapes.medium
+                    shape = ExpressiveTokens.corners.large
                 ) {
-                    Icon(Icons.Default.Share, null)
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Share")
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-
             // Row 2: Archive & (Auto-Cat OR Delete)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(
                     onClick = {
                         mainViewModel.toggleTransactionArchiveStatus(transaction!!, archive = true)
@@ -357,9 +368,9 @@ fun TransactionDetailSheetContent(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ),
-                    shape = MaterialTheme.shapes.medium
+                    shape = ExpressiveTokens.corners.large
                 ) {
-                    Icon(Icons.Default.Archive, null)
+                    Icon(Icons.Default.Archive, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Archive")
                 }
@@ -373,9 +384,9 @@ fun TransactionDetailSheetContent(
                             onDismiss()
                         },
                         modifier = buttonModifier,
-                        shape = MaterialTheme.shapes.medium
+                        shape = ExpressiveTokens.corners.large
                     ) {
-                        Icon(Icons.Default.AutoFixHigh, null)
+                        Icon(Icons.Default.AutoFixHigh, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Auto-Cat")
                     }
@@ -394,13 +405,12 @@ fun TransactionDetailSheetContent(
             // Row 3: Delete (Only if Uncategorized)
             // Since "Auto-Cat" took the spot above, we need a dedicated Delete button below.
             if (transaction!!.category.isNullOrBlank()) {
-                Spacer(Modifier.height(12.dp))
                 DeleteButton(
                     onClick = {
                         mainViewModel.deleteTransaction(transaction!!)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
                 )
             }
         }
@@ -434,29 +444,25 @@ private fun TransactionDetailHeader(transaction: Transaction) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.xl),
+                .padding(ExpressiveTokens.spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = transaction.type.uppercase(),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
             )
 
-            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
-
             Text(
                 text = "₹${"%.2f".format(transaction.amount)}",
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = amountColor
             )
 
-            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
-
             Text(
                 text = transaction.senderOrReceiver,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
             )
         }
@@ -486,37 +492,26 @@ private fun DetailRow(
     label: String,
     value: String
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveTokens.corners.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 0.dp
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
                 horizontal = ExpressiveTokens.spacing.lg,
-                vertical = ExpressiveTokens.spacing.md
+                vertical = ExpressiveTokens.spacing.sm
             )
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

@@ -10,6 +10,15 @@ import androidx.room.PrimaryKey
         Index(
             value = ["amount", "date", "type"],
             unique = true
+        ),
+        Index(
+            value = ["isArchived", "pendingDeletionTimestamp", "date"]
+        ),
+        Index(
+            value = ["category"]
+        ),
+        Index(
+            value = ["bankName"]
         )
     ]
 )
@@ -26,6 +35,7 @@ data class Transaction(
     val pendingDeletionTimestamp: Long? = null,
     val linkedTransactionId: Int? = null,
     val bankName: String? = null,
+    val balanceAfterTransaction: Double? = null,
     val receiptImagePath: String? = null,
     val tags: String = ""
 )

@@ -26,6 +26,7 @@ object NotificationHelper {
     private const val BUDGET_ALERTS_CHANNEL_ID = "budget_alerts_channel"
 
     private const val APP_UPDATES_CHANNEL_ID = "app_updates_channel"
+    private const val MONTHLY_STATEMENT_CHANNEL_ID = "monthly_statement_channel"
 
     fun createNotificationChannels(context: Context) {
         val notificationManager: NotificationManager =
@@ -59,6 +60,48 @@ object NotificationHelper {
             description = "Notifications for new app versions available."
         }
         notificationManager.createNotificationChannel(appUpdatesChannel)
+
+        val monthlyStatementChannel = NotificationChannel(
+            MONTHLY_STATEMENT_CHANNEL_ID,
+            "Monthly Statements",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Notifications when your monthly statement PDF is ready to be emailed."
+        }
+        notificationManager.createNotificationChannel(monthlyStatementChannel)
+    }
+
+    fun showMonthlyStatementNotification(context: Context, pdfUri: android.net.Uri, monthName: String) {
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val emailIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_SUBJECT, "UPI Tracker Statement - $monthName")
+            putExtra(Intent.EXTRA_TEXT, "Please find attached your monthly UPI Tracker statement for $monthName.")
+            putExtra(Intent.EXTRA_STREAM, pdfUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent.createChooser(emailIntent, "Send Statement via Email"),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notificationId = 100 // Fixed ID so we only show one at a time
+
+        val builder = NotificationCompat.Builder(context, MONTHLY_STATEMENT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setContentTitle("Monthly Statement Ready")
+            .setContentText("Your statement for $monthName is ready to review or send.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
 
     fun showUpcomingPaymentNotification(context: Context, rule: RecurringRule) {

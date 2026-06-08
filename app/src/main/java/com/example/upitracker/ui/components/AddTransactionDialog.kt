@@ -46,6 +46,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+
 @Composable
 fun AddTransactionDialog(
     onDismiss: () -> Unit,
@@ -57,6 +60,7 @@ fun AddTransactionDialog(
         date: Long
     ) -> Unit
 ) {
+    val haptics = LocalHapticFeedback.current
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -262,6 +266,7 @@ fun AddTransactionDialog(
                     isDescriptionError = description.isBlank()
 
                     if (!isAmountError && !isDescriptionError) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onConfirm(
                             amountDouble!!,
                             selectedType,

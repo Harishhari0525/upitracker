@@ -65,6 +65,8 @@ import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.example.upitracker.sms.parseUpiSms
+import com.example.upitracker.sms.SmsProcessingService
 
 @Composable
 fun ParsingRulesContent(
@@ -344,6 +346,7 @@ private fun TestPatternSheetContent(
     onClose: () -> Unit,
     onSavePattern: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val matchFoundText = stringResource(R.string.regex_editor_test_result_match_found)
     val groupTemplate = stringResource(R.string.regex_editor_test_result_group_template)
     val noMatchText = stringResource(R.string.regex_editor_test_result_no_match)
@@ -353,6 +356,12 @@ private fun TestPatternSheetContent(
     var sampleSmsText by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf<String?>(null) }
     var isTestMatchFound by remember { mutableStateOf<Boolean?>(null) }
+    
+    // New states for detailed results
+    var detectedBank by remember { mutableStateOf<String?>(null) }
+    var parsedAmount by remember { mutableStateOf<Double?>(null) }
+    var parsedType by remember { mutableStateOf<String?>(null) }
+    var parsedMerchant by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -368,8 +377,8 @@ private fun TestPatternSheetContent(
     ) {
         item {
             ExpressiveTopBar(
-                title = "Test Pattern",
-                subtitle = "Try a regex against a sample SMS",
+                title = "Test Parser",
+                subtitle = "Validate how the app will read your SMS",
                 actions = {
                     FilledTonalIconButton(onClick = onClose) {
                         Icon(
@@ -401,7 +410,8 @@ private fun TestPatternSheetContent(
                 value = newRegex,
                 onValueChange = { newRegex = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.regex_editor_new_pattern_label)) },
+                label = { Text("Custom Pattern (Optional)") },
+                placeholder = { Text("Enter regex to override defaults") },
                 singleLine = true,
                 shape = ExpressiveTokens.corners.large
             )
@@ -416,23 +426,17 @@ private fun TestPatternSheetContent(
                     onClick = {
                         if (sampleSmsText.isNotBlank()) {
                             val patternsToTry = listOf(
-                                """credited with Rs\.?\s*([\d,]+\.?\d*)""",
-                                """debited with Rs\.?\s*([\d,]+\.?\d*)""",
-                                """spent Rs\.?\s*([\d,]+\.?\d*)""",
-                                """paid Rs\.?\s*([\d,]+\.?\d*)""",
-                                """(?:Rs\.?|INR)\s*([\d,]+\.?\d*)""",
+                                """(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)""",
+                                """credited with RS\s*([\d,]+\.?\d*)""",
+                                """debited with RS\s*([\d,]+\.?\d*)""",
+                                """spent RS\s*([\d,]+\.?\d*)""",
+                                """paid RS\s*([\d,]+\.?\d*)""",
                                 """([\d,]+\.\d{2})"""
                             )
 
                             var suggestedPattern = ""
-
                             for (pattern in patternsToTry) {
-                                if (
-                                    Regex(
-                                        pattern,
-                                        RegexOption.IGNORE_CASE
-                                    ).containsMatchIn(sampleSmsText)
-                                ) {
+                                if (Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(sampleSmsText)) {
                                     suggestedPattern = pattern
                                     break
                                 }
@@ -440,11 +444,9 @@ private fun TestPatternSheetContent(
 
                             if (suggestedPattern.isNotBlank()) {
                                 newRegex = suggestedPattern
-                                testResult = "Suggested a pattern based on your sample text."
-                                isTestMatchFound = null
+                                testResult = "Suggested a basic amount pattern."
                             } else {
-                                testResult = "Could not find a reliable pattern in the sample text."
-                                isTestMatchFound = false
+                                testResult = "Could not suggest a pattern."
                             }
                         }
                     },
@@ -455,65 +457,77 @@ private fun TestPatternSheetContent(
                     Text("Suggest")
                 }
 
-                OutlinedButton(
+                Button(
                     onClick = {
-                        if (newRegex.isNotBlank() && sampleSmsText.isNotBlank()) {
+                        if (sampleSmsText.isNotBlank()) {
                             try {
-                                val regex = Regex(
-                                    newRegex.trim(),
-                                    RegexOption.IGNORE_CASE
+                                val bank = SmsProcessingService.resolveBankName(sender = "BANK-SMS", body = sampleSmsText)
+                                detectedBank = bank
+
+                                val customList = if (newRegex.isNotBlank()) {
+                                    listOf(Regex(newRegex.trim(), RegexOption.IGNORE_CASE))
+                                } else emptyList()
+
+                                val result = parseUpiSms(
+                                    message = sampleSmsText,
+                                    sender = "BANK-SMS",
+                                    smsDate = System.currentTimeMillis(),
+                                    customRegexList = customList,
+                                    bankName = bank
                                 )
 
-                                val match = regex.find(sampleSmsText)
-
-                                if (match != null) {
+                                if (result != null) {
                                     isTestMatchFound = true
-
-                                    val resultBuilder = StringBuilder(matchFoundText)
-
-                                    match.groupValues.forEachIndexed { index, value ->
-                                        resultBuilder.appendLine()
-                                        resultBuilder.append(
-                                            groupTemplate.format(index, value)
-                                        )
-                                    }
-
-                                    testResult = resultBuilder.toString()
+                                    parsedAmount = result.amount
+                                    parsedType = result.type
+                                    parsedMerchant = result.senderOrReceiver
+                                    
+                                    val builder = StringBuilder("Extraction Successful!")
+                                    testResult = builder.toString()
                                 } else {
                                     isTestMatchFound = false
-                                    testResult = noMatchText
+                                    testResult = "No UPI transaction detected."
+                                    parsedAmount = null
+                                    parsedType = null
+                                    parsedMerchant = null
                                 }
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
                                 isTestMatchFound = false
-                                testResult = invalidRegexText
+                                testResult = "Error: ${e.message}"
                             }
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = newRegex.isNotBlank() && sampleSmsText.isNotBlank(),
+                    enabled = sampleSmsText.isNotBlank(),
                     shape = ExpressiveTokens.corners.large
                 ) {
-                    Text("Test")
+                    Text("Test Parser")
                 }
             }
         }
 
-        item {
-            Button(
-                onClick = { onSavePattern(newRegex) },
-                enabled = newRegex.isNotBlank() && isTestMatchFound == true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveTokens.corners.large
-            ) {
-                Text("Save Active Pattern")
+        if (isTestMatchFound == true) {
+            item {
+                Button(
+                    onClick = { onSavePattern(newRegex) },
+                    enabled = newRegex.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.large
+                ) {
+                    Text("Save Custom Pattern")
+                }
             }
         }
 
         testResult?.let { result ->
             item {
-                TestResultCard(
-                    result = result,
-                    isMatchFound = isTestMatchFound == true
+                DetailedTestResultCard(
+                    message = result,
+                    isMatchFound = isTestMatchFound == true,
+                    bank = detectedBank,
+                    amount = parsedAmount,
+                    type = parsedType,
+                    merchant = parsedMerchant
                 )
             }
         }
@@ -521,9 +535,13 @@ private fun TestPatternSheetContent(
 }
 
 @Composable
-private fun TestResultCard(
-    result: String,
-    isMatchFound: Boolean
+private fun DetailedTestResultCard(
+    message: String,
+    isMatchFound: Boolean,
+    bank: String?,
+    amount: Double?,
+    type: String?,
+    merchant: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -540,31 +558,49 @@ private fun TestResultCard(
             modifier = Modifier.padding(ExpressiveTokens.spacing.lg)
         ) {
             Text(
-                text = stringResource(R.string.regex_editor_test_results_title),
+                text = "Parser Results",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
 
             Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
 
-            Text(
-                text = result,
-                color = if (isMatchFound) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onErrorContainer
-                },
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
                         shape = RoundedCornerShape(12.dp)
                     )
-                    .padding(ExpressiveTokens.spacing.sm)
-            )
+                    .padding(ExpressiveTokens.spacing.md),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ResultRow("Status", message)
+                if (bank != null) ResultRow("Detected Bank", bank)
+                if (amount != null) ResultRow("Amount", "₹${"%.2f".format(amount)}")
+                if (type != null) ResultRow("Type", type)
+                if (merchant != null) ResultRow("Merchant/Party", merchant)
+            }
         }
+    }
+}
+
+@Composable
+private fun ResultRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }

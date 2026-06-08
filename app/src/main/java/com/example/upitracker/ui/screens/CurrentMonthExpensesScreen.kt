@@ -112,6 +112,7 @@ fun CurrentMonthExpensesScreen(
     val isImporting by mainViewModel.isImportingSms.collectAsState()
     val allCategories by mainViewModel.allCategories.collectAsState()
     val isDashboardLoading by mainViewModel.isDashboardLoading.collectAsState()
+    val latestBankBalances by mainViewModel.latestBankBalances.collectAsState()
 
     val smsSyncState by mainViewModel.smsSyncProgress.collectAsState()
     val isSyncingAllSms = smsSyncState.isSyncing
@@ -229,6 +230,12 @@ fun CurrentMonthExpensesScreen(
                                     transactionCount = transactionCount,
                                     totalSpent = currentMonthExpensesTotal
                                 )
+                            }
+                            
+                            if (latestBankBalances.isNotEmpty()) {
+                                item {
+                                    BankBalancesSection(balances = latestBankBalances)
+                                }
                             }
 
                             if (velocityState.totalBudget > 0) {
@@ -790,6 +797,64 @@ private fun RecentTransactionsHeader(
                 contentDescription = "View All Transactions",
                 modifier = Modifier.size(18.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun BankBalancesSection(balances: List<com.example.upitracker.data.TransactionDao.BankBalance>) {
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
+    }
+    
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ExpressiveSectionHeader(
+            title = "Bank Balances",
+            subtitle = "Latest known balances from SMS"
+        )
+        
+        Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
+        
+        Column(verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)) {
+            balances.forEach { balance ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.md),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+                            Text(
+                                text = balance.bankName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        
+                        Text(
+                            text = currencyFormatter.format(balance.latestBalance),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
         }
     }
 }
