@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -232,10 +233,8 @@ fun CurrentMonthExpensesScreen(
                                 )
                             }
                             
-                            if (latestBankBalances.isNotEmpty()) {
-                                item {
-                                    BankBalancesSection(balances = latestBankBalances)
-                                }
+                            item {
+                                BankBalancesSection(balances = latestBankBalances)
                             }
 
                             if (velocityState.totalBudget > 0) {
@@ -258,6 +257,7 @@ fun CurrentMonthExpensesScreen(
                                     allCategories = allCategories,
                                     mainViewModel = mainViewModel,
                                     onViewAllClick = onViewAllClick,
+                                    onRefresh = onRefresh,
                                     modifier = Modifier.introShowCaseTarget(
                                         index = 1,
                                         content = {
@@ -687,6 +687,7 @@ private fun RecentTransactionsSection(
     allCategories: List<Category>,
     mainViewModel: MainViewModel,
     onViewAllClick: () -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -697,13 +698,36 @@ private fun RecentTransactionsSection(
         Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
 
         if (recentTransactions.isEmpty()) {
-            LottieEmptyState(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(320.dp),
-                message = "No transactions this month yet.",
-                lottieResourceId = R.raw.empty_box_animation
-            )
+                    .padding(vertical = ExpressiveTokens.spacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                LottieEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp),
+                    message = "No transactions this month yet.",
+                    lottieResourceId = R.raw.empty_box_animation
+                )
+                
+                Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.md))
+                
+                androidx.compose.material3.Button(
+                    onClick = onRefresh,
+                    shape = ExpressiveTokens.corners.large
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Sync,
+                        contentDescription = "Sync",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Import from SMS")
+                }
+            }
         } else {
             Column(
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
@@ -816,6 +840,74 @@ private fun BankBalancesSection(balances: List<com.example.upitracker.data.Trans
         Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
         
         Column(verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)) {
+            if (balances.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(ExpressiveTokens.spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+                    ) {
+                        Text(
+                            text = "No Bank Balances Detected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Bank balances are automatically updated when you receive transaction SMS messages containing your available balance.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                val totalBalance = remember(balances) { balances.sumOf { it.latestBalance } }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveTokens.corners.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.md),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+                            Text(
+                                text = "Total Balance",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        
+                        Text(
+                            text = currencyFormatter.format(totalBalance),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
             balances.forEach { balance ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -855,6 +947,7 @@ private fun BankBalancesSection(balances: List<com.example.upitracker.data.Trans
                     }
                 }
             }
+        }
         }
     }
 }

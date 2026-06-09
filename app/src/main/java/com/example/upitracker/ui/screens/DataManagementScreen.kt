@@ -48,6 +48,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.upitracker.ui.components.expressive.ExpressiveQuickActionCard
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
@@ -168,13 +171,21 @@ fun DataManagementScreen(
             }
 
             item {
+                val latestTimestamp by mainViewModel.latestTransactionTimestamp.collectAsState()
+                val lastSyncTime by mainViewModel.lastSyncExecutionTimestamp.collectAsState()
+                val latestSyncText = remember(lastSyncTime, latestTimestamp) {
+                    val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+                    val syncStr = if (lastSyncTime > 0) sdf.format(Date(lastSyncTime)) else "Never"
+                    val txnStr = if (latestTimestamp > 0) sdf.format(Date(latestTimestamp)) else "None"
+                    "Synced: $syncStr • Last Txn: $txnStr"
+                }
                 ExpressiveQuickActionCard(
                     icon = if (isRefreshingSmsArchive) Icons.Filled.SyncProblem else Icons.Filled.Sync,
                     title = "Sync SMS Archive",
                     subtitle = if (isRefreshingSmsArchive) {
                         "Sync in progress..."
                     } else {
-                        "Find new transactions from all SMS"
+                        latestSyncText
                     },
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {

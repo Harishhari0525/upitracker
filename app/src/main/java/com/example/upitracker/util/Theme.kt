@@ -261,6 +261,138 @@ private val MintDarkColorScheme = darkColorScheme(
     onSurface = Color(0xFFDEE4DF)
 )
 
+private val MonochromeLightColorScheme = lightColorScheme(
+    primary = Color(0xFF2C3E50),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFECF0F1),
+    onPrimaryContainer = Color(0xFF2C3E50),
+    secondary = Color(0xFF7F8C8D),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFBDC3C7),
+    onSecondaryContainer = Color(0xFF2C3E50),
+    tertiary = Color(0xFF34495E),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFEAEDED),
+    onTertiaryContainer = Color(0xFF212F3D),
+    background = Color(0xFFFDFEFE),
+    onBackground = Color(0xFF1C2833),
+    surface = Color(0xFFFDFEFE),
+    onSurface = Color(0xFF1C2833),
+    surfaceVariant = Color(0xFFE5E7E9),
+    onSurfaceVariant = Color(0xFF566573),
+    outline = Color(0xFF7F8C8D)
+)
+
+private val MonochromeDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFBDC3C7),
+    onPrimary = Color(0xFF2C3E50),
+    primaryContainer = Color(0xFF34495E),
+    onPrimaryContainer = Color(0xFFECF0F1),
+    secondary = Color(0xFF95A5A6),
+    onSecondary = Color(0xFF2C3E50),
+    secondaryContainer = Color(0xFF2C3E50),
+    onSecondaryContainer = Color(0xFFBDC3C7),
+    tertiary = Color(0xFFEAEDED),
+    onTertiary = Color(0xFF2C3E50),
+    tertiaryContainer = Color(0xFF2E4053),
+    onTertiaryContainer = Color(0xFFECF0F1),
+    background = Color(0xFF17202A),
+    onBackground = Color(0xFFF2F4F4),
+    surface = Color(0xFF17202A),
+    onSurface = Color(0xFFF2F4F4),
+    surfaceVariant = Color(0xFF2E4053),
+    onSurfaceVariant = Color(0xFFBDC3C7),
+    outline = Color(0xFF95A5A6)
+)
+
+private val GoldLightColorScheme = lightColorScheme(
+    primary = Color(0xFF8A6D3B),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF5E79E),
+    onPrimaryContainer = Color(0xFF2B2000),
+    secondary = Color(0xFF706040),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF0E4C8),
+    onSecondaryContainer = Color(0xFF2B210D),
+    tertiary = Color(0xFF5D5A3A),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFE2DFB7),
+    onTertiaryContainer = Color(0xFF1D1B00),
+    background = Color(0xFFFFFDF9),
+    onBackground = Color(0xFF1E1C18),
+    surface = Color(0xFFFFFDF9),
+    onSurface = Color(0xFF1E1C18),
+    surfaceVariant = Color(0xFFEFEBE4),
+    onSurfaceVariant = Color(0xFF4E4639),
+    outline = Color(0xFF7F7667)
+)
+
+private val GoldDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFF7D57F),
+    onPrimary = Color(0xFF453000),
+    primaryContainer = Color(0xFF634600),
+    onPrimaryContainer = Color(0xFFF5E79E),
+    secondary = Color(0xFFD6C5A2),
+    onSecondary = Color(0xFF3F3017),
+    secondaryContainer = Color(0xFF57462B),
+    onSecondaryContainer = Color(0xFFF0E4C8),
+    tertiary = Color(0xFFC6C39D),
+    onTertiary = Color(0xFF2F2C0D),
+    tertiaryContainer = Color(0xFF464424),
+    onTertiaryContainer = Color(0xFFE2DFB7),
+    background = Color(0xFF1A1712),
+    onBackground = Color(0xFFECE6DF),
+    surface = Color(0xFF1A1712),
+    onSurface = Color(0xFFECE6DF),
+    surfaceVariant = Color(0xFF4E4639),
+    onSurfaceVariant = Color(0xFFD2C5B4),
+    outline = Color(0xFF9B8F80)
+)
+
+private val CyberLightColorScheme = lightColorScheme(
+    primary = Color(0xFF9C27B0),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF3E5F5),
+    onPrimaryContainer = Color(0xFF4A0072),
+    secondary = Color(0xFF00BCD4),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE0F7FA),
+    onSecondaryContainer = Color(0xFF006064),
+    tertiary = Color(0xFFE91E63),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFCE4EC),
+    onTertiaryContainer = Color(0xFF880E4F),
+    background = Color(0xFFFAFAFA),
+    onBackground = Color(0xFF212121),
+    surface = Color(0xFFFAFAFA),
+    onSurface = Color(0xFF212121),
+    surfaceVariant = Color(0xFFEEEEEE),
+    onSurfaceVariant = Color(0xFF616161),
+    outline = Color(0xFF9E9E9E)
+)
+
+private val CyberDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFE040FB),
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF4A0072),
+    onPrimaryContainer = Color(0xFFF3E5F5),
+    secondary = Color(0xFF18FFFF),
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF006064),
+    onSecondaryContainer = Color(0xFFE0F7FA),
+    tertiary = Color(0xFFFF4081),
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF880E4F),
+    onTertiaryContainer = Color(0xFFFCE4EC),
+    background = Color(0xFF0D0D0D),
+    onBackground = Color(0xFFF5F5F5),
+    surface = Color(0xFF0D0D0D),
+    onSurface = Color(0xFFF5F5F5),
+    surfaceVariant = Color(0xFF212121),
+    onSurfaceVariant = Color(0xFFBDBDBD),
+    outline = Color(0xFF757575)
+)
+
 @Composable
 private fun selectedColorScheme(
     appTheme: AppTheme,
@@ -275,6 +407,9 @@ private fun selectedColorScheme(
         AppTheme.LAVENDER -> if (isDarkMode) LavenderDarkColorScheme else LavenderLightColorScheme
         AppTheme.SUNSET -> if (isDarkMode) SunsetDarkColorScheme else SunsetLightColorScheme
         AppTheme.MINT -> if (isDarkMode) MintDarkColorScheme else MintLightColorScheme
+        AppTheme.MONOCHROME -> if (isDarkMode) MonochromeDarkColorScheme else MonochromeLightColorScheme
+        AppTheme.GOLD -> if (isDarkMode) GoldDarkColorScheme else GoldLightColorScheme
+        AppTheme.CYBER -> if (isDarkMode) CyberDarkColorScheme else CyberLightColorScheme
         AppTheme.DEFAULT -> {
             if (isDarkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }

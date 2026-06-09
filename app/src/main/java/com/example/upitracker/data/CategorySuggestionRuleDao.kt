@@ -55,4 +55,7 @@ interface CategorySuggestionRuleDao {
             categoryName = rule.categoryName
         )
     }
+
+    @Query("DELETE FROM category_suggestion_rules")
+    suspend fun deleteAll()
 }

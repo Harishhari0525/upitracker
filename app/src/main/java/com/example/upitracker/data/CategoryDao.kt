@@ -54,4 +54,7 @@ interface CategoryDao {
         // Step 3: Remove the category name from all transactions that used it
         clearCategoryForTransactions(category.name)
     }
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
 }

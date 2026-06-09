@@ -146,7 +146,13 @@ object SmsProcessingService {
                 val savedTransaction = finalTransaction.copy(id = insertedId.toInt())
 
                 if (savedTransaction.type == "DEBIT" && savedTransaction.category == null) {
-                    NotificationHelper.showNewTransactionNotification(appContext, savedTransaction)
+                    val topMerchantCategories = transactionDao.getTopCategoriesForMerchant(savedTransaction.senderOrReceiver)
+                    val globalTopCategories = transactionDao.getGlobalTopCategories()
+                    val suggested = (topMerchantCategories + globalTopCategories + listOf("Food", "Transport", "Bills"))
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                        .take(3)
+                    NotificationHelper.showNewTransactionNotification(appContext, savedTransaction, suggested)
                 }
 
                 checkBudgetForNewTransaction(
@@ -208,6 +214,9 @@ object SmsProcessingService {
             archivedSmsDao.insertArchivedSms(archivedSms)
             archivedCount++
         }
+
+        // Keep the last processed SMS timestamp up to date
+        com.example.upitracker.util.ThemePreference.setLastProcessedSmsTimestamp(appContext, smsDate)
 
         SmsProcessingResult(
             newTxnCount = newTxnCount,
@@ -308,7 +317,7 @@ object SmsProcessingService {
         return bankName
     }
 
-    private suspend fun updateWidgets(context: Context) {
+    suspend fun updateWidgets(context: Context) {
         try {
             val widgetManager = GlanceAppWidgetManager(context)
             val widget = UpiExpenseWidget()

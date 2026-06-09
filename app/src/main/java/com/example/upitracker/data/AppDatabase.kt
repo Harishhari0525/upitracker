@@ -222,22 +222,22 @@ abstract class AppDatabase : RoomDatabase() {
                     }
                 }
             }
+        }
 
-            suspend fun populateDefaultCategories(categoryDao: CategoryDao) {
-                val defaultCategories = listOf(
-                    Category(name = "Food",          iconName = "Fast-food",          colorHex = "#FFC107"),
-                    Category(name = "Shopping",      iconName = "ShoppingBag",        colorHex = "#4CAF50"),
-                    Category(name = "Transport",     iconName = "DirectionsCar",      colorHex = "#2196F3"),
-                    Category(name = "Bills",         iconName = "ReceiptLong",        colorHex = "#9C27B0"),
-                    Category(name = "Entertainment", iconName = "Theaters",           colorHex = "#E91E63"),
-                    Category(name = "Groceries",     iconName = "LocalGroceryStore",  colorHex = "#FF5722"),
-                    Category(name = "Health",        iconName = "Favorite",           colorHex = "#F44336"),
-                    Category(name = "Rent",          iconName = "HomeWork",           colorHex = "#795548"),
-                    Category(name = "Other",         iconName = "MoreHoriz",          colorHex = "#607D8B"),
-                    Category(name = "Salary",        iconName = "Payments",           colorHex = "#009688")
-                )
-                categoryDao.insertAll(defaultCategories)
-            }
+        suspend fun populateDefaultCategories(categoryDao: CategoryDao) {
+            val defaultCategories = listOf(
+                Category(name = "Food",          iconName = "Fast-food",          colorHex = "#FFC107"),
+                Category(name = "Shopping",      iconName = "ShoppingBag",        colorHex = "#4CAF50"),
+                Category(name = "Transport",     iconName = "DirectionsCar",      colorHex = "#2196F3"),
+                Category(name = "Bills",         iconName = "ReceiptLong",        colorHex = "#9C27B0"),
+                Category(name = "Entertainment", iconName = "Theaters",           colorHex = "#E91E63"),
+                Category(name = "Groceries",     iconName = "LocalGroceryStore",  colorHex = "#FF5722"),
+                Category(name = "Health",        iconName = "Favorite",           colorHex = "#F44336"),
+                Category(name = "Rent",          iconName = "HomeWork",           colorHex = "#795548"),
+                Category(name = "Other",         iconName = "MoreHoriz",          colorHex = "#607D8B"),
+                Category(name = "Salary",        iconName = "Payments",           colorHex = "#009688")
+            )
+            categoryDao.insertAll(defaultCategories)
         }
 
         val MIGRATION_13_14: Migration = object : Migration(13, 14) {

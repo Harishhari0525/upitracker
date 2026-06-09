@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -111,6 +112,24 @@ fun ParsingRulesContent(
 
             item {
                 ParsingInfoCard()
+            }
+
+            item {
+                PresetsSection(
+                    activePatterns = regexListState,
+                    onAddPattern = { pattern ->
+                        if (!regexListState.contains(pattern)) {
+                            regexListState.add(0, pattern)
+                            coroutineScope.launch {
+                                RegexPreference.setRegexPatterns(
+                                    context,
+                                    regexListState.toSet()
+                                )
+                                mainViewModel.postPlainSnackbarMessage("Preset pattern loaded!")
+                            }
+                        }
+                    }
+                )
             }
 
             if (isLoading) {
@@ -602,5 +621,81 @@ private fun ResultRow(label: String, value: String) {
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace
         )
+    }
+}
+
+@Composable
+private fun PresetsSection(
+    activePatterns: List<String>,
+    onAddPattern: (String) -> Unit
+) {
+    val presets = listOf(
+        "General Spend" to """(?:Rs\.?|INR)\s*([\d,]+\.?\d*|\.?\d+)\s*.*?(?:debited|credited|sent|received|paid|transferred|spent)""",
+        "UPI Debit" to """debited\s*by\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+).*?UPI\s*Ref""",
+        "UPI Credit" to """credited\s*with\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+).*?UPI\s*Ref""",
+        "Simple Spend" to """payment\s*of\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+)""",
+        "Simple Receive" to """received\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+)"""
+    )
+
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = ExpressiveTokens.elevation.card
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(ExpressiveTokens.spacing.lg)
+        ) {
+            Text(
+                text = "Preset Templates",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Quickly add tested parsing rules for common formats",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                presets.forEach { (name, pattern) ->
+                    val isAdded = activePatterns.contains(pattern)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            Text(text = pattern, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        if (isAdded) {
+                            Text(text = "Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        } else {
+                            OutlinedButton(
+                                onClick = { onAddPattern(pattern) },
+                                shape = ExpressiveTokens.corners.medium,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Add", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

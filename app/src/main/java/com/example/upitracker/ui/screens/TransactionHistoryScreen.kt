@@ -33,6 +33,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -185,73 +187,82 @@ fun TransactionHistoryScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = filters.searchQuery,
-                onValueChange = { mainViewModel.setSearchQuery(it) },
-                placeholder = {
-                    Text(text = stringResource(R.string.search_hint))
-                },
-                singleLine = true,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search"
-                    )
-                },
-                trailingIcon = {
-                    if (filters.searchQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = { mainViewModel.setSearchQuery("") }
-                        ) {
+            AnimatedVisibility(
+                visible = pagerState.currentPage == 0,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    OutlinedTextField(
+                        value = filters.searchQuery,
+                        onValueChange = { mainViewModel.setSearchQuery(it) },
+                        placeholder = {
+                            Text(text = stringResource(R.string.search_hint))
+                        },
+                        singleLine = true,
+                        leadingIcon = {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear search"
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search"
                             )
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(ExpressiveTokens.corners.extraLarge.topStart),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = ExpressiveTokens.spacing.lg,
-                        end = ExpressiveTokens.spacing.lg,
-                        bottom = ExpressiveTokens.spacing.sm
-                    ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent
-                )
-            )
-
-            ActiveFiltersRow(
-                filters = filters,
-                onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
-                onClearAmountFilter = {
-                    mainViewModel.setAmountFilter(
-                        AmountFilterType.ALL,
-                        null,
-                        null
+                        },
+                        trailingIcon = {
+                            if (filters.searchQuery.isNotBlank()) {
+                                IconButton(
+                                    onClick = { mainViewModel.setSearchQuery("") }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear search"
+                                    )
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(ExpressiveTokens.corners.extraLarge.topStart),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = ExpressiveTokens.spacing.lg,
+                                end = ExpressiveTokens.spacing.lg,
+                                bottom = ExpressiveTokens.spacing.sm
+                            ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
+                        )
                     )
-                },
-                onClearUncategorizedFilter = {
-                    mainViewModel.toggleUncategorizedFilter(false)
-                },
-                onDateFilterClick = { mainViewModel.onFilterClick() },
-                onAmountFilterClick = { mainViewModel.onFilterClick() },
-                onUncategorizedFilterClick = { mainViewModel.onFilterClick() },
-                onCategoryChipClick = { categoryName ->
-                    mainViewModel.toggleCategoryFilter(categoryName)
-                },
-                onClearAllCategories = {
-                    mainViewModel.clearCategoryFilter()
-                },
-                onClearBankFilter = {
-                    mainViewModel.setBankFilter(null)
+
+                    ActiveFiltersRow(
+                        filters = filters,
+                        onClearDateFilter = { mainViewModel.clearDateRangeFilter() },
+                        onClearAmountFilter = {
+                            mainViewModel.setAmountFilter(
+                                AmountFilterType.ALL,
+                                null,
+                                null
+                            )
+                        },
+                        onClearUncategorizedFilter = {
+                            mainViewModel.toggleUncategorizedFilter(false)
+                        },
+                        onDateFilterClick = { mainViewModel.onFilterClick() },
+                        onAmountFilterClick = { mainViewModel.onFilterClick() },
+                        onUncategorizedFilterClick = { mainViewModel.onFilterClick() },
+                        onCategoryChipClick = { categoryName ->
+                            mainViewModel.toggleCategoryFilter(categoryName)
+                        },
+                        onClearAllCategories = {
+                            mainViewModel.clearCategoryFilter()
+                        },
+                        onClearBankFilter = {
+                            mainViewModel.setBankFilter(null)
+                        }
+                    )
                 }
-            )
+            }
+
 
             val tabTitles = if (isUpiLiteEnabled) {
                 listOf("UPI", "UPI Lite")

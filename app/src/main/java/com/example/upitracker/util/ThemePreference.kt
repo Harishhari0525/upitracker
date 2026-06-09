@@ -22,7 +22,10 @@ enum class AppTheme(val displayName: String) {
     ROSE("Rose"),
     LAVENDER("Lavender"),
     SUNSET("Sunset"),
-    MINT("Mint")
+    MINT("Mint"),
+    MONOCHROME("Monochrome"),
+    GOLD("Gold"),
+    CYBER("Cyber")
 }
 
 enum class HomeScreenStyle(val displayName: String) {
@@ -127,6 +130,20 @@ object ThemePreference {
             }
         }
     }
+
+    private val LAST_SYNC_EXECUTION_TIMESTAMP_KEY = androidx.datastore.preferences.core.longPreferencesKey("last_sync_execution_timestamp")
+
+    fun getLastSyncExecutionTimestampFlow(context: Context): Flow<Long> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[LAST_SYNC_EXECUTION_TIMESTAMP_KEY] ?: 0L
+        }
+
+    suspend fun setLastSyncExecutionTimestamp(context: Context, timestamp: Long) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[LAST_SYNC_EXECUTION_TIMESTAMP_KEY] = timestamp
+        }
+    }
+
 
     fun getHomeScreenStyleFlow(context: Context): Flow<HomeScreenStyle> =
         context.settingsDataStore.data.map { prefs ->

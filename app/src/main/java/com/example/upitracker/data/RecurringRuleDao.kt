@@ -30,4 +30,7 @@ interface RecurringRuleDao {
 
     @Query("SELECT * FROM recurring_rules WHERE nextDueDate > :startTime AND nextDueDate <= :endTime")
     suspend fun getUpcomingRules(startTime: Long, endTime: Long): List<RecurringRule>
+
+    @Query("DELETE FROM recurring_rules")
+    suspend fun deleteAll()
 }

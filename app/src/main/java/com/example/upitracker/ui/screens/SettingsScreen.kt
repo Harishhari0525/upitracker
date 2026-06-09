@@ -112,6 +112,14 @@ fun SettingsScreen(
 
     val homeScreenStyle by mainViewModel.homeScreenStyle.collectAsState()
 
+    val versionName = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.0.22"
+        } catch (e: Exception) {
+            "2.0.22"
+        }
+    }
+
     LaunchedEffect(Unit, currentPinChangeStep) {
         if (currentPinChangeStep == PinChangeStep.NONE) {
             isPinSet = PinStorage.isPinSet(context)
@@ -254,8 +262,6 @@ fun SettingsScreen(
             }
 
             item {
-                val versionName = stringResource(R.string.settings_app_version_placeholder)
-
                 SettingItemRow(
                     icon = Icons.AutoMirrored.Filled.HelpOutline,
                     title = "About App",
@@ -307,8 +313,7 @@ fun SettingsScreen(
                 DeleteConfirmationDialog(
                     onDismiss = { activeDialog = SettingsDialog.None },
                     onConfirm = {
-                        mainViewModel.deleteAllTransactions()
-                        mainViewModel.deleteAllUpiLiteSummaries()
+                        mainViewModel.deleteAllAppData()
                         mainViewModel.postSnackbarMessage("All data has been deleted.")
                         activeDialog = SettingsDialog.None
                     }
@@ -323,6 +328,7 @@ fun SettingsScreen(
 
             is SettingsDialog.About -> {
                 AboutDialog(
+                    versionName = versionName,
                     onDismiss = { activeDialog = SettingsDialog.None }
                 )
             }
@@ -712,11 +718,12 @@ private fun PrivacyPolicyDialog(
 
 @Composable
 private fun AboutDialog(
+    versionName: String,
     onDismiss: () -> Unit
 ) {
     val aboutText = buildAnnotatedString {
         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-            append("UPI Expense Tracker - Version 1.9\n\n")
+            append("UPI Expense Tracker - Version $versionName\n\n")
         }
 
         append("Effortlessly manage your spending with UPI Expense Tracker, a powerful tool designed to give you a clear and complete picture of your finances.\n\n")

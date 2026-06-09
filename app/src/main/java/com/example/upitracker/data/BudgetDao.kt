@@ -20,4 +20,7 @@ interface BudgetDao {
     // Optional: A method to get a specific budget by its ID
     @Query("SELECT * FROM budgets WHERE id = :id")
     suspend fun getBudgetById(id: Int): Budget?
+
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAll()
 }

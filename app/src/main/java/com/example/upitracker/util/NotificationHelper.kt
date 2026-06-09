@@ -167,7 +167,11 @@ object NotificationHelper {
     }
     // Add inside NotificationHelper object
 
-    fun showNewTransactionNotification(context: Context, transaction: com.example.upitracker.data.Transaction) {
+    fun showNewTransactionNotification(
+        context: Context, 
+        transaction: com.example.upitracker.data.Transaction,
+        suggestedCategories: List<String> = listOf("Food", "Transport", "Bills")
+    ) {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
@@ -183,9 +187,8 @@ object NotificationHelper {
         val notificationId = transaction.id
         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
 
-        // 2. Create Action Intents for common categories
-        val commonCategories = listOf("Food", "Transport", "Bills")
-        val actions = commonCategories.map { category ->
+        // 2. Create Action Intents for suggested categories
+        val actions = suggestedCategories.map { category ->
             val intent = Intent(context, CategorizeReceiver::class.java).apply {
                 putExtra("TXN_ID", transaction.id)
                 putExtra("CATEGORY", category)
@@ -194,7 +197,7 @@ object NotificationHelper {
             // RequestCode must be unique for each action!
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                transaction.id * 10 + commonCategories.indexOf(category),
+                transaction.id * 10 + suggestedCategories.indexOf(category),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

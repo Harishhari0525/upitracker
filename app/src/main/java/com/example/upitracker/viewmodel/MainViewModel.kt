@@ -160,8 +160,7 @@ data class IncomeExpensePoint(
 enum class SortableUpiLiteSummaryField {
     DATE,
     TOTAL_AMOUNT,
-    TRANSACTION_COUNT,
-    BANK
+    TRANSACTION_COUNT
 }
 
 data class DailyTrendSummaryStats(
@@ -931,11 +930,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.transactionCount }
                     else dateFilteredSummaries.sortedByDescending { it.transactionCount }
                 }
-
-                SortableUpiLiteSummaryField.BANK -> {
-                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.bank }
-                    else dateFilteredSummaries.sortedByDescending { it.bank }
-                }
             }
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -1514,6 +1508,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun permanentlyDeleteTransaction(transaction: Transaction) {
         viewModelScope.launch(Dispatchers.IO) {
             transactionDao.delete(transaction)
+            SmsProcessingService.updateWidgets(getApplication())
         }
     }
 
@@ -1648,6 +1643,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val savedTransaction = finalTransaction.copy(id = insertedId.toInt())
             checkBudgetForNewTransaction(savedTransaction)
+            SmsProcessingService.updateWidgets(getApplication())
 
             true
         }
@@ -1860,6 +1856,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             transactionDao.update(transactionToMark)
+            SmsProcessingService.updateWidgets(getApplication())
 
             _snackbarEvents.emit(
                 SnackbarMessage(
@@ -1868,6 +1865,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     onAction = {
                         viewModelScope.launch {
                             transactionDao.update(transaction.copy(pendingDeletionTimestamp = null))
+                            SmsProcessingService.updateWidgets(getApplication())
                             postPlainSnackbarMessage("Transaction restored")
                         }
                     }
@@ -1877,24 +1875,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val isDashboardLoading: StateFlow<Boolean> = combine(
-        currentMonthExpenseItems,
-        bankMessageCounts,
-        recurringRules
-    ) { recent, banks, rules ->
-        // If the main data sources are still in their initial empty state, we are loading.
-        recent.isEmpty() && banks.isEmpty() && rules.isEmpty()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    private val _isDashboardLoading = MutableStateFlow(true)
+    val isDashboardLoading: StateFlow<Boolean> = _isDashboardLoading.asStateFlow()
 
-    fun deleteAllTransactions() {
+    fun deleteAllAppData() {
         viewModelScope.launch {
             transactionDao.deleteAll()
-        }
-    }
-
-    fun deleteAllUpiLiteSummaries() {
-        viewModelScope.launch {
             upiLiteSummaryDao.deleteAll()
+            budgetDao.deleteAll()
+            categoryDao.deleteAll()
+            AppDatabase.populateDefaultCategories(categoryDao)
+            categorySuggestionRuleDao.deleteAll()
+            recurringRuleDao.deleteAll()
+            db.archivedSmsMessageDao().deleteAllArchivedSms()
+
+            ThemePreference.setLastProcessedSmsTimestamp(getApplication(), 0L)
+            ThemePreference.setLastSyncExecutionTimestamp(getApplication(), 0L)
+
+            // Update home screen widgets to show cleared totals immediately
+            SmsProcessingService.updateWidgets(getApplication())
         }
     }
 
@@ -1989,6 +1988,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val archivedTransaction = transaction.copy(isArchived = true)
                 transactionDao.update(archivedTransaction)
+                SmsProcessingService.updateWidgets(getApplication())
 
                 _snackbarEvents.emit(
                     SnackbarMessage(
@@ -2004,6 +2004,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     category = originalCategory
                                 )
                                 transactionDao.update(restoredTransaction)
+                                SmsProcessingService.updateWidgets(getApplication())
                             }
                         }
                     )
@@ -2011,6 +2012,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val unarchivedTransaction = transaction.copy(isArchived = false)
                 transactionDao.update(unarchivedTransaction)
+                SmsProcessingService.updateWidgets(getApplication())
                 postPlainSnackbarMessage(
                     getApplication<Application>().getString(
                         R.string.transaction_restored_snackbar,
@@ -2127,6 +2129,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .map { transactions -> transactions.maxOfOrNull { it.date } ?: 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    val lastSyncExecutionTimestamp: StateFlow<Long> = com.example.upitracker.util.ThemePreference.getLastSyncExecutionTimestampFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+
     private val _isDataReady = MutableStateFlow(false)
     val isDataReady: StateFlow<Boolean> = _isDataReady.asStateFlow()
 
@@ -2209,6 +2215,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("MainViewModelInit", "Error waiting for primary data streams", e)
             } finally {
                 _isHistoryLoading.value = false
+            }
+        }
+
+        viewModelScope.launch {
+            _isDashboardLoading.value = true
+            try {
+                _isHistoryLoading.first { !it }
+            } catch (e: Exception) {
+                Log.e("MainViewModelInit", "Error waiting for dashboard data streams", e)
+            } finally {
+                _isDashboardLoading.value = false
             }
         }
     }

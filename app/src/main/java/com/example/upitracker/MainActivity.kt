@@ -73,7 +73,10 @@ class MainActivity : FragmentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val readSmsGranted = permissions[Manifest.permission.READ_SMS] ?: false
             val receiveSmsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
+            val postNotificationsGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
             val bothGranted = readSmsGranted && receiveSmsGranted
+
+            Log.d("Permissions", "READ_SMS: $readSmsGranted, RECEIVE_SMS: $receiveSmsGranted, POST_NOTIFICATIONS: $postNotificationsGranted")
 
             if (!mainViewModel.isOnboardingCompleted.value) {
                 mainViewModel.setUpiLiteEnabled(pendingUpiLiteEnabledState)
@@ -200,17 +203,23 @@ class MainActivity : FragmentActivity() {
                             onOnboardingComplete = { isUpiLiteEnabled ->
                                 pendingUpiLiteEnabledState = isUpiLiteEnabled
 
+                                val permissionsToRequest = mutableListOf(
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.RECEIVE_SMS
+                                )
+                                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                    permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+
                                 if (hasSmsPermissions()) {
                                     mainViewModel.setUpiLiteEnabled(isUpiLiteEnabled)
                                     mainViewModel.markOnboardingComplete()
+                                    if (permissionsToRequest.contains(Manifest.permission.POST_NOTIFICATIONS)) {
+                                        smsPermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                                    }
                                     startFullSmsSync(isInitialImport = true)
                                 } else {
-                                    smsPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.READ_SMS,
-                                            Manifest.permission.RECEIVE_SMS
-                                        )
-                                    )
+                                    smsPermissionLauncher.launch(permissionsToRequest.toTypedArray())
                                 }
                             }
                         )
@@ -285,6 +294,9 @@ class MainActivity : FragmentActivity() {
                             isInitialImport = false,
                             setLoadingState = { /* Silent */ },
                             onComplete = { newTxnCount, summaryCount, _ ->
+                                lifecycleScope.launch {
+                                    ThemePreference.setLastSyncExecutionTimestamp(this@MainActivity, System.currentTimeMillis())
+                                }
                                 val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
                                 val messageParts = mutableListOf<String>()
 
@@ -536,8 +548,17 @@ class MainActivity : FragmentActivity() {
         }
 
         lifecycleScope.launch {
-            // ✨ Logic Fix: Use last processed timestamp for incremental sync, or 0 for initial/full refresh
-            val lastProcessed = if (isInitialImport) 0L else ThemePreference.getLastProcessedSmsTimestampFlow(this@MainActivity).first()
+            // ✨ Logic Fix: Use last processed timestamp with a 7-day lookback for incremental sync, or 0 for initial/full refresh
+            val lastProcessed = if (isInitialImport) {
+                0L
+            } else {
+                val lastTimestamp = ThemePreference.getLastProcessedSmsTimestampFlow(this@MainActivity).first()
+                if (lastTimestamp > 0L) {
+                    (lastTimestamp - 7 * 24 * 60 * 60 * 1000L).coerceAtLeast(0L)
+                } else {
+                    0L
+                }
+            }
             
             val allSms = getAllSms(sinceTimestamp = lastProcessed)
             val loadingStateSetter = if (isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
@@ -549,6 +570,9 @@ class MainActivity : FragmentActivity() {
                 isInitialImport = isInitialImport,
                 setLoadingState = loadingStateSetter,
                 onComplete = { txnCount, summaryCount, _ ->
+                    lifecycleScope.launch {
+                        ThemePreference.setLastSyncExecutionTimestamp(this@MainActivity, System.currentTimeMillis())
+                    }
                     val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
                     val messageParts = mutableListOf<String>()
 
@@ -570,12 +594,23 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun requestSmsPermissionAndThenSync(isInitialImport: Boolean) {
+        val permissionsToRequest = mutableListOf(
+            Manifest.permission.READ_SMS,
+            Manifest.permission.RECEIVE_SMS
+        )
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED) {
+            
+            if (permissionsToRequest.contains(Manifest.permission.POST_NOTIFICATIONS)) {
+                smsPermissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            }
             startFullSmsSync(isInitialImport = isInitialImport)
         } else {
-            val permissionsToRequest = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
-            smsPermissionLauncher.launch(permissionsToRequest)
+            smsPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 }
