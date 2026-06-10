@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
+import com.example.upitracker.data.Category
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
@@ -74,6 +75,7 @@ import com.example.upitracker.data.BudgetPeriod
 fun BudgetScreen(
     mainViewModel: MainViewModel
 ) {
+    val userCategories by mainViewModel.userCategories.collectAsState(initial = emptyList())
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val tabTitles = listOf("Spending Budgets", "Recurring Payments")
@@ -89,6 +91,7 @@ fun BudgetScreen(
 
     if (showAddBudgetDialog) {
         AddEditBudgetDialog(
+            userCategories = userCategories,
             budgetStatus = null,
             onDismiss = { showAddBudgetDialog = false },
             onConfirm = { category, amount, period, allowRollover ->
@@ -105,6 +108,7 @@ fun BudgetScreen(
 
     if (budgetToEdit != null) {
         AddEditBudgetDialog(
+            userCategories = userCategories,
             budgetStatus = budgetToEdit,
             onDismiss = { budgetToEdit = null },
             onConfirm = { category, amount, period, allowRollover ->
@@ -122,6 +126,7 @@ fun BudgetScreen(
 
     if (showAddRecurringDialog) {
         AddEditRecurringRuleDialog(
+            userCategories = userCategories,
             ruleToEdit = null,
             onDismiss = { showAddRecurringDialog = false },
             onConfirm = { description, amount, category, period, day ->
@@ -139,6 +144,7 @@ fun BudgetScreen(
 
     if (ruleToEdit != null) {
         AddEditRecurringRuleDialog(
+            userCategories = userCategories,
             ruleToEdit = ruleToEdit,
             onDismiss = { ruleToEdit = null },
             onConfirm = { description, amount, category, period, day ->

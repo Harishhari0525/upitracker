@@ -96,6 +96,7 @@ import java.util.concurrent.TimeUnit
 fun CurrentMonthExpensesScreen(
     mainViewModel: MainViewModel,
     onViewAllClick: () -> Unit,
+    onViewInsightsClick: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -147,7 +148,22 @@ fun CurrentMonthExpensesScreen(
             topBar = {
                 ExpressiveTopBar(
                     title = "Home",
-                    subtitle = "A cumulative dashboard for the month"
+                    subtitle = "A cumulative dashboard for the month",
+                    actions = {
+                        TextButton(onClick = onViewInsightsClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                contentDescription = "Insights",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Insights",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 )
             }
         ) { paddingValues ->

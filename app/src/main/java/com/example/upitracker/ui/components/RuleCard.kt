@@ -1,5 +1,7 @@
 package com.example.upitracker.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Rule
 import androidx.compose.material.icons.filled.Delete
@@ -30,11 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.util.ExpressiveTokens
@@ -58,137 +60,169 @@ fun RuleCard(
             defaultElevation = ExpressiveTokens.elevation.card
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = ExpressiveTokens.compact.cardHorizontal,
-                    top = ExpressiveTokens.compact.cardVertical,
-                    end = ExpressiveTokens.spacing.xs,
-                    bottom = ExpressiveTokens.compact.cardVertical
-                ),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(ExpressiveTokens.compact.avatar),
-                shape = ExpressiveTokens.corners.medium,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier.size(ExpressiveTokens.compact.avatar),
+                    shape = ExpressiveTokens.corners.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Rule,
-                        contentDescription = null,
-                        modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Rule,
+                            contentDescription = null,
+                            modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    val fieldText = rule.fieldToMatch.name.lowercase().replace("_", " ").replaceFirstChar { it.titlecase() }
+                    Text(
+                        text = "Rule for $fieldText",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    val logicText = if (rule.logic == RuleLogic.ALL) "Match ALL conditions" else "Match ANY condition"
+                    Text(
+                        text = logicText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit"
+                                )
+                            },
+                            onClick = {
+                                onEdit()
+                                showMenu = false
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                onDelete()
+                                showMenu = false
+                            }
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
-
+            // Structured Condition Blocks
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(
-                            style = SpanStyle(color = MaterialTheme.colorScheme.secondary)
-                        ) {
-                            append("IF ")
-                        }
-
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append(rule.fieldToMatch.name.replace("_", " "))
-                        }
-
-                        withStyle(
-                            style = SpanStyle(color = MaterialTheme.colorScheme.secondary)
-                        ) {
-                            append(" ${rule.matcher.name.lowercase()} ")
-                        }
-
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append("'${rule.keyword}'")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                val logicText = if (rule.logic == RuleLogic.ALL) "AND" else "OR"
-
-                Text(
-                    text = "Logic: $logicText",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(
-                            style = SpanStyle(color = MaterialTheme.colorScheme.primary)
-                        ) {
-                            append("THEN ")
-                        }
-
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append(rule.categoryName)
-                        }
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Box {
-                IconButton(
-                    onClick = { showMenu = true }
+                // IF Condition
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options"
+                    Text(
+                        text = "IF",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.width(36.dp)
                     )
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                            .border(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${rule.fieldToMatch.name.lowercase().replace("_", " ")} ${rule.matcher.name.lowercase()} \"${rule.keyword}\"",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
+                // THEN Action
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit"
-                            )
-                        },
-                        onClick = {
-                            onEdit()
-                            showMenu = false
-                        }
+                    Text(
+                        text = "THEN",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.width(36.dp)
                     )
 
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        },
-                        onClick = {
-                            onDelete()
-                            showMenu = false
-                        }
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
+                            .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Categorize as: ${rule.categoryName}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }

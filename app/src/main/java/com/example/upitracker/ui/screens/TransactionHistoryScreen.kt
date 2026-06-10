@@ -622,10 +622,11 @@ private fun FilterSheetContent(
     mainViewModel: MainViewModel,
     filters: TransactionFilters
 ) {
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
-    val datePickerStateStart = rememberDatePickerState(initialSelectedDateMillis = filters.startDate)
-    val datePickerStateEnd = rememberDatePickerState(initialSelectedDateMillis = filters.endDate)
+    var showDateRangePicker by remember { mutableStateOf(false) }
+    val dateRangePickerState = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = filters.startDate,
+        initialSelectedEndDateMillis = filters.endDate
+    )
 
     Column(
         modifier = Modifier.padding(16.dp)
@@ -642,8 +643,8 @@ private fun FilterSheetContent(
         DateFilterControls(
             selectedStartDate = filters.startDate,
             selectedEndDate = filters.endDate,
-            onStartDateClick = { showStartDatePicker = true },
-            onEndDateClick = { showEndDatePicker = true },
+            onStartDateClick = { showDateRangePicker = true },
+            onEndDateClick = { showDateRangePicker = true },
             onClearDates = { mainViewModel.clearDateRangeFilter() }
         )
 
@@ -668,46 +669,57 @@ private fun FilterSheetContent(
         )
         Spacer(modifier = Modifier.navigationBarsPadding())
 
-        if (showStartDatePicker) {
+        if (showDateRangePicker) {
             DatePickerDialog(
-                onDismissRequest = { showStartDatePicker = false },
+                onDismissRequest = { showDateRangePicker = false },
                 confirmButton = {
                     TextButton(onClick = {
-                        showStartDatePicker = false
-                        datePickerStateStart.selectedDateMillis?.let {
+                        showDateRangePicker = false
+                        val start = dateRangePickerState.selectedStartDateMillis
+                        val end = dateRangePickerState.selectedEndDateMillis
+                        
+                        val processedStart = start?.let {
                             val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                             cal.timeInMillis = it
                             cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
                             cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-                            mainViewModel.setDateRangeFilter(cal.timeInMillis, filters.endDate)
+                            cal.timeInMillis
                         }
-                    }) { Text(stringResource(R.string.dialog_button_ok)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showStartDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
-                }
-            ) { DatePicker(state = datePickerStateStart) }
-        }
-
-        if (showEndDatePicker) {
-            DatePickerDialog(
-                onDismissRequest = { showEndDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showEndDatePicker = false
-                        datePickerStateEnd.selectedDateMillis?.let {
+                        
+                        val processedEnd = end?.let {
                             val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                             cal.timeInMillis = it
-                            cal.add(Calendar.DAY_OF_YEAR, 1)
-                            cal.add(Calendar.MILLISECOND, -1)
-                            mainViewModel.setDateRangeFilter(filters.startDate, cal.timeInMillis)
+                            cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                            cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                            cal.timeInMillis
                         }
+                        
+                        mainViewModel.setDateRangeFilter(processedStart, processedEnd)
                     }) { Text(stringResource(R.string.dialog_button_ok)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showEndDatePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
+                    TextButton(onClick = { showDateRangePicker = false }) { Text(stringResource(R.string.dialog_button_cancel)) }
                 }
-            ) { DatePicker(state = datePickerStateEnd) }
+            ) {
+                DateRangePicker(
+                    state = dateRangePickerState,
+                    modifier = Modifier.weight(1f).padding(16.dp),
+                    title = {
+                        Text(
+                            text = "Select Date Range",
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    headline = {
+                        Text(
+                            text = "Choose statement period",
+                            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                )
+            }
         }
     }
 }

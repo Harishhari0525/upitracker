@@ -994,6 +994,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    private fun getPreviousMonthDateRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.MONTH, -1)
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val monthStartTimestamp = calendar.timeInMillis
+        calendar.add(Calendar.MONTH, 1)
+        calendar.add(Calendar.MILLISECOND, -1)
+        val monthEndTimestamp = calendar.timeInMillis
+        return Pair(monthStartTimestamp, monthEndTimestamp)
+    }
+
+    val previousMonthTotalExpenses: StateFlow<Double> = combine(
+        _nonRefundDebits,
+        _upiLiteSummaries,
+        isUpiLiteEnabled
+    ) { transactions, summaries, upiLiteEnabled ->
+        val (monthStart, monthEnd) = getPreviousMonthDateRange()
+        var total = 0.0
+
+        val debitTransactions = transactions.filter {
+            it.type.equals("DEBIT", ignoreCase = true)
+                    && !it.category.equals(refundCategory, ignoreCase = true)
+                    && it.date in monthStart..monthEnd
+        }
+        total += debitTransactions.sumOf { it.amount }
+
+        if (upiLiteEnabled) {
+            val uLite = summaries.filter { it.date in monthStart..monthEnd }
+            total += uLite.sumOf { it.totalAmount }
+        }
+
+        total
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val previousMonthTransactions: StateFlow<List<Transaction>> = _nonRefundDebits
+        .map { transactions ->
+            val (monthStart, monthEnd) = getPreviousMonthDateRange()
+            transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true)
+                        && !it.category.equals(refundCategory, ignoreCase = true)
+                        && it.date in monthStart..monthEnd
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val spendingVelocityState: StateFlow<VelocityState> = combine(
         _budgets,
         currentMonthTotalExpenses // This flow already exists in your ViewModel
@@ -1601,6 +1650,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 transactionDao.update(updatedTransaction)
 
+                newCategory?.trim()?.takeIf { it.isNotBlank() }?.let { catName ->
+                    if (categoryDao.getCategoryByName(catName) == null) {
+                        categoryDao.insert(com.example.upitracker.data.Category(
+                            name = catName,
+                            iconName = "Category",
+                            colorHex = "#808080"
+                        ))
+                    }
+                }
+
                 val refundKeywordValue = refundKeyword.first()
                 if (updatedTransaction.type == "CREDIT" &&
                     newCategory?.equals(refundKeywordValue, ignoreCase = true) == true &&
@@ -1925,12 +1984,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         date: Long
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val trimmedCategory = category.trim()
+            if (trimmedCategory.isNotEmpty()) {
+                if (categoryDao.getCategoryByName(trimmedCategory) == null) {
+                    categoryDao.insert(com.example.upitracker.data.Category(
+                        name = trimmedCategory,
+                        iconName = "Category",
+                        colorHex = "#808080"
+                    ))
+                }
+            }
+
             val extractedTags = TagUtils.extractTags(description)
             val newTransaction = Transaction(
                 amount = amount,
                 type = type,
                 description = description.trim(),
-                category = category.trim().takeIf { it.isNotEmpty() },
+                category = trimmedCategory.takeIf { it.isNotEmpty() },
                 date = date,
                 senderOrReceiver = "Manual Entry",
                 isArchived = false,

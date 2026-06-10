@@ -45,6 +45,7 @@ import com.example.upitracker.viewmodel.BudgetStatus
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditBudgetDialog(
+    userCategories: List<com.example.upitracker.data.Category>,
     budgetStatus: BudgetStatus?,
     onDismiss: () -> Unit,
     onConfirm: (
@@ -140,23 +141,59 @@ fun AddEditBudgetDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = category,
-                    onValueChange = {
-                        category = it
-                        isCategoryError = false
-                    },
-                    label = { Text(stringResource(R.string.budget_category_label)) },
-                    singleLine = true,
-                    isError = isCategoryError,
-                    supportingText = {
-                        if (isCategoryError) {
-                            Text("Category cannot be empty")
+                var isCategoryExpanded by remember { mutableStateOf(false) }
+
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryExpanded,
+                    onExpandedChange = { isCategoryExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                            .fillMaxWidth(),
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            isCategoryExpanded = true
+                            isCategoryError = false
+                        },
+                        label = { Text(stringResource(R.string.budget_category_label)) },
+                        placeholder = { Text("e.g., Groceries, Utilities") },
+                        singleLine = true,
+                        isError = isCategoryError,
+                        supportingText = {
+                            if (isCategoryError) {
+                                Text("Category cannot be empty")
+                            }
+                        },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        shape = ExpressiveTokens.corners.medium
+                    )
+
+                    val filteredCategories = userCategories.filter {
+                        it.name.contains(category, ignoreCase = true)
+                    }
+
+                    if (filteredCategories.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            filteredCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    onClick = {
+                                        category = cat.name
+                                        isCategoryExpanded = false
+                                        isCategoryError = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
                         }
-                    },
-                    shape = ExpressiveTokens.corners.medium
-                )
+                    }
+                }
 
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),

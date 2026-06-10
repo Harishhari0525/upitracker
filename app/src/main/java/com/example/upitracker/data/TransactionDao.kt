@@ -200,6 +200,7 @@ interface TransactionDao {
         SELECT t.bankName, t.balanceAfterTransaction AS latestBalance, t.date AS lastUpdated
         FROM transactions t
         WHERE t.bankName IS NOT NULL 
+          AND t.bankName != 'Other Bank'
           AND t.balanceAfterTransaction IS NOT NULL
           AND t.isArchived = 0 
           AND t.pendingDeletionTimestamp IS NULL

@@ -108,9 +108,6 @@ fun SettingsScreen(
     var currentPinChangeStep by remember { mutableStateOf(PinChangeStep.NONE) }
     var isPinSet by remember { mutableStateOf(false) }
     var oldPinVerifiedSuccessfully by remember { mutableStateOf(false) }
-    var showHomeScreenStyleDialog by remember { mutableStateOf(false) }
-
-    val homeScreenStyle by mainViewModel.homeScreenStyle.collectAsState()
 
     val versionName = remember {
         try {
@@ -183,14 +180,7 @@ fun SettingsScreen(
                 )
             }
 
-            item {
-                SettingItemRow(
-                    icon = Icons.Filled.Home,
-                    title = "Home screen style",
-                    summary = homeScreenStyle.displayName,
-                    onClick = { showHomeScreenStyleDialog = true }
-                )
-            }
+
 
             item {
                 HorizontalDivider(
@@ -414,68 +404,10 @@ fun SettingsScreen(
                 }
             }
         }
-
-        if (showHomeScreenStyleDialog) {
-            HomeScreenStyleDialog(
-                selectedStyle = homeScreenStyle,
-                onDismiss = { showHomeScreenStyleDialog = false },
-                onStyleSelected = { style ->
-                    mainViewModel.setHomeScreenStyle(style)
-                    showHomeScreenStyleDialog = false
-                }
-            )
-        }
     }
 }
 
-@Composable
-private fun HomeScreenStyleDialog(
-    selectedStyle: HomeScreenStyle,
-    onDismiss: () -> Unit,
-    onStyleSelected: (HomeScreenStyle) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = ExpressiveTokens.corners.extraLarge,
-        title = {
-            Text(
-                text = "Choose home screen",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                HomeScreenStyle.entries.forEach { style ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onStyleSelected(style) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedStyle == style,
-                            onClick = { onStyleSelected(style) }
-                        )
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = style.displayName,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 fun SettingItemRow(

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -21,7 +22,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,26 +64,10 @@ fun BudgetCard(
 
     var showMenu by remember { mutableStateOf(false) }
 
-    val cardColors = when {
-        status.progress >= 1.0f -> {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
-            )
-        }
-
-        status.progress > 0.85f -> {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-            )
-        }
-
-        else -> {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
-        }
+    val (badgeText, badgeContainerColor, badgeContentColor) = when {
+        status.progress >= 1.0f -> Triple("Exceeded", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        status.progress > 0.85f -> Triple("Warning", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+        else -> Triple("On Track", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
     }
 
     val progressColor = when {
@@ -114,16 +100,15 @@ fun BudgetCard(
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
         ),
-        colors = cardColors
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = ExpressiveTokens.compact.cardHorizontal,
-                    vertical = ExpressiveTokens.compact.cardVertical
-                ),
-            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -132,16 +117,16 @@ fun BudgetCard(
                 Surface(
                     modifier = Modifier.size(ExpressiveTokens.compact.avatar),
                     shape = ExpressiveTokens.corners.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         CategoryIconView(
                             categoryIcon = categoryIcon,
                             size = ExpressiveTokens.compact.iconMedium,
-                            iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -150,19 +135,33 @@ fun BudgetCard(
 
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xxs)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = status.categoryName,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = LocalContentColor.current
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Text(
                         text = status.periodType.name.lowercase().replaceFirstChar { it.titlecase() },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LocalContentColor.current.copy(alpha = 0.72f)
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = badgeContainerColor),
+                    shape = ExpressiveTokens.corners.medium,
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    Text(
+                        text = badgeText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeContentColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
@@ -172,7 +171,8 @@ fun BudgetCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Budget options"
+                            contentDescription = "Budget options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -213,26 +213,32 @@ fun BudgetCard(
             }
 
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
-                Text(
-                    text = "${currencyFormatter.format(status.spentAmount)} / ${
-                        currencyFormatter.format(status.effectiveBudget)
-                    }",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = LocalContentColor.current
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = currencyFormatter.format(status.spentAmount),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = " / ${currencyFormatter.format(status.effectiveBudget)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 1.dp)
+                    )
+                }
 
                 if (status.allowRollover && status.rolloverAmount != 0.0) {
-                    Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
-
                     val sign = if (status.rolloverAmount > 0) "+" else ""
-
                     Text(
                         text = "(${sign}${currencyFormatter.format(status.rolloverAmount)} rollover)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = rolloverColor
+                        color = rolloverColor,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -241,21 +247,31 @@ fun BudgetCard(
                 progress = { status.progress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp),
+                    .height(8.dp)
+                    .clip(CircleShape),
                 color = progressColor,
-                trackColor = progressColor.copy(alpha = 0.18f)
+                trackColor = progressColor.copy(alpha = 0.15f)
             )
 
-            Text(
-                text = remainingText,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (status.remainingAmount < 0) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    LocalContentColor.current.copy(alpha = 0.72f)
-                },
-                modifier = Modifier.align(Alignment.End)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = remainingText,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (status.remainingAmount < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "${(status.progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = progressColor
+                )
+            }
         }
     }
 }

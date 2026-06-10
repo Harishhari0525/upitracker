@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
+import com.example.upitracker.data.Category
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.ui.components.AddEditRuleDialog
 import com.example.upitracker.ui.components.LottieEmptyState
@@ -117,6 +118,7 @@ fun RulesHubScreen(
 private fun CategorizationRulesContent(
     mainViewModel: MainViewModel
 ) {
+    val userCategories by mainViewModel.userCategories.collectAsState(initial = emptyList())
     val rules by mainViewModel.categorySuggestionRules.collectAsState()
 
     var ruleToEdit by remember { mutableStateOf<CategorySuggestionRule?>(null) }
@@ -200,6 +202,7 @@ private fun CategorizationRulesContent(
 
     if (showAddEditDialog) {
         AddEditRuleDialog(
+            userCategories = userCategories,
             ruleToEdit = ruleToEdit,
             onDismiss = { showAddEditDialog = false },
             onConfirm = { field, matcher, keyword, category, priority, logic ->

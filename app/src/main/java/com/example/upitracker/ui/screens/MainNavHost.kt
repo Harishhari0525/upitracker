@@ -122,38 +122,22 @@ fun MainNavHost(
         ) {
             // Home screen with unified navigation builder for “View All”
             composable(BottomNavItem.Home.route) {
-                when (homeScreenStyle) {
-                    HomeScreenStyle.CURRENT_MONTH -> {
-                        CurrentMonthExpensesScreen(
-                            mainViewModel = mainViewModel,
-                            onViewAllClick = {
-                                rootNavController.navigate(BottomNavItem.History.route) {
-                                    popUpTo(rootNavController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            onRefresh = onImportOldSms
-                        )
-                    }
-
-                    HomeScreenStyle.INSIGHTS -> {
-                        InsightGridScreen(
-                            mainViewModel = mainViewModel,
-                            onNavigateToHistory = {
-                                rootNavController.navigate(BottomNavItem.History.route) {
-                                    popUpTo(rootNavController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                CurrentMonthExpensesScreen(
+                    mainViewModel = mainViewModel,
+                    onViewAllClick = {
+                        rootNavController.navigate(BottomNavItem.History.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
                             }
-                        )
-                    }
-                }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onViewInsightsClick = {
+                        rootNavController.navigate("insights_screen")
+                    },
+                    onRefresh = onImportOldSms
+                )
             }
 
             composable(BottomNavItem.Graphs.route) {
@@ -235,6 +219,28 @@ fun MainNavHost(
                         val timestamp =
                             SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                         createCsvFileLauncher.launch("upi_tracker_export_$timestamp.csv")
+                    }
+                )
+            }
+
+            composable(
+                "insights_screen",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                InsightGridScreen(
+                    mainViewModel = mainViewModel,
+                    onNavigateToHistory = {
+                        rootNavController.navigate(BottomNavItem.History.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onBackClick = {
+                        rootNavController.popBackStack()
                     }
                 )
             }

@@ -33,7 +33,6 @@ import com.example.upitracker.data.Transaction
 import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.ExpressiveTokens
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
@@ -45,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.upitracker.ui.components.CategoryIconView
 import com.example.upitracker.ui.components.MerchantDnaCard
 import java.io.File
 
@@ -67,7 +65,7 @@ fun TransactionDetailSheetContent(
     var receiptPath by remember { mutableStateOf<String?>(null) }
 
     var showFullScreenImage by remember { mutableStateOf(false) }
-
+    var showRuleCreatorDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -139,50 +137,47 @@ fun TransactionDetailSheetContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Category field and suggestions are now first for better UX
-            OutlinedTextField(
-                value = categoryText,
-                onValueChange = { categoryText = it.filter { char ->
-                    char.isLetterOrDigit() || char.isWhitespace() } },
-                label = { Text("Category") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = ExpressiveTokens.corners.large
-            )
+            var isCategoryExpanded by remember { mutableStateOf(false) }
 
-            val filteredSuggestions = remember(key1 = categoryText, key2 = userCategories) {
-                if (categoryText.isBlank()) {
-                    userCategories
-                } else {
-                    // Just add .name before .contains
-                    userCategories.filter { it.name.contains(categoryText, ignoreCase = true) }
+            ExposedDropdownMenuBox(
+                expanded = isCategoryExpanded,
+                onExpandedChange = { isCategoryExpanded = it }
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                        .fillMaxWidth(),
+                    value = categoryText,
+                    onValueChange = {
+                        categoryText = it.filter { char -> char.isLetterOrDigit() || char.isWhitespace() }
+                        isCategoryExpanded = true
+                    },
+                    label = { Text("Category") },
+                    singleLine = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    shape = ExpressiveTokens.corners.large
+                )
+
+                val filteredSuggestions = userCategories.filter {
+                    it.name.contains(categoryText, ignoreCase = true)
                 }
-            }
-            if (filteredSuggestions.isNotEmpty()) {
-                Text("Suggestions", style = MaterialTheme.typography.labelMedium)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    filteredSuggestions.forEach { category ->
-                        FilterChip(
-                            selected = categoryText.equals(category.name, ignoreCase = true),
-                            onClick = { categoryText = category.name },
-                            label = { Text(category.name) },
-                            leadingIcon = {
-                                val categoryIcon = getCategoryIcon(category)
-                                CategoryIconView(
-                                    categoryIcon = categoryIcon,
-                                    size = FilterChipDefaults.IconSize,
-                                    // Match the style used in the manual code (Secondary Container)
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    // Tint vector icons to match the text/chip content usually
-                                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        )
+
+                if (filteredSuggestions.isNotEmpty()) {
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        filteredSuggestions.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = {
+                                    categoryText = category.name
+                                    isCategoryExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
                     }
                 }
             }
@@ -331,6 +326,42 @@ fun TransactionDetailSheetContent(
                     imagePath = transaction!!.receiptImagePath!!,
                     onDismiss = { showFullScreenImage = false }
                 )
+            }
+
+            if (showRuleCreatorDialog) {
+                QuickRuleCreatorDialog(
+                    transaction = transaction!!,
+                    userCategories = userCategories,
+                    onDismiss = { showRuleCreatorDialog = false },
+                    onSaveRule = { field, keyword, category ->
+                        mainViewModel.addCategoryRule(
+                            field = field,
+                            matcher = com.example.upitracker.data.RuleMatcher.CONTAINS,
+                            keyword = keyword,
+                            category = category,
+                            priority = 0,
+                            logic = com.example.upitracker.data.RuleLogic.ANY
+                        )
+                        showRuleCreatorDialog = false
+                    }
+                )
+            }
+
+            if (!isManualEntry) {
+                Button(
+                    onClick = { showRuleCreatorDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = ExpressiveTokens.corners.large,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                ) {
+                    Icon(Icons.Default.AutoFixHigh, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Create Auto-Category Rule")
+                }
+                Spacer(Modifier.height(8.dp))
             }
 
             // Action Buttons for View Mode
@@ -578,7 +609,120 @@ private fun DeleteButton(
         )
 
         Spacer(modifier = Modifier.width(8.dp))
-
-        Text("Delete")
     }
+}
+
+@Composable
+fun QuickRuleCreatorDialog(
+    transaction: Transaction,
+    userCategories: List<com.example.upitracker.data.Category>,
+    onDismiss: () -> Unit,
+    onSaveRule: (com.example.upitracker.data.RuleField, String, String) -> Unit
+) {
+    var selectedField by remember { mutableStateOf(com.example.upitracker.data.RuleField.SENDER_OR_RECEIVER) }
+    var keywordText by remember { mutableStateOf(transaction.senderOrReceiver) }
+    var selectedCategory by remember { mutableStateOf(transaction.category ?: "") }
+    var isCategoryMenuExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Auto-Categorization Rule") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Automatically categorize future transactions matching this keyword.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Match Field Selector
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.example.upitracker.data.RuleField.entries.forEach { field ->
+                        val label =
+                            if (field == com.example.upitracker.data.RuleField.SENDER_OR_RECEIVER) "Merchant" else "SMS Text"
+                        FilterChip(
+                            selected = selectedField == field,
+                            onClick = {
+                                selectedField = field
+                                keywordText =
+                                    if (field == com.example.upitracker.data.RuleField.SENDER_OR_RECEIVER) {
+                                        transaction.senderOrReceiver
+                                    } else {
+                                        transaction.description
+                                    }
+                            },
+                            label = { Text(label) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // Keyword Input
+                OutlinedTextField(
+                    value = keywordText,
+                    onValueChange = { keywordText = it },
+                    label = { Text("Match Keyword") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = ExpressiveTokens.corners.large
+                )
+
+                // Category Selector Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryMenuExpanded,
+                    onExpandedChange = { isCategoryMenuExpanded = !isCategoryMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        readOnly = true,
+                        value = selectedCategory.ifBlank { "Select Category" },
+                        onValueChange = {},
+                        label = { Text("Target Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryMenuExpanded) },
+                        shape = ExpressiveTokens.corners.large
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isCategoryMenuExpanded,
+                        onDismissRequest = { isCategoryMenuExpanded = false }
+                    ) {
+                        userCategories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = {
+                                    selectedCategory = category.name
+                                    isCategoryMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (keywordText.isNotBlank() && selectedCategory.isNotBlank()) {
+                        onSaveRule(selectedField, keywordText, selectedCategory)
+                    }
+                },
+                enabled = keywordText.isNotBlank() && selectedCategory.isNotBlank()
+            ) {
+                Text("Save Rule")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

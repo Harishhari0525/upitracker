@@ -38,6 +38,7 @@ import com.example.upitracker.util.ExpressiveTokens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditRuleDialog(
+    userCategories: List<com.example.upitracker.data.Category>,
     ruleToEdit: CategorySuggestionRule?,
     onDismiss: () -> Unit,
     onConfirm: (
@@ -209,17 +210,54 @@ fun AddEditRuleDialog(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category to apply") },
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words
-                    ),
-                    shape = ExpressiveTokens.corners.medium,
-                    singleLine = true
-                )
+                var isCategoryExpanded by remember { mutableStateOf(false) }
+
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryExpanded,
+                    onExpandedChange = { isCategoryExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                            .fillMaxWidth(),
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            isCategoryExpanded = true
+                        },
+                        label = { Text("Category to apply") },
+                        placeholder = { Text("e.g., Shopping, Dining") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words
+                        ),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        shape = ExpressiveTokens.corners.medium
+                    )
+
+                    val filteredCategories = userCategories.filter {
+                        it.name.contains(category, ignoreCase = true)
+                    }
+
+                    if (filteredCategories.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            filteredCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    onClick = {
+                                        category = cat.name
+                                        isCategoryExpanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),

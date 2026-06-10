@@ -162,6 +162,7 @@ fun CategoryManagementScreen(
 
     if (showDialog) {
         AddEditCategoryDialog(
+            userCategories = categories,
             categoryToEdit = categoryToEdit,
             onDismiss = { showDialog = false },
             onConfirm = { name, icon, color ->

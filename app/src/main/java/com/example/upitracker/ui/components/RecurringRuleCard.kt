@@ -1,5 +1,7 @@
 package com.example.upitracker.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
@@ -31,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.util.ExpressiveTokens
 import java.text.NumberFormat
@@ -74,109 +79,149 @@ fun RecurringRuleCard(
             defaultElevation = ExpressiveTokens.elevation.card
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = ExpressiveTokens.compact.cardHorizontal,
-                    top = ExpressiveTokens.compact.cardVertical,
-                    end = ExpressiveTokens.spacing.xs,
-                    bottom = ExpressiveTokens.compact.cardVertical
-                ),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(ExpressiveTokens.compact.avatar),
-                shape = ExpressiveTokens.corners.medium,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier.size(ExpressiveTokens.compact.avatar),
+                    shape = ExpressiveTokens.corners.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = rule.description,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Text(
+                        text = "Category: ${rule.categoryName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit"
+                                )
+                            },
+                            onClick = {
+                                onEdit()
+                                showMenu = false
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                onDelete()
+                                showMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Structured details block
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Amount Pill
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = currencyFormatter.format(rule.amount),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+
+                // Recurrence period Pill
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                        .border(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    val periodLabel = rule.periodType.name.lowercase().replaceFirstChar { it.titlecase() }
+                    Text(
+                        text = periodLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+            // Reminder due notice
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = rule.description,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Text(
-                    text = "Next on ${dateFormat.format(Date(rule.nextDueDate))}",
+                    text = "Next payment due on ${dateFormat.format(Date(rule.nextDueDate))}",
                     style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-
-                Text(
-                    text = "${currencyFormatter.format(rule.amount)} / ${rule.periodType.name.lowercase()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text = "Category: ${rule.categoryName}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Box {
-                IconButton(
-                    onClick = { showMenu = true }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options"
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit"
-                            )
-                        },
-                        onClick = {
-                            onEdit()
-                            showMenu = false
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        },
-                        onClick = {
-                            onDelete()
-                            showMenu = false
-                        }
-                    )
-                }
             }
         }
     }

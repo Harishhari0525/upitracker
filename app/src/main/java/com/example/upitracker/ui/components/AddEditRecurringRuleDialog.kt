@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +34,7 @@ import com.example.upitracker.util.ExpressiveTokens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditRecurringRuleDialog(
+    userCategories: List<com.example.upitracker.data.Category>,
     ruleToEdit: RecurringRule?,
     onDismiss: () -> Unit,
     onConfirm: (
@@ -104,26 +109,59 @@ fun AddEditRecurringRuleDialog(
                     shape = ExpressiveTokens.corners.medium
                 )
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = category,
-                    onValueChange = {
-                        category = it
-                        isCategoryError = false
-                    },
-                    label = { Text("Category") },
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words
-                    ),
-                    singleLine = true,
-                    isError = isCategoryError,
-                    supportingText = {
-                        if (isCategoryError) {
-                            Text("Please enter a category")
+                var isCategoryExpanded by remember { mutableStateOf(false) }
+
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryExpanded,
+                    onExpandedChange = { isCategoryExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                            .fillMaxWidth(),
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            isCategoryExpanded = true
+                            isCategoryError = false
+                        },
+                        label = { Text("Category") },
+                        placeholder = { Text("e.g., Subscriptions, Rent") },
+                        singleLine = true,
+                        isError = isCategoryError,
+                        supportingText = {
+                            if (isCategoryError) {
+                                Text("Please enter a category")
+                            }
+                        },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        shape = ExpressiveTokens.corners.medium
+                    )
+
+                    val filteredCategories = userCategories.filter {
+                        it.name.contains(category, ignoreCase = true)
+                    }
+
+                    if (filteredCategories.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            filteredCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    onClick = {
+                                        category = cat.name
+                                        isCategoryExpanded = false
+                                        isCategoryError = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
                         }
-                    },
-                    shape = ExpressiveTokens.corners.medium
-                )
+                    }
+                }
 
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),

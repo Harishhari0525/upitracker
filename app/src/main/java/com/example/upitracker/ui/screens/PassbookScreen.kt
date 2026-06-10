@@ -53,26 +53,19 @@ fun PassbookScreen(
     // ✨ NEW OBSERVER: Connect directly to the calculated on-screen ledger sums
     val accountingSummary by passbookViewModel.passbookSummary.collectAsState()
 
+    val showBankName by passbookViewModel.showBankName.collectAsState()
+    val includeCategoryBreakdown by passbookViewModel.includeCategoryBreakdown.collectAsState()
+
     var isPeriodMenuExpanded by remember { mutableStateOf(false) }
     var selectedPeriodLabel by remember { mutableStateOf("This Month") }
     val context = LocalContext.current
 
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showDateRangePicker by remember { mutableStateOf(false) }
 
-    val startDatePickerState = key(startDate) {
-        rememberDatePickerState(
-            initialSelectedDateMillis = startDate,
-            initialDisplayedMonthMillis = startDate ?: System.currentTimeMillis(),
-            initialDisplayMode = DisplayMode.Picker
-        )
-    }
-
-    val endDatePickerState = key(endDate) {
-        rememberDatePickerState(
-            initialSelectedDateMillis = endDate,
-            initialDisplayedMonthMillis = endDate ?: System.currentTimeMillis(),
-            initialDisplayMode = DisplayMode.Picker
+    val dateRangePickerState = key(startDate, endDate) {
+        rememberDateRangePickerState(
+            initialSelectedStartDateMillis = startDate,
+            initialSelectedEndDateMillis = endDate
         )
     }
 
@@ -223,14 +216,14 @@ fun PassbookScreen(
                     DateChip(
                         label = "Start Date",
                         timestamp = startDate,
-                        onClick = { showStartDatePicker = true },
+                        onClick = { showDateRangePicker = true },
                         modifier = Modifier.weight(1f)
                     )
 
                     DateChip(
                         label = "End Date",
                         timestamp = endDate,
-                        onClick = { showEndDatePicker = true },
+                        onClick = { showDateRangePicker = true },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -261,6 +254,76 @@ fun PassbookScreen(
                     summary = accountingSummary,
                     formatter = currencyFormatter
                 )
+            }
+
+            item {
+                Card(
+                    shape = ExpressiveTokens.corners.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "PDF CUSTOMIZATION OPTIONS",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Show Bank Names",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Prefix transactions with [Bank] in statement",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = showBankName,
+                                onCheckedChange = { passbookViewModel.setShowBankName(it) }
+                            )
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Category Breakdown Table",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Include spending totals per category at the end",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = includeCategoryBreakdown,
+                                onCheckedChange = { passbookViewModel.setIncludeCategoryBreakdown(it) }
+                            )
+                        }
+                    }
+                }
             }
 
             item {
@@ -311,48 +374,58 @@ fun PassbookScreen(
     }
 
     // --- Date Picker Dialog Management Windows ---
-    if (showStartDatePicker) {
+    if (showDateRangePicker) {
         DatePickerDialog(
-            onDismissRequest = { showStartDatePicker = false },
+            onDismissRequest = { showDateRangePicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showStartDatePicker = false
-                        val selectedMillis = startDatePickerState.selectedDateMillis?.let {
+                        showDateRangePicker = false
+                        val start = dateRangePickerState.selectedStartDateMillis
+                        val end = dateRangePickerState.selectedEndDateMillis
+                        
+                        val processedStart = start?.let {
                             Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
                                 timeInMillis = it
                                 set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
                                 set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
                             }.timeInMillis
                         }
-                        passbookViewModel.setDateRange(selectedMillis, endDate)
-                    }
-                ) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { showStartDatePicker = false }) { Text("Cancel") } }
-        ) { DatePicker(state = startDatePickerState) }
-    }
-
-    if (showEndDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showEndDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showEndDatePicker = false
-                        val selectedMillis = endDatePickerState.selectedDateMillis?.let {
+                        
+                        val processedEnd = end?.let {
                             Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
                                 timeInMillis = it
                                 set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59)
                                 set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
                             }.timeInMillis
                         }
-                        passbookViewModel.setDateRange(startDate, selectedMillis)
+                        
+                        passbookViewModel.setDateRange(processedStart, processedEnd)
+                        selectedPeriodLabel = "Custom"
                     }
                 ) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showEndDatePicker = false }) { Text("Cancel") } }
-        ) { DatePicker(state = endDatePickerState) }
+            dismissButton = { TextButton(onClick = { showDateRangePicker = false }) { Text("Cancel") } }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                modifier = Modifier.weight(1f).padding(16.dp),
+                title = {
+                    Text(
+                        text = "Select Date Range",
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                },
+                headline = {
+                    Text(
+                        text = "Choose statement period",
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            )
+        }
     }
 }
 

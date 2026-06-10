@@ -27,6 +27,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -51,6 +55,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 
 @Composable
 fun AddTransactionDialog(
+    userCategories: List<com.example.upitracker.data.Category>,
     onDismiss: () -> Unit,
     onConfirm: (
         amount: Double,
@@ -197,19 +202,55 @@ fun AddTransactionDialog(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category") },
-                    placeholder = { Text("e.g., Groceries, Utilities") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next
-                    ),
-                    shape = ExpressiveTokens.corners.medium
-                )
+                var isCategoryExpanded by remember { mutableStateOf(false) }
+
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryExpanded,
+                    onExpandedChange = { isCategoryExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                            .fillMaxWidth(),
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            isCategoryExpanded = true
+                        },
+                        label = { Text("Category") },
+                        placeholder = { Text("e.g., Groceries, Utilities") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        shape = ExpressiveTokens.corners.medium
+                    )
+
+                    val filteredCategories = userCategories.filter {
+                        it.name.contains(category, ignoreCase = true)
+                    }
+
+                    if (filteredCategories.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            filteredCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    onClick = {
+                                        category = cat.name
+                                        isCategoryExpanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                }
 
                 OutlinedButton(
                     onClick = { showDatePicker = true },

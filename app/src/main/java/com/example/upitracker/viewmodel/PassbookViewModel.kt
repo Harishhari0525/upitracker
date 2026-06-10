@@ -44,6 +44,12 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
     private val _transactionType = MutableStateFlow(PassbookTransactionType.ALL)
     val transactionType: StateFlow<PassbookTransactionType> = _transactionType.asStateFlow()
 
+    private val _showBankName = MutableStateFlow(true)
+    val showBankName: StateFlow<Boolean> = _showBankName.asStateFlow()
+
+    private val _includeCategoryBreakdown = MutableStateFlow(true)
+    val includeCategoryBreakdown: StateFlow<Boolean> = _includeCategoryBreakdown.asStateFlow()
+
     // 1. Core Transaction Database Stream Hook
     private val _allTransactions = transactionDao.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -185,6 +191,14 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
         calendar.set(Calendar.MILLISECOND, 999)
     }
 
+    fun setShowBankName(show: Boolean) {
+        _showBankName.value = show
+    }
+
+    fun setIncludeCategoryBreakdown(include: Boolean) {
+        _includeCategoryBreakdown.value = include
+    }
+
     fun generateAndSavePdf(context: Context, uri: Uri) {
         val transactionsToExport = filteredTransactions.value
         if (transactionsToExport.isEmpty()) return
@@ -198,7 +212,9 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
             context = context,
             transactions = transactionsToExport,
             statementPeriod = statementPeriod,
-            targetUri = uri
+            targetUri = uri,
+            showBankName = _showBankName.value,
+            includeCategoryBreakdown = _includeCategoryBreakdown.value
         )
     }
 }

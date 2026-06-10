@@ -361,7 +361,9 @@ class MainActivity : FragmentActivity() {
         }
 
         if (showAddTransactionDialog) {
+            val userCategories by mainViewModel.userCategories.collectAsState()
             AddTransactionDialog(
+                userCategories = userCategories,
                 onDismiss = { showAddTransactionDialog = false },
                 onConfirm = { amount, type, description, category, date ->
                     mainViewModel.addManualTransaction(amount, type, description, category, date)

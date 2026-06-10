@@ -144,6 +144,27 @@ object NotificationHelper {
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
+
+    fun showBudgetWarningNotification(context: Context, budget: Budget, spentAmount: Double) {
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
+        val percentage = (spentAmount / budget.budgetAmount * 100).toInt()
+        val notificationId = budget.id + 2000 // Use a unique ID based on the budget ID to distinguish warnings from exceeded alerts
+
+        val builder = NotificationCompat.Builder(context, BUDGET_ALERTS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notifications)
+            .setContentTitle("Budget Warning: ${budget.categoryName}")
+            .setContentText("You have spent ${percentage}% (${currencyFormatter.format(spentAmount)}) of your budget.")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("You have spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}' (${percentage}% reached). Time to budget wisely!"))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    }
     fun showUpdateAvailableNotification(context: Context, release: GitHubRelease) {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return

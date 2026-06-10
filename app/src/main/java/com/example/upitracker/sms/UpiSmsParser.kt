@@ -95,7 +95,9 @@ private val rejectionKeywords = listOf(
     "cashback", "revoked", "declined", "rejected", "failed", "cancelled", "not processed", "not completed", "unblocked",
     "will be debited", "will be credited", "due on", "scheduled for", "mandate", "standing instruction",
     "standing order", "recurring payment", "recurring transfer", "requested", "validity", "policy", "received the premium",
-    "otp", "verification code", "password", "login", "security alert", "kyc", "update your", "click here", "NEFT"
+    "otp", "verification code", "password", "login", "security alert", "kyc", "update your", "click here", "NEFT",
+    "passbook balance", "contribution of RS", "contributed RS", "auto-debit", "auto credit", "failed transaction",
+    "transaction failed", "payment failed", "refund initiated", "refund processed", "refunded", "reversal of transaction", "reversal of payment", "reversal of debit", "reversal of credit", "reversal of rs", "reversal of inr", "reversal of amount",
 )
 
 private val creditCardKeywords = listOf(

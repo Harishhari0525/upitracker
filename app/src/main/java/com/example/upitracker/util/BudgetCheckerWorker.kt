@@ -42,13 +42,22 @@ class BudgetCheckerWorker(
                         }
                         .sumOf { it.amount }
 
-                    if (spentInCurrentPeriod > budget.budgetAmount) {
+                    if (spentInCurrentPeriod >= budget.budgetAmount) {
                         Log.d(WORK_NAME, "Budget for '${budget.categoryName}' exceeded. Notifying user.")
                         NotificationHelper.showBudgetExceededNotification(applicationContext, budget, spentInCurrentPeriod)
 
                         // Update the budget with a new timestamp to prevent re-notifying
                         val updatedBudget = budget.copy(lastNotificationTimestamp = System.currentTimeMillis())
                         budgetDao.update(updatedBudget)
+                    } else if (spentInCurrentPeriod >= budget.budgetAmount * 0.85) {
+                        val sharedPrefs = applicationContext.getSharedPreferences("budget_notifications_prefs", android.content.Context.MODE_PRIVATE)
+                        val warningKey = "budget_warned_${budget.id}_${periodStart}"
+                        val hasWarned = sharedPrefs.getBoolean(warningKey, false)
+                        if (!hasWarned) {
+                            Log.d(WORK_NAME, "Budget for '${budget.categoryName}' reached 85%. Warning user.")
+                            NotificationHelper.showBudgetWarningNotification(applicationContext, budget, spentInCurrentPeriod)
+                            sharedPrefs.edit().putBoolean(warningKey, true).apply()
+                        }
                     }
                 }
             }

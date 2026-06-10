@@ -47,6 +47,7 @@ import com.example.upitracker.util.parseColor
 
 @Composable
 fun AddEditCategoryDialog(
+    userCategories: List<Category>,
     categoryToEdit: Category?,
     onDismiss: () -> Unit,
     onConfirm: (name: String, iconName: String, colorHex: String) -> Unit
@@ -209,6 +210,8 @@ fun AddEditCategoryDialog(
                 onClick = {
                     if (name.isBlank()) {
                         nameError = "Name cannot be empty"
+                    } else if (categoryToEdit == null && userCategories.any { it.name.equals(name.trim(), ignoreCase = true) }) {
+                        nameError = "Category already exists"
                     } else {
                         val finalIcon = if (isEmojiMode) {
                             emojiInput.trim().ifEmpty { "🍔" }
@@ -216,7 +219,7 @@ fun AddEditCategoryDialog(
                             selectedIconName
                         }
 
-                        onConfirm(name, finalIcon, selectedColorHex)
+                        onConfirm(name.trim(), finalIcon, selectedColorHex)
                     }
                 },
                 shape = ExpressiveTokens.corners.medium
