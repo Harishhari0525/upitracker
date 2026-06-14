@@ -29,6 +29,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.TrendCard
 import com.example.upitracker.ui.components.expressive.ExpressiveEmptyState
@@ -56,10 +60,14 @@ fun InsightGridScreen(
     val currentMonthTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
     val allHistoryListItems by mainViewModel.currentMonthExpenseItems.collectAsState()
 
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
-        .setLanguage("en")
-        .setRegion("IN")
-        .build()) }
+    val currencyFormatter = remember {
+        NumberFormat.getCurrencyInstance(
+            Locale.Builder()
+                .setLanguage("en")
+                .setRegion("IN")
+                .build()
+        )
+    }
 
     val transactions = remember(allHistoryListItems) {
         allHistoryListItems
@@ -73,6 +81,7 @@ fun InsightGridScreen(
     }
 
     var selectedTagDetail by remember { mutableStateOf<TagSpendingStat?>(null) }
+    var showLeakSheet by remember { mutableStateOf(false) }
 
     val tagStats = remember(transactions) {
         val tagMap = mutableMapOf<String, MutableList<Transaction>>()
@@ -184,16 +193,25 @@ fun InsightGridScreen(
                             }
 
                             val isDecrease = percentDiff <= 0
-                            val badgeColor = if (isDecrease) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
-                            val badgeLabel = if (isDecrease) "${percentDiff}%" else "+${percentDiff}%"
+                            val badgeColor =
+                                if (isDecrease) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                            val badgeLabel =
+                                if (isDecrease) "${percentDiff}%" else "+${percentDiff}%"
                             val badgeText = if (isDecrease) "Decrease" else "Increase"
 
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = badgeColor.copy(alpha = 0.15f)),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = badgeColor.copy(
+                                        alpha = 0.15f
+                                    )
+                                ),
                                 shape = ExpressiveTokens.corners.medium
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 6.dp
+                                    ),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
@@ -250,7 +268,9 @@ fun InsightGridScreen(
             item {
                 ExpressiveStatCard(
                     title = "Safe Daily Pace",
-                    value = if (diagnosticMetrics.remainingBudget > 0) currencyFormatter.format(diagnosticMetrics.safeDailyPace) else "₹0",
+                    value = if (diagnosticMetrics.remainingBudget > 0) currencyFormatter.format(
+                        diagnosticMetrics.safeDailyPace
+                    ) else "₹0",
                     subtitle = "${velocityState.daysRemaining} days remaining",
                     icon = Icons.Rounded.Speed,
                     modifier = Modifier.fillMaxWidth()
@@ -298,9 +318,9 @@ fun InsightGridScreen(
                 ExpressiveStatCard(
                     title = "Drained via Leaks",
                     value = currencyFormatter.format(diagnosticMetrics.leakTotalAmount),
-                    subtitle = "Total spent in small slips",
+                    subtitle = "Total spent in small slips (Tap to inspect)",
                     icon = Icons.Rounded.ElectricBolt,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clickable { showLeakSheet = true }
                 )
             }
 
@@ -308,9 +328,9 @@ fun InsightGridScreen(
                 ExpressiveStatCard(
                     title = "Leak Frequency",
                     value = "${diagnosticMetrics.leakCount} Payments",
-                    subtitle = "Transactions under ₹50",
+                    subtitle = "Transactions under ₹50 (Tap to inspect)",
                     icon = Icons.Rounded.RestartAlt,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clickable { showLeakSheet = true }
                 )
             }
 
@@ -363,10 +383,13 @@ fun InsightGridScreen(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            val totalDebitSpend = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
+                            val totalDebitSpend =
+                                transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }
+                                    .sumOf { it.amount }
                             tagStats.take(5).forEach { tagStat ->
-                                val proportion = if (totalDebitSpend > 0) (tagStat.totalAmount / totalDebitSpend).toFloat() else 0f
-                                
+                                val proportion =
+                                    if (totalDebitSpend > 0) (tagStat.totalAmount / totalDebitSpend).toFloat() else 0f
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -387,7 +410,7 @@ fun InsightGridScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
-                                            
+
                                             Text(
                                                 text = "${currencyFormatter.format(tagStat.totalAmount)} (${tagStat.transactionCount} txns)",
                                                 style = MaterialTheme.typography.bodyMedium,
@@ -395,20 +418,20 @@ fun InsightGridScreen(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
-                                        
+
                                         Spacer(modifier = Modifier.height(6.dp))
 
                                         LinearProgressIndicator(
-                                        progress = { proportion },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                                                         alpha = 0.1f
-                                                                                     ),
-                                        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+                                            progress = { proportion },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                alpha = 0.1f
+                                            ),
+                                            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
                                         )
                                     }
-                                    
+
                                     Icon(
                                         imageVector = Icons.Rounded.ChevronRight,
                                         contentDescription = "Details",
@@ -496,7 +519,7 @@ fun InsightGridScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    
+
                     Text(
                         text = currencyFormatter.format(tagStat.totalAmount),
                         style = MaterialTheme.typography.titleLarge,
@@ -504,9 +527,9 @@ fun InsightGridScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                
+
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -532,6 +555,940 @@ fun InsightGridScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+
+                            Text(
+                                text = currencyFormatter.format(transaction.amount),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (showLeakSheet) {
+            MicroTransactionLeakSheet(
+                transactions = transactions,
+                currencyFormatter = currencyFormatter,
+                onDismissRequest = { showLeakSheet = false }
+            )
+        }
+    }
+}
+
+    // Global immutable structure for data diagnostics parameters mapping pass
+    private data class ComprehensiveDiagnostics(
+        val projectedMonthEnd: Double,
+        val remainingBudget: Double,
+        val safeDailyPace: Double,
+        val leakCount: Int,
+        val leakTotalAmount: Double,
+        val weekendPercentage: Int,
+        val paceStatusTitle: String,
+        val paceStatusSubtitle: String,
+        val isPaceRisk: Boolean
+    )
+
+    private fun calculateDiagnostics(
+        totalSpent: Double,
+        totalBudget: Double,
+        transactions: List<Transaction>
+    ): ComprehensiveDiagnostics {
+        val calendar = Calendar.getInstance()
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+        val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+        val daysRemaining = (totalDays - currentDay).coerceAtLeast(0)
+
+        // 1. Core Velocity Tracking Math Formulas
+        val averagePerDay = if (currentDay > 0) totalSpent / currentDay else 0.0
+        val projectedMonthEnd = averagePerDay * totalDays
+        val remainingBudget = (totalBudget - totalSpent).coerceAtLeast(0.0)
+        val safeDailyPace = if (daysRemaining > 0) remainingBudget / daysRemaining else 0.0
+
+        // 2. Micro-Transaction Leak Logic Engine Pass (Isolating entries under ₹50)
+        val smallLeaks = transactions.filter {
+            it.type.equals(
+                "DEBIT",
+                ignoreCase = true
+            ) && it.amount > 0 && it.amount <= 50.0
+        }
+        val leakCount = smallLeaks.size
+        val leakTotalAmount = smallLeaks.sumOf { it.amount }
+
+        // 3. Weekend vs Weekday Pattern Tracker
+        var weekendSpend = 0.0
+        var totalDebitSpend = 0.0
+
+        transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.forEach { txn ->
+            totalDebitSpend += txn.amount
+            calendar.timeInMillis = txn.date
+            val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+            if (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY) {
+                weekendSpend += txn.amount
+            }
+        }
+
+        val weekendPercentage = if (totalDebitSpend > 0) {
+            ((weekendSpend / totalDebitSpend) * 100).roundToInt().coerceIn(0, 100)
+        } else {
+            0
+        }
+
+        // 4. Automated Pace Analysis Diagnostician Engine Check
+        val budgetUsagePercent = if (totalBudget > 0) (totalSpent / totalBudget) * 100 else 0.0
+        val expectedElapsedPercent = (currentDay.toFloat() / totalDays.toFloat()) * 100
+
+        val paceStatusTitle: String
+        val paceStatusSubtitle: String
+        var isPaceRisk = false
+
+        when {
+            totalBudget > 0 && totalSpent > totalBudget -> {
+                paceStatusTitle = "Exceeded"
+                paceStatusSubtitle = "Budget limit crossed. Safe pacing terminated."
+                isPaceRisk = true
+            }
+
+            totalBudget > 0 && budgetUsagePercent > (expectedElapsedPercent + 15) -> {
+                paceStatusTitle = "Burn Warning"
+                paceStatusSubtitle = "Spending faster than expected calendar pace."
+                isPaceRisk = true
+            }
+
+            totalSpent == 0.0 -> {
+                paceStatusTitle = "Pristine"
+                paceStatusSubtitle = "No recorded expenditures for this calendar window."
+            }
+
+            else -> {
+                paceStatusTitle = "Healthy"
+                paceStatusSubtitle = "Your monthly velocity matches active pacing targets."
+            }
+        }
+
+        return ComprehensiveDiagnostics(
+            projectedMonthEnd = projectedMonthEnd,
+            remainingBudget = remainingBudget,
+            safeDailyPace = safeDailyPace,
+            leakCount = leakCount,
+            leakTotalAmount = leakTotalAmount,
+            weekendPercentage = weekendPercentage,
+            paceStatusTitle = paceStatusTitle,
+            paceStatusSubtitle = paceStatusSubtitle,
+            isPaceRisk = isPaceRisk
+        )
+    }
+
+    private fun Transaction.displayTitle(): String {
+        return when {
+            senderOrReceiver.isNotBlank() && senderOrReceiver != "Manual Entry" -> senderOrReceiver
+            description.isNotBlank() -> description
+            else -> "UPI Payment"
+        }
+    }
+
+    private fun Transaction.formattedAmount(formatter: NumberFormat): String {
+        val prefix = if (type.equals("CREDIT", ignoreCase = true)) "+" else "-"
+        return "$prefix${formatter.format(amount)}"
+    }
+
+    private fun Transaction.formattedDate(): String {
+        return SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(date))
+    }
+
+// ✨ ADVANCED FORECAST & TAG ANALYTICS HELPERS
+
+    private data class TagSpendingStat(
+        val tagName: String,
+        val totalAmount: Double,
+        val transactionCount: Int,
+        val transactionsList: List<Transaction>
+    )
+
+    private fun extractAllTags(transaction: Transaction): List<String> {
+        val tagList = mutableListOf<String>()
+
+        // Split the tags field by spaces
+        if (transaction.tags.isNotBlank()) {
+            transaction.tags.split("\\s+".toRegex()).forEach { tag ->
+                val cleanTag = tag.trim()
+                if (cleanTag.startsWith("#") && cleanTag.length > 1) {
+                    tagList.add(cleanTag)
+                }
+            }
+        }
+
+        // Scan description and note
+        val scanText = "${transaction.description} ${transaction.note}"
+        Regex("#\\w+").findAll(scanText).forEach { match ->
+            val tag = match.value
+            if (!tagList.contains(tag)) {
+                tagList.add(tag)
+            }
+        }
+
+        return tagList
+    }
+
+    @Composable
+    private fun SmartForecastChart(
+        totalBudget: Double,
+        transactions: List<Transaction>,
+        currencyFormatter: NumberFormat
+    ) {
+        val calendar = Calendar.getInstance()
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+        val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+        val currentYear = calendar.get(Calendar.YEAR)
+        val currentMonth = calendar.get(Calendar.MONTH)
+
+        // Calculate daily spends
+        val spendByDay = remember(transactions) {
+            val map = mutableMapOf<Int, Double>()
+            val cal = Calendar.getInstance()
+            transactions.filter {
+                it.type.equals("DEBIT", ignoreCase = true)
+            }.forEach { txn ->
+                cal.timeInMillis = txn.date
+                if (cal.get(Calendar.YEAR) == currentYear && cal.get(Calendar.MONTH) == currentMonth) {
+                    val day = cal.get(Calendar.DAY_OF_MONTH)
+                    map[day] = (map[day] ?: 0.0) + txn.amount
+                }
+            }
+            map
+        }
+
+        val cumulativeSpend = remember(spendByDay, currentDay, totalDays) {
+            val arr = DoubleArray(totalDays + 1)
+            var sum = 0.0
+            for (day in 1..currentDay) {
+                sum += spendByDay[day] ?: 0.0
+                arr[day] = sum
+            }
+            arr
+        }
+
+        val projectedSpend = remember(cumulativeSpend, currentDay, totalDays) {
+            val arr = DoubleArray(totalDays + 1)
+            val todaySpend = cumulativeSpend[currentDay]
+            val avgDaily = if (currentDay > 0) todaySpend / currentDay else 0.0
+            for (day in 1..totalDays) {
+                if (day <= currentDay) {
+                    arr[day] = cumulativeSpend[day]
+                } else {
+                    arr[day] = todaySpend + avgDaily * (day - currentDay)
+                }
+            }
+            arr
+        }
+
+        val projectedMonthEnd = projectedSpend[totalDays]
+        val maxVal = maxOf(
+            totalBudget,
+            projectedMonthEnd,
+            cumulativeSpend[currentDay]
+        ).coerceAtLeast(100.0) * 1.15
+
+        // Color definitions matching M3 Expressive
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val secondaryColor = MaterialTheme.colorScheme.secondary
+        val errorColor = MaterialTheme.colorScheme.error
+        val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+        val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Top summary row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Forecast Month-End",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = onSurfaceVariant
+                    )
+                    Text(
+                        text = currencyFormatter.format(projectedMonthEnd),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Status Badge
+                val isOverBudget = totalBudget > 0 && projectedMonthEnd > totalBudget
+                val statusText = when {
+                    totalBudget <= 0 -> "No Limit Set"
+                    isOverBudget -> "Over Budget Forecast"
+                    else -> "On Track"
+                }
+                val statusColor = when {
+                    totalBudget <= 0 -> MaterialTheme.colorScheme.secondary
+                    isOverBudget -> MaterialTheme.colorScheme.error
+                    else -> Color(0xFF16A34A)
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.15f)),
+                    shape = ExpressiveTokens.corners.medium
+                ) {
+                    Text(
+                        text = statusText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor
+                    )
+                }
+            }
+
+            // Canvas chart
+            var selectedDay by remember { mutableStateOf<Int?>(null) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(totalDays) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull()
+                                    if (change != null) {
+                                        val paddingLeft = 70f
+                                        val paddingRight = 20f
+                                        val chartWidth = size.width - paddingLeft - paddingRight
+                                        if (change.pressed) {
+                                            val relativeX = change.position.x - paddingLeft
+                                            val progress = (relativeX / chartWidth).coerceIn(0f, 1f)
+                                            selectedDay =
+                                                (progress * (totalDays - 1) + 1).roundToInt()
+                                                    .coerceIn(1, totalDays)
+                                            change.consume()
+                                        } else {
+                                            selectedDay = null
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                ) {
+                    val width = size.width
+                    val height = size.height
+                    val paddingLeft = 70f
+                    val paddingRight = 20f
+                    val paddingTop = 20f
+                    val paddingBottom = 40f
+
+                    val chartWidth = width - paddingLeft - paddingRight
+                    val chartHeight = height - paddingTop - paddingBottom
+
+                    // Helper functions to map coordinates
+                    fun getX(day: Int): Float {
+                        return paddingLeft + ((day - 1).toFloat() / (totalDays - 1).toFloat()) * chartWidth
+                    }
+
+                    fun getY(value: Double): Float {
+                        val ratio = (value / maxVal).coerceIn(0.0, 1.0)
+                        return (paddingTop + chartHeight - ratio * chartHeight).toFloat()
+                    }
+
+                    // 1. Draw horizontal grid lines & labels
+                    val gridLines = 4
+                    for (i in 0..gridLines) {
+                        val gridRatio = i.toFloat() / gridLines
+                        val gridY = paddingTop + chartHeight - gridRatio * chartHeight
+                        val gridVal = gridRatio * maxVal
+
+                        // Faint horizontal line
+                        drawLine(
+                            color = outlineVariant.copy(alpha = 0.25f),
+                            start = androidx.compose.ui.geometry.Offset(paddingLeft, gridY),
+                            end = androidx.compose.ui.geometry.Offset(width - paddingRight, gridY),
+                            strokeWidth = 1f
+                        )
+
+                        // Y Label
+                        val labelText =
+                            if (gridVal >= 1000) "${(gridVal / 1000).toInt()}k" else "${gridVal.toInt()}"
+                        drawContext.canvas.nativeCanvas.drawText(
+                            "₹$labelText",
+                            10f,
+                            gridY + 10f,
+                            android.graphics.Paint().apply {
+                                color = onSurfaceVariant.toArgb()
+                                textSize = 28f
+                                textAlign = android.graphics.Paint.Align.LEFT
+                            }
+                        )
+                    }
+
+                    // 2. Draw Budget Limit line (red dashed line)
+                    if (totalBudget > 0) {
+                        val budgetY = getY(totalBudget)
+                        drawLine(
+                            color = errorColor,
+                            start = androidx.compose.ui.geometry.Offset(paddingLeft, budgetY),
+                            end = androidx.compose.ui.geometry.Offset(
+                                width - paddingRight,
+                                budgetY
+                            ),
+                            strokeWidth = 3f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 10f), 0f)
+                        )
+                    }
+
+                    // 3. Draw cumulative actual spend (solid line & gradient fill)
+                    if (currentDay > 1) {
+                        val actualPath = Path().apply {
+                            moveTo(getX(1), getY(cumulativeSpend[1]))
+                            for (day in 2..currentDay) {
+                                lineTo(getX(day), getY(cumulativeSpend[day]))
+                            }
+                        }
+
+                        // Draw fill area under actual spend
+                        val actualFillPath = Path().apply {
+                            moveTo(getX(1), getY(0.0))
+                            lineTo(getX(1), getY(cumulativeSpend[1]))
+                            for (day in 2..currentDay) {
+                                lineTo(getX(day), getY(cumulativeSpend[day]))
+                            }
+                            lineTo(getX(currentDay), getY(0.0))
+                            close()
+                        }
+                        drawPath(
+                            path = actualFillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(primaryColor.copy(alpha = 0.2f), Color.Transparent),
+                                startY = getY(maxVal),
+                                endY = getY(0.0)
+                            )
+                        )
+
+                        // Draw actual line
+                        drawPath(
+                            path = actualPath,
+                            color = primaryColor,
+                            style = Stroke(
+                                width = 6f,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
+
+                    // 4. Draw projected spend (dashed line starting from today)
+                    if (currentDay < totalDays) {
+                        val projectedPath = Path().apply {
+                            moveTo(getX(currentDay), getY(cumulativeSpend[currentDay]))
+                            for (day in (currentDay + 1)..totalDays) {
+                                lineTo(getX(day), getY(projectedSpend[day]))
+                            }
+                        }
+                        drawPath(
+                            path = projectedPath,
+                            color = secondaryColor,
+                            style = Stroke(
+                                width = 4f,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                            )
+                        )
+                    }
+
+                    // 5. Draw "Today" vertical marker line & dot
+                    val todayX = getX(currentDay)
+                    val todayY = getY(cumulativeSpend[currentDay])
+
+                    // Draw vertical line for Today
+                    drawLine(
+                        color = primaryColor.copy(alpha = 0.4f),
+                        start = androidx.compose.ui.geometry.Offset(todayX, paddingTop),
+                        end = androidx.compose.ui.geometry.Offset(todayX, height - paddingBottom),
+                        strokeWidth = 2f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                    )
+
+                    // Today dot
+                    drawCircle(
+                        color = primaryColor,
+                        radius = 8f,
+                        center = androidx.compose.ui.geometry.Offset(todayX, todayY)
+                    )
+                    drawCircle(
+                        color = Color.White,
+                        radius = 4f,
+                        center = androidx.compose.ui.geometry.Offset(todayX, todayY)
+                    )
+
+                    // 6. Draw X-axis labels (days of the month)
+                    val xLabelInterval = 5
+                    for (day in 1..totalDays step xLabelInterval) {
+                        val labelX = getX(day)
+                        drawContext.canvas.nativeCanvas.drawText(
+                            "d$day",
+                            labelX,
+                            height - 10f,
+                            android.graphics.Paint().apply {
+                                color = onSurfaceVariant.toArgb()
+                                textSize = 24f
+                                textAlign = android.graphics.Paint.Align.CENTER
+                            }
+                        )
+                    }
+                    // Always draw last day
+                    if ((totalDays - 1) % xLabelInterval != 0) {
+                        val labelX = getX(totalDays)
+                        drawContext.canvas.nativeCanvas.drawText(
+                            "d$totalDays",
+                            labelX,
+                            height - 10f,
+                            android.graphics.Paint().apply {
+                                color = onSurfaceVariant.toArgb()
+                                textSize = 24f
+                                textAlign = android.graphics.Paint.Align.CENTER
+                            }
+                        )
+                    }
+
+                    // 7. Interactive selection line, point, and tooltip rendering
+                    selectedDay?.let { selDay ->
+                        val selX = getX(selDay)
+                        val valAtSel =
+                            if (selDay <= currentDay) cumulativeSpend[selDay] else projectedSpend[selDay]
+                        val selY = getY(valAtSel)
+                        val isProj = selDay > currentDay
+
+                        // Draw vertical guide line
+                        drawLine(
+                            color = primaryColor.copy(alpha = 0.6f),
+                            start = androidx.compose.ui.geometry.Offset(selX, paddingTop),
+                            end = androidx.compose.ui.geometry.Offset(selX, height - paddingBottom),
+                            strokeWidth = 3f
+                        )
+
+                        // Draw point highlight circle
+                        drawCircle(
+                            color = if (isProj) secondaryColor else primaryColor,
+                            radius = 12f,
+                            center = androidx.compose.ui.geometry.Offset(selX, selY)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 6f,
+                            center = androidx.compose.ui.geometry.Offset(selX, selY)
+                        )
+
+                        // Tooltip drawing
+                        val tooltipText =
+                            "Day $selDay: ${currencyFormatter.format(valAtSel)}${if (isProj) " (Proj)" else ""}"
+                        val paint = android.graphics.Paint().apply {
+                            textSize = 28f
+                            color = Color.White.toArgb()
+                            isFakeBoldText = true
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                        val textBounds = android.graphics.Rect()
+                        paint.getTextBounds(tooltipText, 0, tooltipText.length, textBounds)
+                        val tooltipWidth = textBounds.width() + 40f
+                        val tooltipHeight = textBounds.height() + 25f
+
+                        val tooltipX = selX.coerceIn(
+                            paddingLeft + tooltipWidth / 2,
+                            width - paddingRight - tooltipWidth / 2
+                        )
+                        val tooltipY = (selY - 50f).coerceAtLeast(paddingTop + tooltipHeight / 2)
+
+                        // Draw tool tip box
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.8f),
+                            topLeft = androidx.compose.ui.geometry.Offset(
+                                tooltipX - tooltipWidth / 2,
+                                tooltipY - tooltipHeight / 2
+                            ),
+                            size = androidx.compose.ui.geometry.Size(tooltipWidth, tooltipHeight),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                        )
+
+                        // Draw tool tip text
+                        drawContext.canvas.nativeCanvas.drawText(
+                            tooltipText,
+                            tooltipX,
+                            tooltipY + textBounds.height() / 2 - 2f,
+                            paint
+                        )
+                    }
+                }
+            }
+
+            // Legend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LegendItem(color = primaryColor, label = "Actual Spend", isDashed = false)
+                Spacer(modifier = Modifier.width(16.dp))
+                LegendItem(color = secondaryColor, label = "Projected Spend", isDashed = true)
+                if (totalBudget > 0) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    LegendItem(color = errorColor, label = "Budget Limit", isDashed = true)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun LegendItem(color: Color, label: String, isDashed: Boolean) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            androidx.compose.foundation.Canvas(modifier = Modifier.size(16.dp, 8.dp)) {
+                if (isDashed) {
+                    drawLine(
+                        color = color,
+                        start = androidx.compose.ui.geometry.Offset(0f, size.height / 2),
+                        end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2),
+                        strokeWidth = 3f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f)
+                    )
+                } else {
+                    drawLine(
+                        color = color,
+                        start = androidx.compose.ui.geometry.Offset(0f, size.height / 2),
+                        end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2),
+                        strokeWidth = 4f
+                    )
+                }
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+@Composable
+private fun MicroTransactionLeakSheet(
+    transactions: List<Transaction>,
+    currencyFormatter: NumberFormat,
+    onDismissRequest: () -> Unit
+) {
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val smallLeaks = remember(transactions) {
+        transactions.filter { it.type.equals("DEBIT", ignoreCase = true) && it.amount > 0 && it.amount <= 50.0 }
+    }
+    val leakCount = smallLeaks.size
+    val leakTotalAmount = smallLeaks.sumOf { it.amount }
+
+    val calendar = Calendar.getInstance()
+    val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    
+    val avgDailyFrequency = leakCount.toFloat() / currentDay.toFloat()
+    val monthlyProjectedLeak = (leakTotalAmount / currentDay) * totalDays
+    val annualProjectedLeak = monthlyProjectedLeak * 12
+
+    val avgLeakSize = if (leakCount > 0) leakTotalAmount / leakCount else 0.0
+    val topMerchant = remember(smallLeaks) {
+        smallLeaks
+            .groupBy { it.displayTitle() }
+            .maxByOrNull { it.value.size }
+            ?.key ?: "None"
+    }
+
+    val hourlyCounts = remember(smallLeaks) {
+        val counts = IntArray(24)
+        val cal = Calendar.getInstance()
+        smallLeaks.forEach { txn ->
+            cal.timeInMillis = txn.date
+            val hour = cal.get(Calendar.HOUR_OF_DAY)
+            counts[hour]++
+        }
+        counts
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = ExpressiveTokens.corners.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Micro-Transaction Leak",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "High-frequency quick payments under ₹50",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            // Main LazyColumn containing stats, chart and items to scroll smoothly
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Key metrics 2x2 grid item
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveTokens.corners.large,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Avg Daily Leaks",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = String.format(locale, "%.1f / day", avgDailyFrequency),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveTokens.corners.large,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Proj Annual Cost",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = currencyFormatter.format(annualProjectedLeak),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveTokens.corners.large,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Avg Leak Size",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = currencyFormatter.format(avgLeakSize),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveTokens.corners.large,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Top Leak Source",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = topMerchant,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Hourly breakdown chart item
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = ExpressiveTokens.corners.large
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Hourly Leak Distribution",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            val maxCount = hourlyCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
+                            for (hour in 0..23) {
+                                val count = hourlyCounts[hour]
+                                val barHeightFraction = count.toFloat() / maxCount.toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(barHeightFraction.coerceAtLeast(0.05f))
+                                        .padding(horizontal = 1.dp)
+                                        .background(
+                                            brush = Brush.verticalGradient(
+                                                colors = if (count > 0) listOf(
+                                                    MaterialTheme.colorScheme.error,
+                                                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                                                ) else listOf(
+                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)
+                                        )
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            for (hour in 0..23) {
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (hour % 4 == 0) {
+                                        Text(
+                                            text = String.format(locale, "%02d", hour),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section header
+                item {
+                    Text(
+                        text = "Leak Transactions (${leakCount})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // List of leak transactions
+                if (smallLeaks.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No micro-transactions under ₹50 found this month.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(
+                        items = smallLeaks,
+                        key = { "leak-sheet-txn-${it.id}" }
+                    ) { transaction ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = transaction.displayTitle(),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = transaction.formattedDate() + (if (transaction.note.isNotBlank()) " • ${transaction.note}" else ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             
                             Text(
                                 text = currencyFormatter.format(transaction.amount),
@@ -544,494 +1501,5 @@ fun InsightGridScreen(
                 }
             }
         }
-    }
-}
-
-// Global immutable structure for data diagnostics parameters mapping pass
-private data class ComprehensiveDiagnostics(
-    val projectedMonthEnd: Double,
-    val remainingBudget: Double,
-    val safeDailyPace: Double,
-    val leakCount: Int,
-    val leakTotalAmount: Double,
-    val weekendPercentage: Int,
-    val paceStatusTitle: String,
-    val paceStatusSubtitle: String,
-    val isPaceRisk: Boolean
-)
-
-private fun calculateDiagnostics(
-    totalSpent: Double,
-    totalBudget: Double,
-    transactions: List<Transaction>
-): ComprehensiveDiagnostics {
-    val calendar = Calendar.getInstance()
-    val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
-    val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
-    val daysRemaining = (totalDays - currentDay).coerceAtLeast(0)
-
-    // 1. Core Velocity Tracking Math Formulas
-    val averagePerDay = if (currentDay > 0) totalSpent / currentDay else 0.0
-    val projectedMonthEnd = averagePerDay * totalDays
-    val remainingBudget = (totalBudget - totalSpent).coerceAtLeast(0.0)
-    val safeDailyPace = if (daysRemaining > 0) remainingBudget / daysRemaining else 0.0
-
-    // 2. Micro-Transaction Leak Logic Engine Pass (Isolating entries under ₹50)
-    val smallLeaks = transactions.filter { it.type.equals("DEBIT", ignoreCase = true) && it.amount > 0 && it.amount <= 50.0 }
-    val leakCount = smallLeaks.size
-    val leakTotalAmount = smallLeaks.sumOf { it.amount }
-
-    // 3. Weekend vs Weekday Pattern Tracker
-    var weekendSpend = 0.0
-    var totalDebitSpend = 0.0
-
-    transactions.filter { it.type.equals("DEBIT", ignoreCase = true) }.forEach { txn ->
-        totalDebitSpend += txn.amount
-        calendar.timeInMillis = txn.date
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-        if (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY) {
-            weekendSpend += txn.amount
-        }
-    }
-
-    val weekendPercentage = if (totalDebitSpend > 0) {
-        ((weekendSpend / totalDebitSpend) * 100).roundToInt().coerceIn(0, 100)
-    } else {
-        0
-    }
-
-    // 4. Automated Pace Analysis Diagnostician Engine Check
-    val budgetUsagePercent = if (totalBudget > 0) (totalSpent / totalBudget) * 100 else 0.0
-    val expectedElapsedPercent = (currentDay.toFloat() / totalDays.toFloat()) * 100
-
-    val paceStatusTitle: String
-    val paceStatusSubtitle: String
-    var isPaceRisk = false
-
-    when {
-        totalBudget > 0 && totalSpent > totalBudget -> {
-            paceStatusTitle = "Exceeded"
-            paceStatusSubtitle = "Budget limit crossed. Safe pacing terminated."
-            isPaceRisk = true
-        }
-        totalBudget > 0 && budgetUsagePercent > (expectedElapsedPercent + 15) -> {
-            paceStatusTitle = "Burn Warning"
-            paceStatusSubtitle = "Spending faster than expected calendar pace."
-            isPaceRisk = true
-        }
-        totalSpent == 0.0 -> {
-            paceStatusTitle = "Pristine"
-            paceStatusSubtitle = "No recorded expenditures for this calendar window."
-        }
-        else -> {
-            paceStatusTitle = "Healthy"
-            paceStatusSubtitle = "Your monthly velocity matches active pacing targets."
-        }
-    }
-
-    return ComprehensiveDiagnostics(
-        projectedMonthEnd = projectedMonthEnd,
-        remainingBudget = remainingBudget,
-        safeDailyPace = safeDailyPace,
-        leakCount = leakCount,
-        leakTotalAmount = leakTotalAmount,
-        weekendPercentage = weekendPercentage,
-        paceStatusTitle = paceStatusTitle,
-        paceStatusSubtitle = paceStatusSubtitle,
-        isPaceRisk = isPaceRisk
-    )
-}
-
-private fun Transaction.displayTitle(): String {
-    return when {
-        senderOrReceiver.isNotBlank() && senderOrReceiver != "Manual Entry" -> senderOrReceiver
-        description.isNotBlank() -> description
-        else -> "UPI Payment"
-    }
-}
-
-private fun Transaction.formattedAmount(formatter: NumberFormat): String {
-    val prefix = if (type.equals("CREDIT", ignoreCase = true)) "+" else "-"
-    return "$prefix${formatter.format(amount)}"
-}
-
-private fun Transaction.formattedDate(): String {
-    return SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(date))
-}
-
-// ✨ ADVANCED FORECAST & TAG ANALYTICS HELPERS
-
-private data class TagSpendingStat(
-    val tagName: String,
-    val totalAmount: Double,
-    val transactionCount: Int,
-    val transactionsList: List<Transaction>
-)
-
-private fun extractAllTags(transaction: Transaction): List<String> {
-    val tagList = mutableListOf<String>()
-    
-    // Split the tags field by spaces
-    if (transaction.tags.isNotBlank()) {
-        transaction.tags.split("\\s+".toRegex()).forEach { tag ->
-            val cleanTag = tag.trim()
-            if (cleanTag.startsWith("#") && cleanTag.length > 1) {
-                tagList.add(cleanTag)
-            }
-        }
-    }
-    
-    // Scan description and note
-    val scanText = "${transaction.description} ${transaction.note}"
-    Regex("#\\w+").findAll(scanText).forEach { match ->
-        val tag = match.value
-        if (!tagList.contains(tag)) {
-            tagList.add(tag)
-        }
-    }
-    
-    return tagList
-}
-
-@Composable
-private fun SmartForecastChart(
-    totalBudget: Double,
-    transactions: List<Transaction>,
-    currencyFormatter: NumberFormat
-) {
-    val calendar = Calendar.getInstance()
-    val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
-    val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
-    val currentYear = calendar.get(Calendar.YEAR)
-    val currentMonth = calendar.get(Calendar.MONTH)
-
-    // Calculate daily spends
-    val spendByDay = remember(transactions) {
-        val map = mutableMapOf<Int, Double>()
-        val cal = Calendar.getInstance()
-        transactions.filter {
-            it.type.equals("DEBIT", ignoreCase = true)
-        }.forEach { txn ->
-            cal.timeInMillis = txn.date
-            if (cal.get(Calendar.YEAR) == currentYear && cal.get(Calendar.MONTH) == currentMonth) {
-                val day = cal.get(Calendar.DAY_OF_MONTH)
-                map[day] = (map[day] ?: 0.0) + txn.amount
-            }
-        }
-        map
-    }
-
-    val cumulativeSpend = remember(spendByDay, currentDay, totalDays) {
-        val arr = DoubleArray(totalDays + 1)
-        var sum = 0.0
-        for (day in 1..currentDay) {
-            sum += spendByDay[day] ?: 0.0
-            arr[day] = sum
-        }
-        arr
-    }
-
-    val projectedSpend = remember(cumulativeSpend, currentDay, totalDays) {
-        val arr = DoubleArray(totalDays + 1)
-        val todaySpend = cumulativeSpend[currentDay]
-        val avgDaily = if (currentDay > 0) todaySpend / currentDay else 0.0
-        for (day in 1..totalDays) {
-            if (day <= currentDay) {
-                arr[day] = cumulativeSpend[day]
-            } else {
-                arr[day] = todaySpend + avgDaily * (day - currentDay)
-            }
-        }
-        arr
-    }
-
-    val projectedMonthEnd = projectedSpend[totalDays]
-    val maxVal = maxOf(totalBudget, projectedMonthEnd, cumulativeSpend[currentDay]).coerceAtLeast(100.0) * 1.15
-
-    // Color definitions matching M3 Expressive
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val secondaryColor = MaterialTheme.colorScheme.secondary
-    val errorColor = MaterialTheme.colorScheme.error
-    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Top summary row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Forecast Month-End",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onSurfaceVariant
-                )
-                Text(
-                    text = currencyFormatter.format(projectedMonthEnd),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Status Badge
-            val isOverBudget = totalBudget > 0 && projectedMonthEnd > totalBudget
-            val statusText = when {
-                totalBudget <= 0 -> "No Limit Set"
-                isOverBudget -> "Over Budget Forecast"
-                else -> "On Track"
-            }
-            val statusColor = when {
-                totalBudget <= 0 -> MaterialTheme.colorScheme.secondary
-                isOverBudget -> MaterialTheme.colorScheme.error
-                else -> Color(0xFF16A34A)
-            }
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.15f)),
-                shape = ExpressiveTokens.corners.medium
-            ) {
-                Text(
-                    text = statusText,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                )
-            }
-        }
-
-        // Canvas chart
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-        ) {
-            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                val width = size.width
-                val height = size.height
-                val paddingLeft = 70f
-                val paddingRight = 20f
-                val paddingTop = 20f
-                val paddingBottom = 40f
-
-                val chartWidth = width - paddingLeft - paddingRight
-                val chartHeight = height - paddingTop - paddingBottom
-
-                // Helper functions to map coordinates
-                fun getX(day: Int): Float {
-                    return paddingLeft + ((day - 1).toFloat() / (totalDays - 1).toFloat()) * chartWidth
-                }
-
-                fun getY(value: Double): Float {
-                    val ratio = (value / maxVal).coerceIn(0.0, 1.0)
-                    return (paddingTop + chartHeight - ratio * chartHeight).toFloat()
-                }
-
-                // 1. Draw horizontal grid lines & labels
-                val gridLines = 4
-                for (i in 0..gridLines) {
-                    val gridRatio = i.toFloat() / gridLines
-                    val gridY = paddingTop + chartHeight - gridRatio * chartHeight
-                    val gridVal = gridRatio * maxVal
-                    
-                    // Faint horizontal line
-                    drawLine(
-                        color = outlineVariant.copy(alpha = 0.25f),
-                        start = androidx.compose.ui.geometry.Offset(paddingLeft, gridY),
-                        end = androidx.compose.ui.geometry.Offset(width - paddingRight, gridY),
-                        strokeWidth = 1f
-                    )
-
-                    // Y Label
-                    val labelText = if (gridVal >= 1000) "${(gridVal / 1000).toInt()}k" else "${gridVal.toInt()}"
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "₹$labelText",
-                        10f,
-                        gridY + 10f,
-                        android.graphics.Paint().apply {
-                            color = onSurfaceVariant.toArgb()
-                            textSize = 28f
-                            textAlign = android.graphics.Paint.Align.LEFT
-                        }
-                    )
-                }
-
-                // 2. Draw Budget Limit line (red dashed line)
-                if (totalBudget > 0) {
-                    val budgetY = getY(totalBudget)
-                    drawLine(
-                        color = errorColor,
-                        start = androidx.compose.ui.geometry.Offset(paddingLeft, budgetY),
-                        end = androidx.compose.ui.geometry.Offset(width - paddingRight, budgetY),
-                        strokeWidth = 3f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 10f), 0f)
-                    )
-                }
-
-                // 3. Draw cumulative actual spend (solid line & gradient fill)
-                if (currentDay > 1) {
-                    val actualPath = Path().apply {
-                        moveTo(getX(1), getY(cumulativeSpend[1]))
-                        for (day in 2..currentDay) {
-                            lineTo(getX(day), getY(cumulativeSpend[day]))
-                        }
-                    }
-
-                    // Draw fill area under actual spend
-                    val actualFillPath = Path().apply {
-                        moveTo(getX(1), getY(0.0))
-                        lineTo(getX(1), getY(cumulativeSpend[1]))
-                        for (day in 2..currentDay) {
-                            lineTo(getX(day), getY(cumulativeSpend[day]))
-                        }
-                        lineTo(getX(currentDay), getY(0.0))
-                        close()
-                    }
-                    drawPath(
-                        path = actualFillPath,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(primaryColor.copy(alpha = 0.2f), Color.Transparent),
-                            startY = getY(maxVal),
-                            endY = getY(0.0)
-                        )
-                    )
-
-                    // Draw actual line
-                    drawPath(
-                        path = actualPath,
-                        color = primaryColor,
-                        style = Stroke(
-                            width = 6f,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
-                        )
-                    )
-                }
-
-                // 4. Draw projected spend (dashed line starting from today)
-                if (currentDay < totalDays) {
-                    val projectedPath = Path().apply {
-                        moveTo(getX(currentDay), getY(cumulativeSpend[currentDay]))
-                        for (day in (currentDay + 1)..totalDays) {
-                            lineTo(getX(day), getY(projectedSpend[day]))
-                        }
-                    }
-                    drawPath(
-                        path = projectedPath,
-                        color = secondaryColor,
-                        style = Stroke(
-                            width = 4f,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                        )
-                    )
-                }
-
-                // 5. Draw "Today" vertical marker line & dot
-                val todayX = getX(currentDay)
-                val todayY = getY(cumulativeSpend[currentDay])
-                
-                // Draw vertical line for Today
-                drawLine(
-                    color = primaryColor.copy(alpha = 0.4f),
-                    start = androidx.compose.ui.geometry.Offset(todayX, paddingTop),
-                    end = androidx.compose.ui.geometry.Offset(todayX, height - paddingBottom),
-                    strokeWidth = 2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
-                )
-
-                // Today dot
-                drawCircle(
-                    color = primaryColor,
-                    radius = 8f,
-                    center = androidx.compose.ui.geometry.Offset(todayX, todayY)
-                )
-                drawCircle(
-                    color = Color.White,
-                    radius = 4f,
-                    center = androidx.compose.ui.geometry.Offset(todayX, todayY)
-                )
-
-                // 6. Draw X-axis labels (days of the month)
-                val xLabelInterval = 5
-                for (day in 1..totalDays step xLabelInterval) {
-                    val labelX = getX(day)
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "d$day",
-                        labelX,
-                        height - 10f,
-                        android.graphics.Paint().apply {
-                            color = onSurfaceVariant.toArgb()
-                            textSize = 24f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
-                    )
-                }
-                // Always draw last day
-                if ((totalDays - 1) % xLabelInterval != 0) {
-                    val labelX = getX(totalDays)
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "d$totalDays",
-                        labelX,
-                        height - 10f,
-                        android.graphics.Paint().apply {
-                            color = onSurfaceVariant.toArgb()
-                            textSize = 24f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
-                    )
-                }
-            }
-        }
-
-        // Legend
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            LegendItem(color = primaryColor, label = "Actual Spend", isDashed = false)
-            Spacer(modifier = Modifier.width(16.dp))
-            LegendItem(color = secondaryColor, label = "Projected Spend", isDashed = true)
-            if (totalBudget > 0) {
-                Spacer(modifier = Modifier.width(16.dp))
-                LegendItem(color = errorColor, label = "Budget Limit", isDashed = true)
-            }
-        }
-    }
-}
-
-@Composable
-private fun LegendItem(color: Color, label: String, isDashed: Boolean) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.size(16.dp, 8.dp)) {
-            if (isDashed) {
-                drawLine(
-                    color = color,
-                    start = androidx.compose.ui.geometry.Offset(0f, size.height / 2),
-                    end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2),
-                    strokeWidth = 3f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f)
-                )
-            } else {
-                drawLine(
-                    color = color,
-                    start = androidx.compose.ui.geometry.Offset(0f, size.height / 2),
-                    end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2),
-                    strokeWidth = 4f
-                )
-            }
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }

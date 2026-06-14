@@ -22,11 +22,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Storage
@@ -73,7 +74,6 @@ import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.ExpressiveTokens
-import com.example.upitracker.util.HomeScreenStyle
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -112,7 +112,7 @@ fun SettingsScreen(
     val versionName = remember {
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.0.22"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "2.0.22"
         }
     }
@@ -179,8 +179,65 @@ fun SettingsScreen(
                     onClick = { activeDialog = SettingsDialog.ThemeChooser }
                 )
             }
+            item {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
 
+            item {
+                ExpressiveSectionHeader(
+                    title = "Notifications",
+                    subtitle = "Manage new transaction alerts and quick categorization"
+                )
+            }
 
+            item {
+                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
+
+                SettingItemRow(
+                    icon = Icons.Filled.Notifications,
+                    title = "Transaction Alerts",
+                    summary = if (alertsEnabled) "Show alerts for new transactions" else "Disabled",
+                    onClick = { mainViewModel.setTransactionAlertsEnabled(!alertsEnabled) }
+                ) {
+                    Switch(
+                        checked = alertsEnabled,
+                        onCheckedChange = { mainViewModel.setTransactionAlertsEnabled(it) }
+                    )
+                }
+            }
+
+            item {
+                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
+                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
+
+                val titleColor = if (alertsEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                val iconTint = if (alertsEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.38f)
+
+                SettingItemRow(
+                    icon = Icons.AutoMirrored.Filled.Label,
+                    title = "Categorization Actions",
+                    summary = if (alertsEnabled) {
+                        if (actionsEnabled) "Show quick categories on alerts" else "Disabled"
+                    } else {
+                        "Requires Transaction Alerts enabled"
+                    },
+                    onClick = { 
+                        if (alertsEnabled) {
+                            mainViewModel.setNotificationActionsEnabled(!actionsEnabled) 
+                        }
+                    },
+                    titleColor = titleColor,
+                    iconTint = iconTint
+                ) {
+                    Switch(
+                        checked = actionsEnabled && alertsEnabled,
+                        onCheckedChange = { mainViewModel.setNotificationActionsEnabled(it) },
+                        enabled = alertsEnabled
+                    )
+                }
+            }
 
             item {
                 HorizontalDivider(

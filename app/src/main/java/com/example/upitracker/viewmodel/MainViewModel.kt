@@ -233,6 +233,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _transactions: StateFlow<List<Transaction>> = transactionDao.getAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val transactions: StateFlow<List<Transaction>> = _transactions
+
     private val _budgets = budgetDao.getAllActiveBudgets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
@@ -660,6 +662,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.DEFAULT)
+
+    val isTransactionAlertsEnabled: StateFlow<Boolean> = ThemePreference.isTransactionAlertsEnabledFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val isNotificationActionsEnabled: StateFlow<Boolean> = ThemePreference.isNotificationActionsEnabledFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
@@ -1550,6 +1558,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setTransactionAlertsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            ThemePreference.setTransactionAlertsEnabled(getApplication(), enabled)
+        }
+    }
+
+    fun setNotificationActionsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            ThemePreference.setNotificationActionsEnabled(getApplication(), enabled)
+        }
+    }
+
     fun onFilterSheetDismiss() {
         _showHistoryFilterSheet.value = false
     }
@@ -1658,6 +1678,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             colorHex = "#808080"
                         ))
                     }
+                    checkAndRecommendAutoRule(updatedTransaction.senderOrReceiver, catName)
                 }
 
                 val refundKeywordValue = refundKeyword.first()
@@ -1905,6 +1926,79 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Main) {
                 clearSelection()
             }
+
+            // Check for potential auto-rules for the merchants in this batch
+            transactionsToUpdate.map { it.senderOrReceiver }.distinct().forEach { merchant ->
+                checkAndRecommendAutoRule(merchant, categoryName)
+            }
+        }
+    }
+
+    fun createAutoRule(merchant: String, category: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val rule = com.example.upitracker.data.CategorySuggestionRule(
+                fieldToMatch = com.example.upitracker.data.RuleField.SENDER_OR_RECEIVER,
+                matcher = com.example.upitracker.data.RuleMatcher.CONTAINS,
+                keyword = merchant,
+                categoryName = category,
+                priority = 1,
+                logic = com.example.upitracker.data.RuleLogic.ANY
+            )
+            categorySuggestionRuleDao.insertRuleAndApplyRetroactively(rule)
+            postPlainSnackbarMessage("Auto-rule created for '$merchant'!")
+        }
+    }
+
+    fun linkTransactions(debitId: Int, creditId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val transactions = _transactions.value
+            val debitTxn = transactions.find { it.id == debitId }
+            if (debitTxn != null) {
+                val updated = debitTxn.copy(linkedTransactionId = creditId)
+                transactionDao.update(updated)
+                postPlainSnackbarMessage("Refund linked successfully!")
+            }
+        }
+    }
+
+    fun unlinkRefund(transactionId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val transactions = _transactions.value
+            val debitTxn = transactions.find { it.id == transactionId }
+            if (debitTxn != null && debitTxn.linkedTransactionId != null) {
+                val updated = debitTxn.copy(linkedTransactionId = null)
+                transactionDao.update(updated)
+                postPlainSnackbarMessage("Refund unlinked.")
+                return@launch
+            }
+            val debitPointingToCredit = transactions.find { it.linkedTransactionId == transactionId }
+            if (debitPointingToCredit != null) {
+                val updated = debitPointingToCredit.copy(linkedTransactionId = null)
+                transactionDao.update(updated)
+                postPlainSnackbarMessage("Refund unlinked.")
+            }
+        }
+    }
+
+    private suspend fun checkAndRecommendAutoRule(merchant: String, categoryName: String) {
+        val cleanMerchant = merchant.trim()
+        if (cleanMerchant.isBlank() || cleanMerchant == "Manual Entry" || cleanMerchant == "Recurring" || cleanMerchant == "Other Bank") return
+        
+        val existingRules = categorySuggestionRuleDao.getAllRules().first()
+        val hasRule = existingRules.any { 
+            it.fieldToMatch == com.example.upitracker.data.RuleField.SENDER_OR_RECEIVER && 
+            it.keyword.equals(cleanMerchant, ignoreCase = true) 
+        }
+        if (hasRule) return
+
+        val count = _transactions.value.count { 
+            it.senderOrReceiver.equals(cleanMerchant, ignoreCase = true) && 
+            it.category.equals(categoryName, ignoreCase = true) &&
+            !it.isArchived && it.pendingDeletionTimestamp == null
+        }
+
+        if (count >= 3) {
+            _uiEvents.emit(UiEvent.AutoRuleRecommendation(cleanMerchant, categoryName))
         }
     }
 
@@ -2025,8 +2119,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _isExportingCsv.value = false
                     return@launch
                 }
-                val csvString = CsvExporter.exportTransactionsToCsvString(allTransactions)
                 withContext(Dispatchers.IO) {
+                    val csvString = CsvExporter.exportTransactionsToCsvString(allTransactions)
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
                         outputStream.write(csvString.toByteArray())
                         outputStream.flush()
@@ -2259,6 +2353,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     sealed class UiEvent {
         data class RestartRequired(val message: String) : UiEvent()
         object ScrollToTop : UiEvent()
+        data class AutoRuleRecommendation(val merchant: String, val category: String) : UiEvent()
     }
 
     init {

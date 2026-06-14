@@ -42,6 +42,10 @@ class CleanupArchivedSmsWorker(
             // Assuming `deleteOldArchivedSms` takes a timestamp and deletes records *before* it.
             archivedSmsDao.deleteOldArchivedSms(cutoffTimestamp) // This was in ArchivedSmsMessageDao.kt
 
+            // Reclaim disk space by running SQLite vacuum
+            Log.d(WORK_NAME, "Running database vacuum to reclaim disk space after SMS purge...")
+            database.openHelper.writableDatabase.execSQL("VACUUM")
+
             Log.i(WORK_NAME, "Cleanup of old archived SMS messages completed successfully.")
             Result.success()
         } catch (e: Exception) {

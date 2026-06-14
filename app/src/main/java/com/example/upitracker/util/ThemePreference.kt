@@ -44,6 +44,9 @@ object ThemePreference {
 
     private val HOME_SCREEN_STYLE_KEY = stringPreferencesKey("home_screen_style")
 
+    private val TRANSACTION_ALERTS_ENABLED_KEY = booleanPreferencesKey("transaction_alerts_enabled")
+    private val NOTIFICATION_ACTIONS_ENABLED_KEY = booleanPreferencesKey("notification_actions_enabled")
+
     /**
      * Retrieves the Flow for the dark mode preference.
      * Emits false (light mode) if not set or if there's an error.
@@ -155,6 +158,28 @@ object ThemePreference {
     suspend fun setHomeScreenStyle(context: Context, style: HomeScreenStyle) {
         context.settingsDataStore.edit { prefs ->
             prefs[HOME_SCREEN_STYLE_KEY] = style.name
+        }
+    }
+
+    fun isTransactionAlertsEnabledFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[TRANSACTION_ALERTS_ENABLED_KEY] != false
+        }
+
+    suspend fun setTransactionAlertsEnabled(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[TRANSACTION_ALERTS_ENABLED_KEY] = enabled
+        }
+    }
+
+    fun isNotificationActionsEnabledFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[NOTIFICATION_ACTIONS_ENABLED_KEY] != false
+        }
+
+    suspend fun setNotificationActionsEnabled(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[NOTIFICATION_ACTIONS_ENABLED_KEY] = enabled
         }
     }
 

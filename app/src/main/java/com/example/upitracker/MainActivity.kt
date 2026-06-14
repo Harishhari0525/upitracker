@@ -1,6 +1,7 @@
 package com.example.upitracker
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -131,6 +132,11 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (!isTaskRoot && intent.hasCategory(Intent.CATEGORY_LAUNCHER) && intent.action == Intent.ACTION_MAIN) {
+            super.onCreate(savedInstanceState)
+            finish()
+            return
+        }
         super.onCreate(savedInstanceState)
         installSplashScreen().setKeepOnScreenCondition { !mainViewModel.isDataReady.value }
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -260,6 +266,9 @@ class MainActivity : FragmentActivity() {
         var showRestartDialog by remember { mutableStateOf(false) }
         var restartDialogMessage by remember { mutableStateOf("") }
         var showAddTransactionDialog by remember { mutableStateOf(false) }
+        var showAutoRuleDialog by remember { mutableStateOf(false) }
+        var recommendedMerchant by remember { mutableStateOf("") }
+        var recommendedCategory by remember { mutableStateOf("") }
 
         // Core snackbar monitoring pipeline hook
         LaunchedEffect(Unit) {
@@ -287,32 +296,8 @@ class MainActivity : FragmentActivity() {
                     db.transactionDao().getLatestTransactionTimestampIncludingArchived() ?: 0L
                 }
                 if (lastTimestamp > 0) {
-                    val newSmsList = getAllSms(sinceTimestamp = lastTimestamp)
-                    if (newSmsList.isNotEmpty()) {
-                        processSmsInbox(
-                            smsList = newSmsList,
-                            isInitialImport = false,
-                            setLoadingState = { /* Silent */ },
-                            onComplete = { newTxnCount, summaryCount, _ ->
-                                lifecycleScope.launch {
-                                    ThemePreference.setLastSyncExecutionTimestamp(this@MainActivity, System.currentTimeMillis())
-                                }
-                                val isUpiLiteEnabled = mainViewModel.isUpiLiteEnabled.value
-                                val messageParts = mutableListOf<String>()
-
-                                if (newTxnCount > 0) {
-                                    messageParts.add("$newTxnCount new transaction(s)")
-                                }
-                                if (isUpiLiteEnabled && summaryCount > 0) {
-                                    messageParts.add("$summaryCount new UPI Lite summary(s)")
-                                }
-                                if (messageParts.isNotEmpty()) {
-                                    val message = "Silently synced " + messageParts.joinToString(" and ") + "."
-                                    mainViewModel.postSnackbarMessage(message)
-                                }
-                            }
-                        )
-                    }
+                    // Safe incremental background sync execution gated via startFullSmsSync to prevent concurrent thread collisions
+                    startFullSmsSync(isInitialImport = false)
                 }
             } else {
                 Log.d("MainActivity", "Skipping background incremental check: permissions absent or loading onboarding pathways.")
@@ -334,9 +319,17 @@ class MainActivity : FragmentActivity() {
 
         LaunchedEffect(Unit) {
             mainViewModel.uiEvents.collectLatest { event ->
-                if (event is MainViewModel.UiEvent.RestartRequired) {
-                    restartDialogMessage = event.message
-                    showRestartDialog = true
+                when (event) {
+                    is MainViewModel.UiEvent.RestartRequired -> {
+                        restartDialogMessage = event.message
+                        showRestartDialog = true
+                    }
+                    is MainViewModel.UiEvent.AutoRuleRecommendation -> {
+                        recommendedMerchant = event.merchant
+                        recommendedCategory = event.category
+                        showAutoRuleDialog = true
+                    }
+                    else -> {}
                 }
             }
         }
@@ -388,6 +381,36 @@ class MainActivity : FragmentActivity() {
         if (showRestartDialog) {
             ForceRestartDialog(message = restartDialogMessage, onConfirm = { RestartUtil.restartApp(this@MainActivity) })
         }
+
+        if (showAutoRuleDialog) {
+            AlertDialog(
+                onDismissRequest = { showAutoRuleDialog = false },
+                title = { Text("Create Auto-Categorization Rule?") },
+                text = { Text("We noticed you categorized transactions from \"$recommendedMerchant\" as \"$recommendedCategory\" multiple times.\n\nWould you like to automatically categorize all transactions from \"$recommendedMerchant\" as \"$recommendedCategory\" in the future?") },
+                confirmButton = {
+                    Button(onClick = {
+                        mainViewModel.createAutoRule(recommendedMerchant, recommendedCategory)
+                        showAutoRuleDialog = false
+                    }) {
+                        Text("Create Rule")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAutoRuleDialog = false }) {
+                        Text("No, Thanks")
+                    }
+                }
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error removing lifecycle observer", e)
+        }
     }
 
     private fun handleBiometricUnlock(onSuccess: () -> Unit) {
@@ -415,8 +438,7 @@ class MainActivity : FragmentActivity() {
 
     private fun scheduleAllWorkers() {
         val workManager = WorkManager.getInstance(applicationContext)
-        val budgetCheckRequest = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12, TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(BudgetCheckerWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, budgetCheckRequest)
+        com.example.upitracker.util.BudgetCheckerWorker.enqueue(applicationContext)
 
         val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS).build()
         workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, deleteRequest)

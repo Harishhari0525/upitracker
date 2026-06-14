@@ -58,10 +58,7 @@ class MonthlyStatementWorker(
             val endDate = calendar.timeInMillis
 
             // Fetch transactions for the previous month
-            val allTransactions = transactionDao.getAllTransactions().first()
-            val monthTransactions = allTransactions.filter { 
-                it.date in startDate..endDate && !it.isArchived && it.pendingDeletionTimestamp == null 
-            }
+            val monthTransactions = transactionDao.getTransactionsInRangeSync(startDate, endDate)
 
             if (monthTransactions.isEmpty()) {
                 Log.d(WORK_NAME, "No transactions found for $monthName. Skipping statement.")

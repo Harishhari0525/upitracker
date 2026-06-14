@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,8 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.canopas.lib.showcase.IntroShowcase
+import com.canopas.lib.showcase.component.rememberIntroShowcaseState
 import com.example.upitracker.R
 import com.example.upitracker.data.Category
 import com.example.upitracker.data.RecurringRule
@@ -83,6 +83,7 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.TransactionHistoryItem
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -90,6 +91,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,20 +123,36 @@ fun CurrentMonthExpensesScreen(
     val smsSyncProgressFloat = smsSyncState.percentage
 
     val pullRefreshState = rememberPullToRefreshState()
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
 
     val transactionCount = remember(recentTransactions) {
         recentTransactions.filterIsInstance<TransactionHistoryItem>().size
     }
 
-    LaunchedEffect(isTourCompleted) {
-        if (!isTourCompleted) {
+    val introShowcaseState = rememberIntroShowcaseState()
+
+    LaunchedEffect(isTourCompleted, isDashboardLoading) {
+        if (!isTourCompleted && !isDashboardLoading) {
+            delay(1000.milliseconds) // Safe delay to allow layout coordinates to attach and settle
             showAppIntro = true
+        } else {
+            showAppIntro = false
+        }
+    }
+
+    LaunchedEffect(introShowcaseState.currentTargetIndex) {
+        if (showAppIntro && !isDashboardLoading) {
+            if (introShowcaseState.currentTargetIndex == 1) {
+                scrollState.animateScrollTo(scrollState.maxValue)
+            } else if (introShowcaseState.currentTargetIndex == 0) {
+                scrollState.animateScrollTo(0)
+            }
         }
     }
 
     IntroShowcase(
-        showIntroShowCase = showAppIntro,
+        showIntroShowCase = showAppIntro && !isDashboardLoading,
+        state = introShowcaseState,
         onShowCaseCompleted = {
             showAppIntro = false
             coroutineScope.launch {
@@ -200,105 +218,93 @@ fun CurrentMonthExpensesScreen(
                             derivedStateOf { (pullRefreshState.distanceFraction * 80).dp }
                         }
 
-                        LazyColumn(
-                            state = listState,
+                        Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { translationY = dragPushOffset.value.toPx() },
-                            contentPadding = PaddingValues(
-                                start = ExpressiveTokens.spacing.lg,
-                                top = ExpressiveTokens.spacing.lg,
-                                end = ExpressiveTokens.spacing.lg,
-                                bottom = 120.dp
-                            ),
+                                .verticalScroll(scrollState)
+                                .graphicsLayer { translationY = dragPushOffset.value.toPx() }
+                                .padding(
+                                    start = ExpressiveTokens.spacing.lg,
+                                    top = ExpressiveTokens.spacing.lg,
+                                    end = ExpressiveTokens.spacing.lg,
+                                    bottom = 120.dp
+                                ),
                             verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.lg)
                         ) {
-                            item {
-                                TotalExpensesHeroCard(
-                                    total = currentMonthExpensesTotal,
-                                    modifier = Modifier.introShowCaseTarget(
-                                        index = 0,
-                                        content = {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    text = "Monthly Snapshot",
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
+                            TotalExpensesHeroCard(
+                                total = currentMonthExpensesTotal,
+                                modifier = Modifier.introShowCaseTarget(
+                                    index = 0,
+                                    content = {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "Monthly Snapshot",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
 
-                                                Spacer(modifier = Modifier.height(8.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
 
-                                                Text(
-                                                    text = "Swipe down from the top to import old SMS messages. This card shows your total spending for the current month.",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.White
-                                                )
-                                            }
+                                            Text(
+                                                text = "Swipe down from the top to import old SMS messages. This card shows your total spending for the current month.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White
+                                            )
                                         }
-                                    )
+                                    }
                                 )
-                            }
+                            )
 
-                            item {
-                                MonthlyQuickStatsSection(
-                                    transactionCount = transactionCount,
-                                    totalSpent = currentMonthExpensesTotal
-                                )
-                            }
+                            MonthlyQuickStatsSection(
+                                transactionCount = transactionCount,
+                                totalSpent = currentMonthExpensesTotal
+                            )
                             
-                            item {
-                                BankBalancesSection(balances = latestBankBalances)
-                            }
+                            BankBalancesSection(balances = latestBankBalances)
 
                             if (velocityState.totalBudget > 0) {
-                                item {
-                                    SpendingVelocityCard(
-                                        totalBudget = velocityState.totalBudget,
-                                        totalSpent = velocityState.totalSpent,
-                                        daysRemaining = velocityState.daysRemaining
-                                    )
-                                }
-                            }
-
-                            item {
-                                UpcomingPaymentsSection(rules = recurringRules)
-                            }
-
-                            item {
-                                RecentTransactionsSection(
-                                    recentTransactions = recentTransactions,
-                                    allCategories = allCategories,
-                                    mainViewModel = mainViewModel,
-                                    onViewAllClick = onViewAllClick,
-                                    onRefresh = onRefresh,
-                                    modifier = Modifier.introShowCaseTarget(
-                                        index = 1,
-                                        content = {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(
-                                                    text = "Full History",
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-
-                                                Spacer(modifier = Modifier.height(8.dp))
-
-                                                Text(
-                                                    text = "Tap View All to see your complete transaction history with sorting and filtering options.",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    )
+                                SpendingVelocityCard(
+                                    totalBudget = velocityState.totalBudget,
+                                    totalSpent = velocityState.totalSpent,
+                                    daysRemaining = velocityState.daysRemaining
                                 )
                             }
+
+                            UpcomingPaymentsSection(rules = recurringRules)
+
+                            RecentTransactionsSection(
+                                recentTransactions = recentTransactions,
+                                allCategories = allCategories,
+                                mainViewModel = mainViewModel,
+                                onViewAllClick = onViewAllClick,
+                                onRefresh = onRefresh,
+                                modifier = Modifier.introShowCaseTarget(
+                                    index = 1,
+                                    content = {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "Full History",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Text(
+                                                text = "Tap View All to see your complete transaction history with sorting and filtering options.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                )
+                            )
                         }
                     }
                 }
@@ -736,7 +742,7 @@ private fun RecentTransactionsSection(
                     shape = ExpressiveTokens.corners.large
                 ) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Sync,
+                        imageVector = Icons.Default.Sync,
                         contentDescription = "Sync",
                         modifier = Modifier.size(18.dp)
                     )

@@ -191,6 +191,14 @@ interface TransactionDao {
         refundCategory: String
     ): Double?
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+    suspend fun getSpentAmountForCategoryInRangeSync(
+        categoryName: String,
+        startDate: Long,
+        endDate: Long,
+        refundCategory: String
+    ): Double?
+
     @Query("SELECT * FROM transactions WHERE senderOrReceiver = :sender AND isArchived = 0 ORDER BY date DESC")
     suspend fun getHistoryForMerchant(sender: String): List<Transaction>
 
@@ -253,6 +261,9 @@ interface TransactionDao {
         LIMIT 3
     """)
     suspend fun getGlobalTopCategories(): List<String>
+
+    @Query("SELECT * FROM transactions WHERE date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC")
+    suspend fun getTransactionsInRangeSync(startDate: Long, endDate: Long): List<Transaction>
 }
 
 private fun extractUpiReferenceNumber(text: String): String? {

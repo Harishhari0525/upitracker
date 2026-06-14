@@ -8,6 +8,11 @@ import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.BudgetPeriod
 import kotlinx.coroutines.flow.first
 import java.util.Calendar
+import androidx.core.content.edit
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
 class BudgetCheckerWorker(
     appContext: Context,
@@ -16,6 +21,22 @@ class BudgetCheckerWorker(
 
     companion object {
         const val WORK_NAME = "BudgetCheckerWorker"
+
+        fun enqueue(context: Context) {
+            val constraints = androidx.work.Constraints.Builder()
+                .setRequiresBatteryNotLow(true)
+                .build()
+
+            val request = PeriodicWorkRequestBuilder<BudgetCheckerWorker>(12, TimeUnit.HOURS)
+                .setConstraints(constraints)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+        }
     }
 
     override suspend fun doWork(): Result {
@@ -28,19 +49,17 @@ class BudgetCheckerWorker(
             val activeBudgets = budgetDao.getAllActiveBudgets().first()
             if (activeBudgets.isEmpty()) return Result.success()
 
-            val allNonRefundDebits = transactionDao.getAllTransactions().first()
-                .filter { it.type == "DEBIT" && it.category != "Refund" }
-
             activeBudgets.forEach { budget ->
                 val (periodStart, periodEnd) = getCurrentPeriodRange(budget.periodType)
 
                 // Only check if we haven't already notified for the current period
                 if (budget.lastNotificationTimestamp < periodStart) {
-                    val spentInCurrentPeriod = allNonRefundDebits
-                        .filter {
-                            it.category.equals(budget.categoryName, true) && it.date in periodStart..periodEnd
-                        }
-                        .sumOf { it.amount }
+                    val spentInCurrentPeriod = transactionDao.getSpentAmountForCategoryInRangeSync(
+                        startDate = periodStart,
+                        endDate = periodEnd,
+                        categoryName = budget.categoryName,
+                        refundCategory = "Refund"
+                    ) ?: 0.0
 
                     if (spentInCurrentPeriod >= budget.budgetAmount) {
                         Log.d(WORK_NAME, "Budget for '${budget.categoryName}' exceeded. Notifying user.")
@@ -50,13 +69,13 @@ class BudgetCheckerWorker(
                         val updatedBudget = budget.copy(lastNotificationTimestamp = System.currentTimeMillis())
                         budgetDao.update(updatedBudget)
                     } else if (spentInCurrentPeriod >= budget.budgetAmount * 0.85) {
-                        val sharedPrefs = applicationContext.getSharedPreferences("budget_notifications_prefs", android.content.Context.MODE_PRIVATE)
+                        val sharedPrefs = applicationContext.getSharedPreferences("budget_notifications_prefs", Context.MODE_PRIVATE)
                         val warningKey = "budget_warned_${budget.id}_${periodStart}"
                         val hasWarned = sharedPrefs.getBoolean(warningKey, false)
                         if (!hasWarned) {
                             Log.d(WORK_NAME, "Budget for '${budget.categoryName}' reached 85%. Warning user.")
                             NotificationHelper.showBudgetWarningNotification(applicationContext, budget, spentInCurrentPeriod)
-                            sharedPrefs.edit().putBoolean(warningKey, true).apply()
+                            sharedPrefs.edit { putBoolean(warningKey, true) }
                         }
                     }
                 }
@@ -71,8 +90,6 @@ class BudgetCheckerWorker(
 
     private fun getCurrentPeriodRange(period: BudgetPeriod): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
-        val currentYear = calendar.get(Calendar.YEAR)
-        val currentMonth = calendar.get(Calendar.MONTH)
 
         when (period) {
             BudgetPeriod.WEEKLY -> {

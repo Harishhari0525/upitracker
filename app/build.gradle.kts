@@ -1,4 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
+import java.net.HttpURLConnection
+import java.util.regex.Pattern
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,6 +9,34 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     id("com.google.protobuf") version "0.10.0"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.0"
+}
+
+fun getLatestGithubVersion(): String {
+    try {
+        val connection = URI.create("https://api.github.com/repos/Harishhari0525/upitracker/releases/latest").toURL().openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+        connection.connectTimeout = 3000
+        connection.readTimeout = 3000
+        if (connection.responseCode == 200) {
+            val response = connection.inputStream.bufferedReader().readText()
+            val tagMatch = Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").matcher(response)
+            if (tagMatch.find()) {
+                val tag = tagMatch.group(1).removePrefix("v")
+                val parts = tag.split(".")
+                val lastPart = parts.last().toIntOrNull()
+                if (lastPart != null) {
+                    val incrementedLast = lastPart + 1
+                    val newParts = parts.dropLast(1) + incrementedLast.toString()
+                    return newParts.joinToString(".")
+                }
+                return tag
+            }
+        }
+    } catch (_: Exception) {
+        // Fallback silently if offline or rate-limited
+    }
+    return "2.0.28"
 }
 
 android {
@@ -17,7 +48,7 @@ android {
         minSdk = 33
         targetSdk = 37
         versionCode = 1
-        versionName = (project.findProperty("versionName") as? String) ?: "2.0.22"
+        versionName = (project.findProperty("versionName") as? String) ?: getLatestGithubVersion()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

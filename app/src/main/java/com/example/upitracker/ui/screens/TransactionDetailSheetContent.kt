@@ -5,6 +5,9 @@ package com.example.upitracker.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import java.text.NumberFormat
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -270,7 +273,17 @@ fun TransactionDetailSheetContent(
             }
         } else {
             // --- VIEW MODE UI ---
-            TransactionDetailHeader(transaction!!)
+            val allTransactions by mainViewModel.transactions.collectAsState()
+            val isDebit = transaction!!.type == "DEBIT"
+            val linkedTxn = if (isDebit) {
+                transaction!!.linkedTransactionId?.let { linkId ->
+                    allTransactions.find { it.id == linkId }
+                }
+            } else {
+                allTransactions.find { it.linkedTransactionId == transaction!!.id }
+            }
+
+            TransactionDetailHeader(transaction = transaction!!, linkedTransaction = linkedTxn)
 
             // ✨ DNA Card if available
             if (merchantDna != null) {
@@ -279,6 +292,8 @@ fun TransactionDetailSheetContent(
                     dna = merchantDna!!
                 )
             }
+
+            var showLinkDialog by remember { mutableStateOf(false) }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -295,7 +310,143 @@ fun TransactionDetailSheetContent(
                     if (transaction!!.note.isNotBlank()) {
                         DetailRow(label = stringResource(R.string.detail_label_note), value = transaction!!.note)
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = ExpressiveTokens.spacing.lg, vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    if (isDebit) {
+                        val linkedRefund = transaction!!.linkedTransactionId?.let { linkId ->
+                            allTransactions.find { it.id == linkId }
+                        }
+                        if (linkedRefund != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.sm)
+                            ) {
+                                Text(
+                                    text = "Linked Refund",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "+₹${"%.2f".format(linkedRefund.amount)} on ${formatFullDateTime(linkedRefund.date)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF16A34A)
+                                        )
+                                        Text(
+                                            text = linkedRefund.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    TextButton(onClick = { mainViewModel.unlinkRefund(transaction!!.id) }) {
+                                        Text("Unlink", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.sm)
+                            ) {
+                                Text(
+                                    text = "Refund Tracking",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = { showLinkDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = ExpressiveTokens.corners.medium
+                                ) {
+                                    Text("Link a Refund / Return")
+                                }
+                            }
+                        }
+                    } else {
+                        val linkedDebit = allTransactions.find { it.linkedTransactionId == transaction!!.id }
+                        if (linkedDebit != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.sm)
+                            ) {
+                                Text(
+                                    text = "Refund for Transaction",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "-₹${"%.2f".format(linkedDebit.amount)} on ${formatFullDateTime(linkedDebit.date)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Text(
+                                            text = linkedDebit.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    TextButton(onClick = { mainViewModel.unlinkRefund(linkedDebit.id) }) {
+                                        Text("Unlink", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.sm)
+                            ) {
+                                Text(
+                                    text = "Refund Association",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = { showLinkDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = ExpressiveTokens.corners.medium
+                                ) {
+                                    Text("Link to Original Expense")
+                                }
+                            }
+                        }
+                    }
                 }
+            }
+
+            if (showLinkDialog) {
+                LinkTransactionDialog(
+                    currentTransaction = transaction!!,
+                    candidates = allTransactions,
+                    onDismiss = { showLinkDialog = false },
+                    onLinkSelected = { targetId ->
+                        if (isDebit) {
+                            mainViewModel.linkTransactions(debitId = transaction!!.id, creditId = targetId)
+                        } else {
+                            mainViewModel.linkTransactions(debitId = targetId, creditId = transaction!!.id)
+                        }
+                        showLinkDialog = false
+                    }
+                )
             }
 
             if (!transaction!!.receiptImagePath.isNullOrBlank()) {
@@ -449,7 +600,7 @@ fun TransactionDetailSheetContent(
 }
 
 @Composable
-private fun TransactionDetailHeader(transaction: Transaction) {
+private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction: Transaction? = null) {
     val creditColor = if (isSystemInDarkTheme()) {
         Color(0xFF63DC94)
     } else {
@@ -490,6 +641,47 @@ private fun TransactionDetailHeader(transaction: Transaction) {
                 fontWeight = FontWeight.ExtraBold,
                 color = amountColor
             )
+
+            if (linkedTransaction != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val isDebit = transaction.type.equals("DEBIT", ignoreCase = true)
+                val netAmount = if (isDebit) {
+                    transaction.amount - linkedTransaction.amount
+                } else {
+                    linkedTransaction.amount - transaction.amount
+                }
+                
+                Surface(
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                    shape = ExpressiveTokens.corners.medium,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (isDebit) "Net Spent:" else "Net Expense:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "₹${"%.2f".format(netAmount)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDebit) {
+                                if (netAmount > 0) MaterialTheme.colorScheme.error else creditColor
+                            } else {
+                                if (netAmount > 0) MaterialTheme.colorScheme.error else creditColor
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = transaction.senderOrReceiver,
@@ -720,6 +912,106 @@ fun QuickRuleCreatorDialog(
             }
         },
         dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun LinkTransactionDialog(
+    currentTransaction: Transaction,
+    candidates: List<Transaction>,
+    onDismiss: () -> Unit,
+    onLinkSelected: (Int) -> Unit
+) {
+    var showAllMerchants by remember { mutableStateOf(false) }
+    
+    val filteredCandidates = remember(candidates, currentTransaction, showAllMerchants) {
+        candidates.filter { txn ->
+            txn.id != currentTransaction.id &&
+            txn.type != currentTransaction.type &&
+            txn.linkedTransactionId == null &&
+            (showAllMerchants || txn.senderOrReceiver.equals(currentTransaction.senderOrReceiver, ignoreCase = true))
+        }.sortedByDescending { it.date }
+    }
+
+    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
+        .setLanguage("en")
+        .setRegion("IN")
+        .build()) }
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Link Transaction") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Filter by same merchant", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked = !showAllMerchants,
+                        onCheckedChange = { showAllMerchants = !it }
+                    )
+                }
+
+                if (filteredCandidates.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No matching transactions found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredCandidates, key = { it.id }) { txn ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onLinkSelected(txn.id) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = txn.description,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = "${dateFormat.format(Date(txn.date))} • ${txn.senderOrReceiver}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = (if (txn.type == "CREDIT") "+" else "-") + currencyFormatter.format(txn.amount),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (txn.type == "CREDIT") Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }

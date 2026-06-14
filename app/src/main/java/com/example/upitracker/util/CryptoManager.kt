@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.aead.AesGcmKeyManager
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import java.io.IOException
 import java.security.GeneralSecurityException
@@ -79,7 +80,7 @@ object CryptoManager {
             .build()
             .keysetHandle
 
-        return keysetHandle.getPrimitive(Aead::class.java)
+        return keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
     }
 
     fun getAead(): Aead {

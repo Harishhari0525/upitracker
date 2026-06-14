@@ -68,7 +68,8 @@ object SmsProcessingService {
         context: Context,
         smsList: List<Triple<String, String, Long>>,
         updateWidget: Boolean = false,
-        config: SmsProcessingConfig? = null
+        config: SmsProcessingConfig? = null,
+        showNotifications: Boolean = false
     ): SmsProcessingResult = withContext(Dispatchers.IO) {
         var newTxnCount = 0
         var processedSummaries = 0
@@ -83,7 +84,8 @@ object SmsProcessingService {
                 body = body,
                 smsDate = smsDate,
                 updateWidget = updateWidget,
-                config = currentConfig
+                config = currentConfig,
+                showNotification = showNotifications
             )
 
             newTxnCount += result.newTxnCount
@@ -104,7 +106,8 @@ object SmsProcessingService {
         body: String,
         smsDate: Long,
         updateWidget: Boolean = false,
-        config: SmsProcessingConfig? = null
+        config: SmsProcessingConfig? = null,
+        showNotification: Boolean = true
     ): SmsProcessingResult = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
         val db = AppDatabase.getDatabase(appContext)
@@ -146,23 +149,35 @@ object SmsProcessingService {
                 val savedTransaction = finalTransaction.copy(id = insertedId.toInt())
 
                 if (savedTransaction.type == "DEBIT" && savedTransaction.category == null) {
-                    val topMerchantCategories = transactionDao.getTopCategoriesForMerchant(savedTransaction.senderOrReceiver)
-                    val globalTopCategories = transactionDao.getGlobalTopCategories()
-                    val suggested = (topMerchantCategories + globalTopCategories + listOf("Food", "Transport", "Bills"))
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .take(3)
-                    NotificationHelper.showNewTransactionNotification(appContext, savedTransaction, suggested)
+                    if (showNotification) {
+                        val alertsEnabled = ThemePreference.isTransactionAlertsEnabledFlow(appContext).first()
+                        if (alertsEnabled) {
+                            val actionsEnabled = ThemePreference.isNotificationActionsEnabledFlow(appContext).first()
+                            val suggested = if (actionsEnabled) {
+                                val topMerchantCategories = transactionDao.getTopCategoriesForMerchant(savedTransaction.senderOrReceiver)
+                                val globalTopCategories = transactionDao.getGlobalTopCategories()
+                                (topMerchantCategories + globalTopCategories + listOf("Food", "Transport", "Bills"))
+                                    .filter { it.isNotBlank() }
+                                    .distinct()
+                                    .take(3)
+                            } else {
+                                emptyList()
+                            }
+                            NotificationHelper.showNewTransactionNotification(appContext, savedTransaction, suggested)
+                        }
+                    }
                 }
 
-                checkBudgetForNewTransaction(
-                    context = appContext,
-                    transaction = savedTransaction,
-                    refundCategory = currentConfig.refundKeyword,
-                    budgets = currentConfig.activeBudgets,
-                    transactionDao = transactionDao,
-                    budgetDao = db.budgetDao()
-                )
+                if (showNotification) {
+                    checkBudgetForNewTransaction(
+                        context = appContext,
+                        transaction = savedTransaction,
+                        refundCategory = currentConfig.refundKeyword,
+                        budgets = currentConfig.activeBudgets,
+                        transactionDao = transactionDao,
+                        budgetDao = db.budgetDao()
+                    )
+                }
 
                 if (updateWidget) {
                     updateWidgets(appContext)
