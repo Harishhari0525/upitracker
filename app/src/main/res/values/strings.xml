@@ -151,6 +151,7 @@
     <string name="pin_lock_unlock_button">Unlock</string>
     <string name="pin_lock_feedback_pin_updated">PIN Updated Successfully!</string>
     <string name="pin_lock_feedback_incorrect_pin">Incorrect PIN. Please try again.</string>
+    <string name="pin_lock_feedback_locked_out">Too many incorrect attempts. Try again in %1$d seconds.</string>
     <string name="pin_lock_forgot_change_pin_button">Forgot or Change PIN?</string>
     <string name="pin_lock_set_initial_pin_button">Set Initial PIN</string>
     <string name="empty_state_no_upi_transactions_history_filtered">No UPI transactions match the current filter.</string>

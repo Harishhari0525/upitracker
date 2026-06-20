@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface ArchivedSmsMessageDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE) // Ignore if we somehow try to insert the exact same raw SMS again
-    suspend fun insertArchivedSms(archivedSmsMessage: ArchivedSmsMessage)
+    suspend fun insertArchivedSms(archivedSmsMessage: ArchivedSmsMessage): Long
 
     // For future cleanup based on retention policy
     @Query("DELETE FROM archived_sms_messages WHERE backupTimestamp < :cutoffTimestamp")

@@ -19,3 +19,16 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# WorkManager and Glance instantiate these classes by persisted/reflected class name.
+-keep class com.example.upitracker.util.**Worker { public <init>(...); }
+-keep class com.example.upitracker.widget.** implements androidx.glance.appwidget.action.ActionCallback { *; }
+
+# Protobuf Lite rules
+-assumevalues class com.google.protobuf.Android {
+    static boolean ASSUME_ANDROID return true;
+}
+
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+    <fields>;
+}

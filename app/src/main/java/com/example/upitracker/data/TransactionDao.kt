@@ -9,21 +9,46 @@ import androidx.room.RawQuery
 import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
+import com.example.upitracker.util.toMajorUnits
+import androidx.paging.PagingSource
+import androidx.room.Ignore
 
 @Dao
 interface TransactionDao {
 
-    @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC")
-    fun getAllTransactions(): Flow<List<Transaction>>
+    @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC LIMIT :limit")
+    fun getRecentTransactions(limit: Int): Flow<List<Transaction>>
 
-    @Query("SELECT * FROM transactions WHERE isArchived = 1 ORDER BY date DESC")
-    fun getArchivedTransactions(): Flow<List<Transaction>>
+    @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC")
+    suspend fun getAllTransactionsSnapshot(): List<Transaction>
+
+    @Query("""
+        SELECT * FROM transactions
+        WHERE isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND (:startDate IS NULL OR date >= :startDate)
+          AND (:endDate IS NULL OR date <= :endDate)
+          AND (:type IS NULL OR type = :type)
+        ORDER BY date DESC, id DESC
+    """)
+    fun getTransactionsForPassbook(startDate: Long?, endDate: Long?, type: String?): Flow<List<Transaction>>
+
+    @Query("SELECT * FROM transactions WHERE isArchived = 1 ORDER BY date DESC, id DESC")
+    fun getArchivedTransactionsPaged(): PagingSource<Int, Transaction>
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE isArchived = 1")
+    fun getArchivedTransactionCount(): Flow<Int>
 
     @RawQuery(observedEntities = [Transaction::class])
-    fun getFilteredTransactions(query: SupportSQLiteQuery): Flow<List<Transaction>>
+    fun getFilteredTransactionsPaged(query: SupportSQLiteQuery): PagingSource<Int, Transaction>
+
+    data class TransactionTotals(val totalDebitPaise: Long, val totalCreditPaise: Long)
+
+    @RawQuery(observedEntities = [Transaction::class])
+    fun getFilteredTotals(query: SupportSQLiteQuery): Flow<TransactionTotals>
 
     @Query("SELECT * FROM transactions WHERE amount = :amount AND date = :date AND description = :desc LIMIT 1")
-    suspend fun getTransactionByDetails(amount: Double, date: Long, desc: String): Transaction?
+    suspend fun getTransactionByDetails(amount: Long, date: Long, desc: String): Transaction?
 
     @Query(
         """
@@ -37,7 +62,7 @@ interface TransactionDao {
         """
     )
     suspend fun findDuplicateTransaction(
-        amount: Double,
+        amount: Long,
         type: String,
         startDate: Long,
         endDate: Long,
@@ -53,14 +78,15 @@ interface TransactionDao {
 
     @androidx.room.Transaction
     suspend fun insertIfNotDuplicate(transaction: Transaction): Long {
-        val timeToleranceMs = 5 * 60 * 1000L
+        val strictTimeToleranceMs = 0L
+        val potentialDuplicateWindowMs = 5 * 60 * 1000L
 
         // 1. Strict duplicate check (same amount, type, date, description, sender)
         val strictExisting = findDuplicateTransaction(
-            amount = transaction.amount,
+            amount = transaction.amountPaise,
             type = transaction.type,
-            startDate = transaction.date - timeToleranceMs,
-            endDate = transaction.date + timeToleranceMs,
+            startDate = transaction.date - strictTimeToleranceMs,
+            endDate = transaction.date + strictTimeToleranceMs,
             description = transaction.description.trim(),
             senderOrReceiver = transaction.senderOrReceiver.trim()
         )
@@ -69,7 +95,7 @@ interface TransactionDao {
             var updated = false
             var toUpdate = strictExisting
             if (strictExisting.balanceAfterTransaction == null && transaction.balanceAfterTransaction != null) {
-                toUpdate = toUpdate.copy(balanceAfterTransaction = transaction.balanceAfterTransaction)
+                toUpdate = toUpdate.copy(balanceAfterTransactionPaise = transaction.balanceAfterTransactionPaise)
                 updated = true
             }
             if (strictExisting.bankName == null && transaction.bankName != null) {
@@ -84,10 +110,10 @@ interface TransactionDao {
 
         // 2. Intelligent duplicate detection & merging (same amount/type within 5 minutes)
         val potentials = findPotentialDuplicates(
-            amount = transaction.amount,
+            amount = transaction.amountPaise,
             type = transaction.type,
-            startDate = transaction.date - timeToleranceMs,
-            endDate = transaction.date + timeToleranceMs
+            startDate = transaction.date - potentialDuplicateWindowMs,
+            endDate = transaction.date + potentialDuplicateWindowMs
         )
 
         val incomingRef = extractUpiReferenceNumber(transaction.description)
@@ -100,22 +126,16 @@ interface TransactionDao {
                 continue
             }
 
-            val isRefMatch = incomingRef != null && existingRef != null && incomingRef == existingRef
+            val isRefMatch = incomingRef != null && existingRef != null
             
-            val isBankMatch = p.bankName == transaction.bankName || 
-                              (p.bankName == null || p.bankName == "Other Bank") ||
-                              (transaction.bankName == null || transaction.bankName == "Other Bank")
-
-            val hasNoRefConflict = incomingRef == null || existingRef == null || incomingRef == existingRef
-
-            if (isRefMatch || (isBankMatch && hasNoRefConflict)) {
+            if (isRefMatch) {
                 val isBankMergeable = (p.bankName == null || p.bankName == "Other Bank") && 
                                       (transaction.bankName != null && transaction.bankName != "Other Bank")
                 // If the existing is generic and incoming is bank-specific, upgrade the existing record
                 if (isBankMergeable) {
                     val updatedTxn = p.copy(
                         bankName = transaction.bankName,
-                        balanceAfterTransaction = transaction.balanceAfterTransaction ?: p.balanceAfterTransaction,
+                        balanceAfterTransactionPaise = transaction.balanceAfterTransactionPaise ?: p.balanceAfterTransactionPaise,
                         description = transaction.description,
                         senderOrReceiver = transaction.senderOrReceiver
                     )
@@ -126,7 +146,7 @@ interface TransactionDao {
                                        (p.balanceAfterTransaction == null || p.balanceAfterTransaction == 0.0)
                     if (hasNewBalance) {
                         update(p.copy(
-                            balanceAfterTransaction = transaction.balanceAfterTransaction,
+                            balanceAfterTransactionPaise = transaction.balanceAfterTransactionPaise,
                             bankName = if (p.bankName == null || p.bankName == "Other Bank") transaction.bankName else p.bankName
                         ))
                     }
@@ -161,8 +181,17 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
     suspend fun getTransactionByIdSync(id: Int): Transaction?
 
+    @Query("SELECT * FROM transactions WHERE linkedTransactionId = :id LIMIT 1")
+    suspend fun getTransactionLinkedTo(id: Int): Transaction?
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE senderOrReceiver = :merchant AND category = :category AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+    suspend fun countCategorizedMerchantTransactions(merchant: String, category: String): Int
+
     @Query("DELETE FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp")
     suspend fun permanentlyDeletePending(cutoffTimestamp: Long)
+
+    @Query("SELECT receiptImagePath FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp AND receiptImagePath IS NOT NULL")
+    suspend fun getReceiptPathsPendingDeletion(cutoffTimestamp: Long): List<String>
 
     @Query("SELECT * FROM transactions WHERE type = 'DEBIT' AND senderOrReceiver = :sender AND isArchived = 0 AND linkedTransactionId IS NULL ORDER BY date DESC")
     suspend fun findPotentialDebitsForRefund(sender: String): List<Transaction>
@@ -185,27 +214,42 @@ interface TransactionDao {
     ): List<Transaction>
 
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
-    suspend fun getSpentAmountInRangeSync(
+    suspend fun getSpentAmountPaiseInRangeSync(
         startDate: Long,
         endDate: Long,
         refundCategory: String
-    ): Double?
+    ): Long?
+
+    suspend fun getSpentAmountInRangeSync(startDate: Long, endDate: Long, refundCategory: String): Double? =
+        getSpentAmountPaiseInRangeSync(startDate, endDate, refundCategory)?.toMajorUnits()
 
     @Query("SELECT SUM(amount) FROM transactions WHERE category = :categoryName AND type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+    suspend fun getSpentAmountPaiseForCategoryInRangeSync(
+        categoryName: String,
+        startDate: Long,
+        endDate: Long,
+        refundCategory: String
+    ): Long?
+
     suspend fun getSpentAmountForCategoryInRangeSync(
         categoryName: String,
         startDate: Long,
         endDate: Long,
         refundCategory: String
-    ): Double?
+    ): Double? = getSpentAmountPaiseForCategoryInRangeSync(
+        categoryName, startDate, endDate, refundCategory
+    )?.toMajorUnits()
 
     @Query("SELECT * FROM transactions WHERE senderOrReceiver = :sender AND isArchived = 0 ORDER BY date DESC")
     suspend fun getHistoryForMerchant(sender: String): List<Transaction>
 
-    data class BankBalance(val bankName: String, val latestBalance: Double, val lastUpdated: Long)
+    data class BankBalance(val bankName: String, val latestBalancePaise: Long, val lastUpdated: Long) {
+        @get:Ignore
+        val latestBalance: Double get() = latestBalancePaise.toMajorUnits()
+    }
 
     @Query("""
-        SELECT t.bankName, t.balanceAfterTransaction AS latestBalance, t.date AS lastUpdated
+        SELECT t.bankName, t.balanceAfterTransaction AS latestBalancePaise, t.date AS lastUpdated
         FROM transactions t
         WHERE t.bankName IS NOT NULL 
           AND t.bankName != 'Other Bank'
@@ -235,7 +279,7 @@ interface TransactionDao {
         """
     )
     suspend fun findPotentialDuplicates(
-        amount: Double,
+        amount: Long,
         type: String,
         startDate: Long,
         endDate: Long

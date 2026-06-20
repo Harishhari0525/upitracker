@@ -19,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -104,7 +103,7 @@ class MainActivity : FragmentActivity() {
     private val backupDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             uri?.let {
-                contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 mainViewModel.backupDatabase(it, contentResolver)
             }
         }
@@ -112,7 +111,7 @@ class MainActivity : FragmentActivity() {
     private val restoreDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let {
-                contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 mainViewModel.restoreDatabase(it, contentResolver)
             }
         }
@@ -243,7 +242,14 @@ class MainActivity : FragmentActivity() {
                             onUnlock = { mainViewModel.setPinUnlocked(true) },
                             onSetPin = { mainViewModel.setPinUnlocked(true) },
                             onAttemptBiometricUnlock = {
-                                handleBiometricUnlock { mainViewModel.setPinUnlocked(true) }
+                                lifecycleScope.launch {
+                                    val lockoutUntil = PinStorage.getPinLockoutUntil(this@MainActivity)
+                                    if (lockoutUntil <= System.currentTimeMillis()) {
+                                        handleBiometricUnlock { mainViewModel.setPinUnlocked(true) }
+                                    } else {
+                                        mainViewModel.postSnackbarMessage("App is locked out. Please wait.")
+                                    }
+                                }
                             }
                         )
                     }
@@ -438,7 +444,7 @@ class MainActivity : FragmentActivity() {
 
     private fun scheduleAllWorkers() {
         val workManager = WorkManager.getInstance(applicationContext)
-        com.example.upitracker.util.BudgetCheckerWorker.enqueue(applicationContext)
+        BudgetCheckerWorker.enqueue(applicationContext)
 
         val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS).build()
         workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
@@ -455,8 +461,8 @@ class MainActivity : FragmentActivity() {
         workManager.enqueueUniquePeriodicWork(UpdateCheckWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, updateCheckRequest)
         
         // ✨ Schedule Monthly Statement Worker
-        val statementRequest = PeriodicWorkRequestBuilder<com.example.upitracker.util.MonthlyStatementWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(com.example.upitracker.util.MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, statementRequest)
+        val statementRequest = PeriodicWorkRequestBuilder<MonthlyStatementWorker>(1, TimeUnit.DAYS).build()
+        workManager.enqueueUniquePeriodicWork(MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, statementRequest)
     }
 
     private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
@@ -523,8 +529,8 @@ class MainActivity : FragmentActivity() {
 
             val config = SmsProcessingService.fetchProcessingConfig(this@MainActivity)
 
-            // Chunk messages into sub-batches of 15 to allow the main thread UI state definitions to breathe
-            val chunkSize = 15
+            // Chunk messages into sub-batches of 50 to allow the main thread UI state definitions to breathe
+            val chunkSize = 50
             val chunks = smsList.chunked(chunkSize)
             var processedCount = 0
 

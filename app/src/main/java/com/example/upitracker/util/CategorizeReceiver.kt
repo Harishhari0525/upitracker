@@ -31,7 +31,7 @@ class CategorizeReceiver : BroadcastReceiver() {
                     // 2. Update category
                     if (transaction != null) {
                         dao.update(transaction.copy(category = category))
-                        Log.d("CategorizeReceiver", "Transaction $transactionId updated to $category")
+                        Log.d("CategorizeReceiver", "Transaction category updated")
                     }
 
                     // 3. Dismiss the notification

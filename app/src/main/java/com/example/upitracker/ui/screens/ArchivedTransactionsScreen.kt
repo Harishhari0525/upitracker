@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +34,8 @@ import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
 
 @Composable
 fun ArchivedTransactionsScreen(
@@ -43,8 +44,8 @@ fun ArchivedTransactionsScreen(
 ) {
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
 
-    val archivedList by mainViewModel.archivedUpiTransactions
-        .collectAsState(initial = emptyList())
+    val archivedList = mainViewModel.archivedUpiTransactions.collectAsLazyPagingItems()
+    val archivedCount by mainViewModel.archivedTransactionCount.collectAsState()
 
     val allCategories by mainViewModel.allCategories.collectAsState()
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
@@ -66,7 +67,7 @@ fun ArchivedTransactionsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (archivedList.isEmpty()) {
+            if (archivedList.itemCount == 0 && archivedList.loadState.refresh is LoadState.NotLoading) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -97,14 +98,15 @@ fun ArchivedTransactionsScreen(
                     item {
                         ExpressiveSectionHeader(
                             title = "Archived Transactions",
-                            subtitle = "${archivedList.size} archived items"
+                            subtitle = "$archivedCount archived items"
                         )
                     }
 
                     items(
-                        items = archivedList,
-                        key = { it.id }
-                    ) { transaction ->
+                        count = archivedList.itemCount,
+                        key = { index -> archivedList.peek(index)?.id ?: "archived-placeholder-$index" }
+                    ) { index ->
+                        val transaction = archivedList[index] ?: return@items
                         val categoryDetails = remember(transaction.category, allCategories) {
                             allCategories.find { category ->
                                 category.name.equals(

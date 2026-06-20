@@ -100,6 +100,7 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
@@ -120,6 +121,7 @@ object NotificationHelper {
             .setContentText("${currencyFormatter.format(rule.amount)} is $dueText.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
@@ -141,6 +143,7 @@ object NotificationHelper {
                 .bigText("You've spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}', overspending by ${currencyFormatter.format(overspendAmount)}."))
             .setPriority(NotificationCompat.PRIORITY_HIGH) // High priority to make it pop up
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
@@ -162,6 +165,7 @@ object NotificationHelper {
                 .bigText("You have spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}' (${percentage}% reached). Time to budget wisely!"))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
@@ -183,6 +187,7 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent) // This makes the notification clickable
             .setAutoCancel(true) // Dismiss the notification when tapped
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
@@ -233,6 +238,7 @@ object NotificationHelper {
             .setStyle(NotificationCompat.BigTextStyle().bigText(transaction.description))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
 
         // Add the actions buttons
         actions.forEach { builder.addAction(it) }

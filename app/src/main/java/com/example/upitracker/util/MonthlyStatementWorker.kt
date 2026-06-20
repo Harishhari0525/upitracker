@@ -6,11 +6,11 @@ import androidx.core.content.FileProvider
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.upitracker.data.AppDatabase
-import kotlinx.coroutines.flow.first
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class MonthlyStatementWorker(
     appContext: Context,
@@ -29,6 +29,11 @@ class MonthlyStatementWorker(
         val transactionDao = db.transactionDao()
 
         try {
+            val staleCutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(2)
+            context.cacheDir.listFiles { file ->
+                file.isFile && file.name.startsWith("UPI_Tracker_Statement_") && file.extension == "pdf"
+            }?.filter { it.lastModified() < staleCutoff }?.forEach { it.delete() }
+
             val calendar = Calendar.getInstance()
             
             // Only run this logic if it's the 1st day of the month
@@ -68,6 +73,9 @@ class MonthlyStatementWorker(
             // Generate the PDF file in the cache directory
             val fileName = "UPI_Tracker_Statement_${monthName.replace(" ", "_")}.pdf"
             val file = File(context.cacheDir, fileName)
+            if (file.exists() && !file.delete()) {
+                throw java.io.IOException("Unable to replace previous statement")
+            }
             
             // This is a simplified call; assuming PdfGenerator has a method that writes to a File
             // Since PdfGenerator in this codebase writes directly to an OutputStream via URI, 

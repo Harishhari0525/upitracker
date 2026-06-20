@@ -44,10 +44,8 @@ object PdfGenerator {
 
         val leftMargin = 40f
         val rightMargin = 555f
-        val dateColX = leftMargin
         val descColX = 95f
         val debitColX = 470f
-        val creditColX = rightMargin
 
         var pageCount = 1
         val footerPaint = Paint().apply { textSize = 8f; color = Color.GRAY }
@@ -61,10 +59,10 @@ object PdfGenerator {
             pageCanvas.drawText("Transaction Statement", leftMargin + 55f, 60f, titlePaint)
             pageCanvas.drawText(statementPeriod, leftMargin + 55f, 80f, periodPaint)
 
-            pageCanvas.drawText("Date", dateColX, 120f, headerPaint)
+            pageCanvas.drawText("Date", leftMargin, 120f, headerPaint)
             pageCanvas.drawText("Description", descColX, 120f, headerPaint)
             pageCanvas.drawText("Debit", debitColX, 120f, rightAlignPaint)
-            pageCanvas.drawText("Credit", creditColX, 120f, rightAlignPaint)
+            pageCanvas.drawText("Credit", rightMargin, 120f, rightAlignPaint)
             pageCanvas.drawLine(leftMargin, 128f, rightMargin, 128f, tableLinePaint)
         }
 
@@ -101,7 +99,7 @@ object PdfGenerator {
             }
 
             val rowTopY = yPosition
-            canvas.drawText(dateFormat.format(Date(txn.date)), dateColX, rowTopY, textPaint)
+            canvas.drawText(dateFormat.format(Date(txn.date)), leftMargin, rowTopY, textPaint)
 
             var descY = rowTopY
             descriptionLines.forEach { line ->
@@ -112,7 +110,8 @@ object PdfGenerator {
             if (txn.type.equals("DEBIT", true)) {
                 canvas.drawText(currencyFormatter.format(txn.amount), debitColX, rowTopY, rightAlignPaint)
             } else {
-                canvas.drawText(currencyFormatter.format(txn.amount), creditColX, rowTopY, rightAlignPaint)
+                canvas.drawText(currencyFormatter.format(txn.amount),
+                    rightMargin, rowTopY, rightAlignPaint)
             }
 
             yPosition = maxOf(yPosition + 12, descY + 8)
@@ -121,8 +120,8 @@ object PdfGenerator {
         }
 
         // Calculate and draw total sums of debits and credits at the end
-        val totalDebit = transactions.filter { it.type.equals("DEBIT", true) }.sumOf { it.amount }
-        val totalCredit = transactions.filter { it.type.equals("CREDIT", true) }.sumOf { it.amount }
+        val totalDebit = transactions.filter { it.type.equals("DEBIT", true) }.sumOf { it.amountPaise }.toMajorUnits()
+        val totalCredit = transactions.filter { it.type.equals("CREDIT", true) }.sumOf { it.amountPaise }.toMajorUnits()
 
         val summaryHeight = 35f
         if (yPosition + summaryHeight > 800) {
@@ -145,7 +144,8 @@ object PdfGenerator {
         
         canvas.drawText("Total Summary", descColX, yPosition, boldHeaderPaint)
         canvas.drawText(currencyFormatter.format(totalDebit), debitColX, yPosition, boldRightAlignPaint)
-        canvas.drawText(currencyFormatter.format(totalCredit), creditColX, yPosition, boldRightAlignPaint)
+        canvas.drawText(currencyFormatter.format(totalCredit),
+            rightMargin, yPosition, boldRightAlignPaint)
 
         yPosition += 8f
         canvas.drawLine(leftMargin, yPosition, rightMargin, yPosition, tableLinePaint)
@@ -156,7 +156,7 @@ object PdfGenerator {
             transactions
                 .filter { it.category != null }
                 .groupBy { it.category!! }
-                .mapValues { (_, txns) -> txns.sumOf { it.amount } }
+                .mapValues { (_, txns) -> txns.sumOf { it.amountPaise }.toMajorUnits() }
                 .toList()
                 .sortedByDescending { it.second }
         } else {
@@ -176,7 +176,7 @@ object PdfGenerator {
             }
 
             yPosition += 25f
-            canvas.drawText("Category Spending Breakdown", dateColX, yPosition, boldHeaderPaint)
+            canvas.drawText("Category Spending Breakdown", leftMargin, yPosition, boldHeaderPaint)
             yPosition += 10f
             canvas.drawLine(leftMargin, yPosition, rightMargin, yPosition, tableLinePaint)
             yPosition += 15f
@@ -195,7 +195,8 @@ object PdfGenerator {
                 }
 
                 canvas.drawText(category, descColX, yPosition, textPaint)
-                canvas.drawText(currencyFormatter.format(amount), creditColX, yPosition, rightAlignPaint)
+                canvas.drawText(currencyFormatter.format(amount),
+                    rightMargin, yPosition, rightAlignPaint)
                 yPosition += 15f
             }
             canvas.drawLine(leftMargin, yPosition, rightMargin, yPosition, tableLinePaint)

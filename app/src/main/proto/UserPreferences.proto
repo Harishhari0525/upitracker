@@ -5,4 +5,6 @@ option java_multiple_files = true;
 
 message UserPreferences {
   string pin = 1;
+  int32 failed_pin_attempts = 2;
+  int64 pin_lockout_until = 3;
 }

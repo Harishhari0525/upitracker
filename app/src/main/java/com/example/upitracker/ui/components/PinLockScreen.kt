@@ -32,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +50,7 @@ import com.example.upitracker.util.BiometricHelper
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.PinStorage
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,9 +74,27 @@ fun PinLockScreen(
 
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
+    var lockoutTimeLeft by remember { mutableLongStateOf(0L) }
 
     var isPinActuallySet by remember { mutableStateOf(false) }
     val biometricReady = remember { BiometricHelper.isBiometricReady(context) }
+
+    LaunchedEffect(isPinActuallySet, lockoutTimeLeft) {
+        if (lockoutTimeLeft == 0L) {
+            val lockoutUntil = PinStorage.getPinLockoutUntil(context)
+            val now = System.currentTimeMillis()
+            if (lockoutUntil > now) {
+                lockoutTimeLeft = (lockoutUntil - now) / 1000 + 1
+            }
+        }
+    }
+
+    LaunchedEffect(lockoutTimeLeft) {
+        if (lockoutTimeLeft > 0) {
+            kotlinx.coroutines.delay(1000.milliseconds)
+            lockoutTimeLeft -= 1
+        }
+    }
 
     LaunchedEffect(Unit, isSettingPinMode) {
         isPinActuallySet = PinStorage.isPinSet(context)
@@ -159,11 +179,17 @@ fun PinLockScreen(
                     }
                 )
             } else {
+                val lockoutMessage = stringResource(R.string.pin_lock_feedback_locked_out, lockoutTimeLeft)
                 UnlockContent(
                     pinInput = pinInput,
                     onPinInputChange = { pinInput = it },
-                    feedbackText = feedbackText,
+                    feedbackText = if (lockoutTimeLeft > 0) {
+                        lockoutMessage to true
+                    } else {
+                        feedbackText
+                    },
                     isLoading = isLoading,
+                    isLockedOut = lockoutTimeLeft > 0,
                     biometricReady = biometricReady,
                     isPinActuallySet = isPinActuallySet,
                     onUnlockClick = {
@@ -174,16 +200,28 @@ fun PinLockScreen(
                             if (PinStorage.checkPin(context, pinInput)) {
                                 onUnlock()
                             } else {
-                                feedbackText = incorrectPinText to true
+                                val lockoutUntil = PinStorage.getPinLockoutUntil(context)
+                                val now = System.currentTimeMillis()
+                                if (lockoutUntil > now) {
+                                    lockoutTimeLeft = (lockoutUntil - now) / 1000 + 1
+                                } else {
+                                    feedbackText = incorrectPinText to true
+                                }
                                 isLoading = false
                             }
                         }
                     },
-                    onAttemptBiometricUnlock = onAttemptBiometricUnlock,
+                    onAttemptBiometricUnlock = {
+                        if (lockoutTimeLeft == 0L) {
+                            onAttemptBiometricUnlock()
+                        }
+                    },
                     onForgotPinClick = {
-                        isSettingPinMode = true
-                        feedbackText = null
-                        pinInput = ""
+                        if (lockoutTimeLeft == 0L) {
+                            isSettingPinMode = true
+                            feedbackText = null
+                            pinInput = ""
+                        }
                     }
                 )
             }
@@ -342,6 +380,7 @@ private fun UnlockContent(
     onPinInputChange: (String) -> Unit,
     feedbackText: Pair<String, Boolean>?,
     isLoading: Boolean,
+    isLockedOut: Boolean,
     biometricReady: Boolean,
     isPinActuallySet: Boolean,
     onUnlockClick: () -> Unit,
@@ -374,6 +413,7 @@ private fun UnlockContent(
                 keyboardType = KeyboardType.NumberPassword
             ),
             isError = feedbackText?.second == true,
+            enabled = !isLoading && !isLockedOut,
             modifier = Modifier.fillMaxWidth(),
             shape = ExpressiveTokens.corners.medium
         )
@@ -388,6 +428,7 @@ private fun UnlockContent(
             Button(
                 onClick = onUnlockClick,
                 enabled = !isLoading &&
+                        !isLockedOut &&
                         pinInput.isNotBlank() &&
                         pinInput.length >= 4,
                 modifier = Modifier
@@ -409,18 +450,18 @@ private fun UnlockContent(
             if (biometricReady && isPinActuallySet) {
                 IconButton(
                     onClick = {
-                        if (!isLoading) {
+                        if (!isLoading && !isLockedOut) {
                             onAttemptBiometricUnlock()
                         }
                     },
-                    enabled = !isLoading,
+                    enabled = !isLoading && !isLockedOut,
                     modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Fingerprint,
                         contentDescription = stringResource(R.string.biometric_icon_description),
                         modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (isLockedOut) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
                     )
                 }
             } else {
@@ -452,7 +493,7 @@ private fun UnlockContent(
         ) {
             TextButton(
                 onClick = onForgotPinClick,
-                enabled = !isLoading
+                enabled = !isLoading && !isLockedOut
             ) {
                 Text(
                     stringResource(

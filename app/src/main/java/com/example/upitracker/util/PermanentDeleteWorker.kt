@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.upitracker.data.AppDatabase
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class PermanentDeleteWorker(
@@ -26,8 +27,14 @@ class PermanentDeleteWorker(
             val oneDayInMillis = TimeUnit.DAYS.toMillis(1)
             val cutoffTimestamp = System.currentTimeMillis() - oneDayInMillis
 
-            // This new DAO method does the actual deletion.
+            val receiptPaths = transactionDao.getReceiptPathsPendingDeletion(cutoffTimestamp)
             transactionDao.permanentlyDeletePending(cutoffTimestamp)
+            receiptPaths.forEach { path ->
+                val file = File(path)
+                if (file.parentFile == applicationContext.filesDir) {
+                    file.delete()
+                }
+            }
 
             Log.i(WORK_NAME, "Permanent deletion worker completed successfully.")
             Result.success()

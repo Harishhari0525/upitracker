@@ -17,6 +17,9 @@ import com.example.upitracker.util.PdfGenerator
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.example.upitracker.util.toMajorUnits
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,32 +54,26 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
     val includeCategoryBreakdown: StateFlow<Boolean> = _includeCategoryBreakdown.asStateFlow()
 
     // 1. Core Transaction Database Stream Hook
-    private val _allTransactions = transactionDao.getAllTransactions()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     // 2. ✨ AIRTIGHT REACTIVE PIPELINE: Dynamically filters your transaction ledger list on the fly
+    @OptIn(ExperimentalCoroutinesApi::class)
     val filteredTransactions: StateFlow<List<Transaction>> = combine(
-        _allTransactions,
         _startDate,
         _endDate,
         _transactionType
-    ) { txns, start, end, type ->
-        txns.filter { txn ->
-            if (txn.pendingDeletionTimestamp != null) return@filter false
-            val dateMatch = (start == null || txn.date >= start) && (end == null || txn.date <= end)
-            val typeMatch = when (type) {
-                PassbookTransactionType.ALL -> true
-                PassbookTransactionType.DEBIT -> txn.type.equals("DEBIT", ignoreCase = true)
-                PassbookTransactionType.CREDIT -> txn.type.equals("CREDIT", ignoreCase = true)
-            }
-            dateMatch && typeMatch
-        }.sortedByDescending { it.date }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    ) { start, end, type -> Triple(start, end, type) }
+        .flatMapLatest { (start, end, type) ->
+            transactionDao.getTransactionsForPassbook(
+                startDate = start,
+                endDate = end,
+                type = type.takeUnless { it == PassbookTransactionType.ALL }?.name
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val passbookSummary: StateFlow<PassbookSummaryState> = filteredTransactions
         .map { txns ->
-            val debits = txns.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amount }
-            val credits = txns.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amount }
+            val debits = txns.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amountPaise }.toMajorUnits()
+            val credits = txns.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amountPaise }.toMajorUnits()
             PassbookSummaryState(
                 totalDebit = debits,
                 totalCredit = credits,

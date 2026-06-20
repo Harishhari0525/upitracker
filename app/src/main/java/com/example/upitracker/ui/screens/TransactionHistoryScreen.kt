@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -58,6 +57,8 @@ import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import kotlinx.coroutines.flow.drop
 import java.text.NumberFormat
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -394,11 +395,11 @@ private fun UpiTransactionsList(
     val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
-    val groupedTransactions by mainViewModel.filteredUpiTransactions.collectAsState()
+    val pagedTransactions = mainViewModel.pagedUpiTransactions.collectAsLazyPagingItems()
     val allCategories by mainViewModel.allCategories.collectAsState()
 
     val totals by mainViewModel.filteredTotals.collectAsState()
-    val isLoading by mainViewModel.isHistoryLoading.collectAsState()
+    val isLoading = pagedTransactions.loadState.refresh is LoadState.Loading
 
     val filters by mainViewModel.filters.collectAsState()
     val areFiltersActive = remember(filters) {
@@ -469,7 +470,7 @@ private fun UpiTransactionsList(
             }
         }
 
-        AnimatedVisibility(visible = groupedTransactions.isNotEmpty() && areFiltersActive) {
+        AnimatedVisibility(visible = pagedTransactions.itemCount > 0 && areFiltersActive) {
             FilteredTotalsBar(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 totalDebit = totals.totalDebit,
@@ -480,7 +481,7 @@ private fun UpiTransactionsList(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (isLoading) {
                 CircularProgressIndicator()
-            } else if (groupedTransactions.isEmpty()) {
+            } else if (pagedTransactions.itemCount == 0 && pagedTransactions.loadState.refresh is LoadState.NotLoading) {
                 LottieEmptyState(
                     message = stringResource(R.string.empty_state_no_upi_transactions_history_filtered),
                     lottieResourceId = R.raw.empty_box_animation
@@ -492,36 +493,37 @@ private fun UpiTransactionsList(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    groupedTransactions.forEach { (monthYear, transactionsInMonth) ->
-                        stickyHeader(key = monthYear) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    tonalElevation = 3.dp
+                    items(
+                        count = pagedTransactions.itemCount,
+                        key = { index -> pagedTransactions.peek(index)?.let { "txn-${it.id}" } ?: "placeholder-$index" },
+                        contentType = { "TransactionItem" }
+                    ) { index ->
+                        val transaction = pagedTransactions[index] ?: return@items
+                        val monthFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
+                        val monthYear = monthFormatter.format(Date(transaction.date))
+                        val previousMonth = if (index > 0) pagedTransactions.peek(index - 1)?.let {
+                            monthFormatter.format(Date(it.date))
+                        } else null
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (upiSortField == SortableTransactionField.DATE && monthYear != previousMonth) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = monthYear,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        modifier = Modifier.padding(
-                                            vertical = 9.dp,
-                                            horizontal = 100.dp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        tonalElevation = 3.dp
+                                    ) {
+                                        Text(
+                                            text = monthYear,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            modifier = Modifier.padding(vertical = 9.dp, horizontal = 48.dp),
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        itemsIndexed(
-                            items = transactionsInMonth,
-                            key = { _, txn -> "txn-${txn.id}" },
-                            contentType = { _, _ -> "TransactionItem" }
-                        ) { _, transaction ->
                             val isSelected = selectedIds.contains(transaction.id)
                             val categoryDetails = allCategories.find { c ->
                                 c.name.equals(transaction.category, ignoreCase = true)
@@ -560,6 +562,13 @@ private fun UpiTransactionsList(
                                     if (!isSelectionMode) mainViewModel.toggleCategoryFilter(categoryName)
                                 }
                             )
+                        }
+                    }
+                    if (pagedTransactions.loadState.append is LoadState.Loading) {
+                        item(key = "paging-loader") {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
                         }
                     }
                 }

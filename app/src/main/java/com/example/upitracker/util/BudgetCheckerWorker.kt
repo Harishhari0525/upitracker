@@ -62,7 +62,7 @@ class BudgetCheckerWorker(
                     ) ?: 0.0
 
                     if (spentInCurrentPeriod >= budget.budgetAmount) {
-                        Log.d(WORK_NAME, "Budget for '${budget.categoryName}' exceeded. Notifying user.")
+                        Log.d(WORK_NAME, "A budget was exceeded; notifying user")
                         NotificationHelper.showBudgetExceededNotification(applicationContext, budget, spentInCurrentPeriod)
 
                         // Update the budget with a new timestamp to prevent re-notifying
@@ -73,7 +73,7 @@ class BudgetCheckerWorker(
                         val warningKey = "budget_warned_${budget.id}_${periodStart}"
                         val hasWarned = sharedPrefs.getBoolean(warningKey, false)
                         if (!hasWarned) {
-                            Log.d(WORK_NAME, "Budget for '${budget.categoryName}' reached 85%. Warning user.")
+                            Log.d(WORK_NAME, "A budget warning threshold was reached")
                             NotificationHelper.showBudgetWarningNotification(applicationContext, budget, spentInCurrentPeriod)
                             sharedPrefs.edit { putBoolean(warningKey, true) }
                         }

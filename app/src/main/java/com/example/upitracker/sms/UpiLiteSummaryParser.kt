@@ -38,7 +38,7 @@ fun parseUpiLiteSummarySms(message: String): UpiLiteSummary? {
                 bank = bank
             )
         } catch (e: Exception) {
-            Log.e("UpiLiteSummaryParser", "Error parsing UPI Lite SMS: '${e.message}' for message: $message")
+            Log.e("UpiLiteSummaryParser", "Unable to parse UPI Lite summary", e)
             null // Return null if any part of the parsing fails
         }
     }

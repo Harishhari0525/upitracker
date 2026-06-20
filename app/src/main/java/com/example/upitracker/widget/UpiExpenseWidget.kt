@@ -2,10 +2,8 @@ package com.example.upitracker.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.unit.ColorProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -148,19 +146,19 @@ class UpiExpenseWidget : GlanceAppWidget() {
 
     @Composable
     private fun TabItem(text: String, isSelected: Boolean, onClick: androidx.glance.action.Action) {
+        var tabModifier = GlanceModifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        if (isSelected) {
+            tabModifier = tabModifier.background(GlanceTheme.colors.secondary)
+        }
+        tabModifier = tabModifier.clickable(onClick)
+
         Text(
             text = text,
             style = TextStyle(
                 color = if (isSelected) GlanceTheme.colors.onSecondary else GlanceTheme.colors.onSurfaceVariant,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             ),
-            modifier = GlanceModifier
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-                .background(
-                    if (isSelected) GlanceTheme.colors.secondary
-                    else ColorProvider(Color.Transparent)
-                )
-                .clickable(onClick)
+            modifier = tabModifier
         )
     }
 

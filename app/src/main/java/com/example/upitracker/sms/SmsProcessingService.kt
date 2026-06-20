@@ -18,6 +18,7 @@ import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.util.TagUtils
 import com.example.upitracker.util.ThemePreference
 import com.example.upitracker.widget.UpiExpenseWidget
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -76,21 +77,24 @@ object SmsProcessingService {
         var archivedCount = 0
 
         val currentConfig = config ?: fetchProcessingConfig(context)
+        val db = AppDatabase.getDatabase(context.applicationContext)
 
-        smsList.forEach { (sender, body, smsDate) ->
-            val result = processSingleSms(
-                context = context,
-                sender = sender,
-                body = body,
-                smsDate = smsDate,
-                updateWidget = updateWidget,
-                config = currentConfig,
-                showNotification = showNotifications
-            )
+        db.withTransaction {
+            smsList.forEach { (sender, body, smsDate) ->
+                val result = processSingleSms(
+                    context = context,
+                    sender = sender,
+                    body = body,
+                    smsDate = smsDate,
+                    updateWidget = updateWidget,
+                    config = currentConfig,
+                    showNotification = showNotifications
+                )
 
-            newTxnCount += result.newTxnCount
-            processedSummaries += result.processedSummaries
-            archivedCount += result.archivedCount
+                newTxnCount += result.newTxnCount
+                processedSummaries += result.processedSummaries
+                archivedCount += result.archivedCount
+            }
         }
 
         SmsProcessingResult(
@@ -206,12 +210,12 @@ object SmsProcessingService {
                     processedSummaries++
                 } else if (
                     existingSummary.transactionCount != liteSummary.transactionCount ||
-                    existingSummary.totalAmount != liteSummary.totalAmount
+                    existingSummary.totalAmountPaise != liteSummary.totalAmountPaise
                 ) {
                     upiLiteSummaryDao.update(
                         existingSummary.copy(
                             transactionCount = liteSummary.transactionCount,
-                            totalAmount = liteSummary.totalAmount
+                            totalAmountPaise = liteSummary.totalAmountPaise
                         )
                     )
                 }
@@ -231,7 +235,7 @@ object SmsProcessingService {
         }
 
         // Keep the last processed SMS timestamp up to date
-        com.example.upitracker.util.ThemePreference.setLastProcessedSmsTimestamp(appContext, smsDate)
+        ThemePreference.setLastProcessedSmsTimestamp(appContext, smsDate)
 
         SmsProcessingResult(
             newTxnCount = newTxnCount,

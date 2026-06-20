@@ -7,7 +7,6 @@ import androidx.work.WorkerParameters
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.Transaction
 import java.util.Calendar
-import com.example.upitracker.util.NotificationHelper
 import java.util.concurrent.TimeUnit
 
 class RecurringTransactionWorker(
@@ -36,7 +35,7 @@ class RecurringTransactionWorker(
                         description = rule.description, senderOrReceiver = "Recurring", category = rule.categoryName
                     )
                     transactionDao.insert(newTransaction)
-                    Log.d(WORK_NAME, "Created transaction for '${rule.description}'.")
+                    Log.d(WORK_NAME, "Created a scheduled transaction")
 
                     val calendar = Calendar.getInstance().apply { timeInMillis = rule.nextDueDate }
                     when (rule.periodType) {

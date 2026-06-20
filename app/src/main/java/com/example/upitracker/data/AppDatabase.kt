@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
         RecurringRule::class,
         Category::class
     ],
-    version = 23,
+    version = 25,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +38,112 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_22_23: Migration = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN balanceAfterTransaction REAL DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_23_24: Migration = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_transactions_amount_date_type`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_amount_date_type` ON `transactions` (`amount`, `date`, `type`)")
+            }
+        }
+
+        val MIGRATION_24_25: Migration = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE `transactions_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `amount` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `senderOrReceiver` TEXT NOT NULL,
+                        `note` TEXT NOT NULL,
+                        `category` TEXT,
+                        `isArchived` INTEGER NOT NULL,
+                        `pendingDeletionTimestamp` INTEGER,
+                        `linkedTransactionId` INTEGER,
+                        `bankName` TEXT,
+                        `balanceAfterTransaction` INTEGER,
+                        `receiptImagePath` TEXT,
+                        `tags` TEXT NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO `transactions_new`
+                    SELECT `id`, CAST(ROUND(`amount` * 100.0) AS INTEGER), `type`, `date`,
+                           `description`, `senderOrReceiver`, `note`, `category`, `isArchived`,
+                           `pendingDeletionTimestamp`, `linkedTransactionId`, `bankName`,
+                           CASE WHEN `balanceAfterTransaction` IS NULL THEN NULL
+                                ELSE CAST(ROUND(`balanceAfterTransaction` * 100.0) AS INTEGER) END,
+                           `receiptImagePath`, `tags`
+                    FROM `transactions`
+                """)
+                db.execSQL("DROP TABLE `transactions`")
+                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
+                db.execSQL("CREATE INDEX `index_transactions_amount_date_type` ON `transactions` (`amount`, `date`, `type`)")
+                db.execSQL("CREATE INDEX `index_transactions_isArchived_pendingDeletionTimestamp_date` ON `transactions` (`isArchived`, `pendingDeletionTimestamp`, `date`)")
+                db.execSQL("CREATE INDEX `index_transactions_category` ON `transactions` (`category`)")
+                db.execSQL("CREATE INDEX `index_transactions_bankName` ON `transactions` (`bankName`)")
+
+                db.execSQL("""
+                    CREATE TABLE `budgets_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `categoryName` TEXT NOT NULL,
+                        `budgetAmount` INTEGER NOT NULL,
+                        `periodType` TEXT NOT NULL,
+                        `startDate` INTEGER NOT NULL,
+                        `isActive` INTEGER NOT NULL,
+                        `allowRollover` INTEGER NOT NULL,
+                        `lastNotificationTimestamp` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO `budgets_new`
+                    SELECT `id`, `categoryName`, CAST(ROUND(`budgetAmount` * 100.0) AS INTEGER),
+                           `periodType`, `startDate`, `isActive`, `allowRollover`, `lastNotificationTimestamp`
+                    FROM `budgets`
+                """)
+                db.execSQL("DROP TABLE `budgets`")
+                db.execSQL("ALTER TABLE `budgets_new` RENAME TO `budgets`")
+
+                db.execSQL("""
+                    CREATE TABLE `recurring_rules_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `amount` INTEGER NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `categoryName` TEXT NOT NULL,
+                        `periodType` TEXT NOT NULL,
+                        `dayOfPeriod` INTEGER NOT NULL,
+                        `nextDueDate` INTEGER NOT NULL,
+                        `creationDate` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO `recurring_rules_new`
+                    SELECT `id`, CAST(ROUND(`amount` * 100.0) AS INTEGER), `description`,
+                           `categoryName`, `periodType`, `dayOfPeriod`, `nextDueDate`, `creationDate`
+                    FROM `recurring_rules`
+                """)
+                db.execSQL("DROP TABLE `recurring_rules`")
+                db.execSQL("ALTER TABLE `recurring_rules_new` RENAME TO `recurring_rules`")
+
+                db.execSQL("""
+                    CREATE TABLE `upi_lite_summaries_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `transactionCount` INTEGER NOT NULL,
+                        `totalAmount` INTEGER NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `bank` TEXT NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO `upi_lite_summaries_new`
+                    SELECT `id`, `transactionCount`, CAST(ROUND(`totalAmount` * 100.0) AS INTEGER), `date`, `bank`
+                    FROM `upi_lite_summaries`
+                """)
+                db.execSQL("DROP TABLE `upi_lite_summaries`")
+                db.execSQL("ALTER TABLE `upi_lite_summaries_new` RENAME TO `upi_lite_summaries`")
             }
         }
 
@@ -242,16 +348,36 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_13_14: Migration = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Re-create the table with the new columns
-                db.execSQL("DROP TABLE IF EXISTS `categories`") // Drop if it exists from a previous bad state
                 db.execSQL("""
-                CREATE TABLE IF NOT EXISTS `categories` (
+                CREATE TABLE IF NOT EXISTS `categories_new` (
                     `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                     `name` TEXT NOT NULL,
                     `iconName` TEXT NOT NULL,
                     `colorHex` TEXT NOT NULL
                 )
-            """)
+                """)
+
+                val tableExists = db.query(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'categories'"
+                ).use { it.moveToFirst() }
+                if (tableExists) {
+                    val columns = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(`categories`)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) columns += cursor.getString(nameIndex)
+                    }
+                    if ("name" in columns) {
+                        val idExpression = if ("id" in columns) "`id`" else "NULL"
+                        val iconExpression = if ("iconName" in columns) "COALESCE(`iconName`, 'Category')" else "'Category'"
+                        val colorExpression = if ("colorHex" in columns) "COALESCE(`colorHex`, '#808080')" else "'#808080'"
+                        db.execSQL(
+                            "INSERT OR IGNORE INTO `categories_new` (`id`, `name`, `iconName`, `colorHex`) " +
+                                "SELECT $idExpression, `name`, $iconExpression, $colorExpression FROM `categories`"
+                        )
+                    }
+                    db.execSQL("DROP TABLE `categories`")
+                }
+                db.execSQL("ALTER TABLE `categories_new` RENAME TO `categories`")
             }
         }
 
@@ -306,12 +432,20 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14, MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,
-                        MIGRATION_18_19,MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23) // ✨ Add new migration ✨
+                        MIGRATION_18_19,MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
+                        MIGRATION_23_24, MIGRATION_24_25)
                     .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
                     .addCallback(AppDatabaseCallback(context.applicationContext, CoroutineScope(Dispatchers.IO)))
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        fun closeDatabase() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
             }
         }
     }

@@ -14,7 +14,6 @@ import androidx.datastore.core.DataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-
 private val Context.pinDataStore: DataStore<UserPreferences> by dataStore(
     fileName = "secure_user_prefs.pb",
     serializer = SecureUserPreferencesSerializer(aeadProvider = { CryptoManager.getAead() })
@@ -22,12 +21,19 @@ private val Context.pinDataStore: DataStore<UserPreferences> by dataStore(
 
 object PinStorage {
 
+    private const val MAX_FAILED_ATTEMPTS = 5
+    private const val LOCKOUT_DURATION_MILLIS = 30_000L
+
     /**
      * Saves the user's PIN securely. This is a suspend function.
      */
     suspend fun savePin(context: Context, pin: String) {
         context.pinDataStore.updateData { preferences ->
-            preferences.toBuilder().setPin(pin).build()
+            preferences.toBuilder()
+                .setPin(pin)
+                .setFailedPinAttempts(0)
+                .setPinLockoutUntil(0)
+                .build()
         }
     }
 
@@ -43,17 +49,30 @@ object PinStorage {
      * Verifies if the provided PIN matches the stored PIN.
      */
     suspend fun checkPin(context: Context, providedPin: String): Boolean {
-        val storedPin = getPin(context)
-        return storedPin != null && storedPin == providedPin
-    }
-
-    /**
-     * Clears the stored PIN.
-     */
-    suspend fun clearPin(context: Context) {
+        val now = System.currentTimeMillis()
+        var verified = false
         context.pinDataStore.updateData { preferences ->
-            preferences.toBuilder().clearPin().build()
+            if (preferences.pinLockoutUntil > now) {
+                return@updateData preferences
+            }
+
+            if (preferences.pin.isNotEmpty() && preferences.pin == providedPin) {
+                verified = true
+                preferences.toBuilder()
+                    .setFailedPinAttempts(0)
+                    .setPinLockoutUntil(0)
+                    .build()
+            } else {
+                val failedAttempts = preferences.failedPinAttempts + 1
+                preferences.toBuilder()
+                    .setFailedPinAttempts(if (failedAttempts >= MAX_FAILED_ATTEMPTS) 0 else failedAttempts)
+                    .setPinLockoutUntil(
+                        if (failedAttempts >= MAX_FAILED_ATTEMPTS) now + LOCKOUT_DURATION_MILLIS else 0
+                    )
+                    .build()
+            }
         }
+        return verified
     }
 
     /**
@@ -61,6 +80,17 @@ object PinStorage {
      */
     suspend fun isPinSet(context: Context): Boolean {
         return getPin(context) != null
+    }
+
+    /**
+     * Retrieves the lockout timestamp.
+     */
+    suspend fun getPinLockoutUntil(context: Context): Long {
+        return try {
+            context.pinDataStore.data.first().pinLockoutUntil
+        } catch (_: Exception) {
+            0L
+        }
     }
 }
 
