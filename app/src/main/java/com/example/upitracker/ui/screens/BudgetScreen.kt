@@ -382,6 +382,7 @@ private fun RecurringList(
 ) {
     val recurringRules by mainViewModel.recurringRules.collectAsState()
     val detectedSubscriptions by mainViewModel.detectedSubscriptions.collectAsState()
+    val priceChanges by mainViewModel.subscriptionPriceChanges.collectAsState()
 
     if (recurringRules.isEmpty() && detectedSubscriptions.isEmpty()) {
         LottieEmptyState(
@@ -402,6 +403,17 @@ private fun RecurringList(
             ),
             verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
         ) {
+            if (priceChanges.isNotEmpty()) {
+                items(priceChanges, key = { "price-${it.merchant}" }) { change ->
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Text(
+                            "Price increase: ${change.merchant} changed from ₹${"%.2f".format(change.previousAmount)} to ₹${"%.2f".format(change.latestAmount)}.",
+                            modifier = Modifier.padding(ExpressiveTokens.spacing.md),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
             if (detectedSubscriptions.isNotEmpty()) {
                 item {
                     val sub = detectedSubscriptions.first()
@@ -432,6 +444,9 @@ private fun RecurringList(
                                 )
                             }) {
                                 Text("Add to Tracking")
+                            }
+                            TextButton(onClick = { mainViewModel.dismissDetectedSubscription(sub) }) {
+                                Text("Dismiss")
                             }
                         }
                     }

@@ -73,6 +73,7 @@ import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.AutoLockDelay
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.viewmodel.MainViewModel
@@ -262,6 +263,43 @@ fun SettingsScreen(
                             if (isPinSet) PinChangeStep.VERIFY_OLD else PinChangeStep.SET_NEW
                     }
                 )
+            }
+
+            item {
+                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
+                SettingItemRow(
+                    icon = Icons.Filled.Notifications,
+                    title = "Hide notification details",
+                    summary = "Do not show amount or merchant on the lock screen",
+                    onClick = { mainViewModel.setNotificationContentRedacted(!redacted) }
+                ) {
+                    Switch(checked = redacted, onCheckedChange = mainViewModel::setNotificationContentRedacted)
+                }
+            }
+
+            item {
+                val delay by mainViewModel.autoLockDelay.collectAsState()
+                SettingItemRow(
+                    icon = Icons.Filled.Lock,
+                    title = "Automatic lock",
+                    summary = delay.displayName,
+                    onClick = {
+                        val choices = AutoLockDelay.entries
+                        mainViewModel.setAutoLockDelay(choices[(choices.indexOf(delay) + 1) % choices.size])
+                    }
+                )
+            }
+
+            item {
+                val hidden by mainViewModel.isWidgetAmountHidden.collectAsState()
+                SettingItemRow(
+                    icon = Icons.Filled.PrivacyTip,
+                    title = "Hide widget amounts",
+                    summary = "Require opening the app to see spending totals",
+                    onClick = { mainViewModel.setWidgetAmountHidden(!hidden) }
+                ) {
+                    Switch(checked = hidden, onCheckedChange = mainViewModel::setWidgetAmountHidden)
+                }
             }
 
             item {

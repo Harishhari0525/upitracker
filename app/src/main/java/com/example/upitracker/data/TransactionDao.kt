@@ -16,11 +16,11 @@ import androidx.room.Ignore
 @Dao
 interface TransactionDao {
 
+    @Query("SELECT COUNT(*) FROM transactions")
+    fun observeTransactionCount(): Flow<Int>
+
     @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC LIMIT :limit")
     fun getRecentTransactions(limit: Int): Flow<List<Transaction>>
-
-    @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC")
-    suspend fun getAllTransactionsSnapshot(): List<Transaction>
 
     @Query("""
         SELECT * FROM transactions
@@ -31,7 +31,49 @@ interface TransactionDao {
           AND (:type IS NULL OR type = :type)
         ORDER BY date DESC, id DESC
     """)
-    fun getTransactionsForPassbook(startDate: Long?, endDate: Long?, type: String?): Flow<List<Transaction>>
+    fun getTransactionsForPassbookPaged(startDate: Long?, endDate: Long?, type: String?): PagingSource<Int, Transaction>
+
+    @Query("""
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN amount ELSE 0 END), 0) AS totalDebitPaise,
+            COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise
+        FROM transactions
+        WHERE isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND (:startDate IS NULL OR date >= :startDate)
+          AND (:endDate IS NULL OR date <= :endDate)
+          AND (:type IS NULL OR type = :type)
+    """)
+    fun getPassbookTotals(startDate: Long?, endDate: Long?, type: String?): Flow<TransactionTotals>
+
+    @Query("""
+        SELECT COUNT(*) FROM transactions
+        WHERE isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND (:startDate IS NULL OR date >= :startDate)
+          AND (:endDate IS NULL OR date <= :endDate)
+          AND (:type IS NULL OR type = :type)
+    """)
+    fun getPassbookCount(startDate: Long?, endDate: Long?, type: String?): Flow<Int>
+
+    @Query("""
+        SELECT * FROM transactions
+        WHERE isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND (:startDate IS NULL OR date >= :startDate)
+          AND (:endDate IS NULL OR date <= :endDate)
+          AND (:type IS NULL OR type = :type)
+        ORDER BY date DESC, id DESC
+    """)
+    suspend fun getTransactionsForPassbookSnapshot(startDate: Long?, endDate: Long?, type: String?): List<Transaction>
+
+    @Query("""
+        SELECT * FROM transactions
+        WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL
+        ORDER BY date DESC, id DESC
+        LIMIT :limit OFFSET :offset
+    """)
+    suspend fun getTransactionsPage(limit: Int, offset: Int): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE isArchived = 1 ORDER BY date DESC, id DESC")
     fun getArchivedTransactionsPaged(): PagingSource<Int, Transaction>
@@ -184,6 +226,19 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE linkedTransactionId = :id LIMIT 1")
     suspend fun getTransactionLinkedTo(id: Int): Transaction?
 
+    @Query("SELECT * FROM transactions WHERE linkedTransactionId = :id LIMIT 1")
+    fun getTransactionLinkedToFlow(id: Int): Flow<Transaction?>
+
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE category = :category AND type = 'DEBIT' AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+    suspend fun getCategoryDebitTotalPaise(category: String): Long
+
+    @Query("""
+        SELECT category FROM transactions
+        WHERE category IS NOT NULL AND category != '' AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
+        GROUP BY category ORDER BY COUNT(*) DESC LIMIT :limit
+    """)
+    fun getMostUsedCategoryNames(limit: Int = 7): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM transactions WHERE senderOrReceiver = :merchant AND category = :category AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
     suspend fun countCategorizedMerchantTransactions(merchant: String, category: String): Int
 
@@ -247,6 +302,35 @@ interface TransactionDao {
         @get:Ignore
         val latestBalance: Double get() = latestBalancePaise.toMajorUnits()
     }
+
+    data class BalanceDrift(
+        val bankName: String,
+        val transactionId: Int,
+        val date: Long,
+        val expectedBalancePaise: Long,
+        val actualBalancePaise: Long,
+        val differencePaise: Long
+    )
+
+    @Query("""
+        WITH ordered AS (
+            SELECT id, bankName, date, amount, type, balanceAfterTransaction,
+                   LAG(balanceAfterTransaction) OVER (PARTITION BY bankName ORDER BY date, id) AS previousBalance
+            FROM transactions
+            WHERE bankName IS NOT NULL AND balanceAfterTransaction IS NOT NULL
+              AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
+        )
+        SELECT bankName, id AS transactionId, date,
+               previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END AS expectedBalancePaise,
+               balanceAfterTransaction AS actualBalancePaise,
+               balanceAfterTransaction - (previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END) AS differencePaise
+        FROM ordered
+        WHERE previousBalance IS NOT NULL
+          AND ABS(balanceAfterTransaction - (previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END)) > 1
+        ORDER BY date DESC
+        LIMIT 100
+    """)
+    fun getBalanceDrifts(): Flow<List<BalanceDrift>>
 
     @Query("""
         SELECT t.bankName, t.balanceAfterTransaction AS latestBalancePaise, t.date AS lastUpdated

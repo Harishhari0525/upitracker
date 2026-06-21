@@ -20,12 +20,13 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.util.ExpressiveTokens
 import java.text.NumberFormat
 import java.util.Locale
+import java.math.BigDecimal
 
 @Composable
 fun FilteredTotalsBar(
     modifier: Modifier = Modifier,
-    totalDebit: Double,
-    totalCredit: Double
+    totalDebitPaise: Long,
+    totalCreditPaise: Long
 ) {
     val currencyFormatter = remember {
         NumberFormat.getCurrencyInstance(
@@ -34,7 +35,8 @@ fun FilteredTotalsBar(
                 .setRegion("IN")
                 .build()
         ).apply {
-            maximumFractionDigits = 0
+            minimumFractionDigits = 2
+            maximumFractionDigits = 2
         }
     }
 
@@ -68,7 +70,7 @@ fun FilteredTotalsBar(
         ) {
             TotalColumn(
                 label = "DEBIT",
-                value = currencyFormatter.format(totalDebit),
+                value = currencyFormatter.format(BigDecimal.valueOf(totalDebitPaise, 2)),
                 color = debitColor,
                 modifier = Modifier.weight(1f)
             )
@@ -80,7 +82,7 @@ fun FilteredTotalsBar(
 
             TotalColumn(
                 label = "CREDIT",
-                value = currencyFormatter.format(totalCredit),
+                value = currencyFormatter.format(BigDecimal.valueOf(totalCreditPaise, 2)),
                 color = creditColor,
                 modifier = Modifier.weight(1f)
             )

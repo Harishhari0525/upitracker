@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -34,6 +35,7 @@ import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.ExpressiveTokens
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +43,7 @@ fun AddEditRuleDialog(
     userCategories: List<com.example.upitracker.data.Category>,
     ruleToEdit: CategorySuggestionRule?,
     onDismiss: () -> Unit,
+    previewMatchCount: suspend (RuleField, RuleMatcher, String, RuleLogic) -> Int = { _, _, _, _ -> 0 },
     onConfirm: (
         field: RuleField,
         matcher: RuleMatcher,
@@ -59,6 +62,12 @@ fun AddEditRuleDialog(
 
     var isFieldExpanded by remember { mutableStateOf(false) }
     var isMatcherExpanded by remember { mutableStateOf(false) }
+    var matchingCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(selectedField, selectedMatcher, keyword, selectedLogic) {
+        delay(250)
+        matchingCount = if (keyword.isBlank()) 0 else previewMatchCount(selectedField, selectedMatcher, keyword, selectedLogic)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -208,6 +217,12 @@ fun AddEditRuleDialog(
                     ),
                     shape = ExpressiveTokens.corners.medium,
                     singleLine = true
+                )
+
+                Text(
+                    text = "$matchingCount currently uncategorized transactions match this rule.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 var isCategoryExpanded by remember { mutableStateOf(false) }

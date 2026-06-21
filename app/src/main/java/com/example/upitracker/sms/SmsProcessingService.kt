@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Locale
+import java.security.MessageDigest
 
 data class SmsProcessingResult(
     val newTxnCount: Int = 0,
@@ -167,7 +168,8 @@ object SmsProcessingService {
                             } else {
                                 emptyList()
                             }
-                            NotificationHelper.showNewTransactionNotification(appContext, savedTransaction, suggested)
+                            val redactContent = ThemePreference.isNotificationContentRedactedFlow(appContext).first()
+                            NotificationHelper.showNewTransactionNotification(appContext, savedTransaction, suggested, redactContent)
                         }
                     }
                 }
@@ -222,12 +224,16 @@ object SmsProcessingService {
             }
         }
 
-        if (isUpiRelated) {
+        val looksLikePaymentMessage = Regex("\\b(upi|debited|credited|txn|transaction|paid|received)\\b", RegexOption.IGNORE_CASE).containsMatchIn(body)
+        if (isUpiRelated || looksLikePaymentMessage) {
             val archivedSms = ArchivedSmsMessage(
                 originalSender = sender,
-                originalBody = body,
+                originalBody = MessageDigest.getInstance("SHA-256")
+                    .digest(body.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) },
                 originalTimestamp = smsDate,
-                backupTimestamp = System.currentTimeMillis()
+                backupTimestamp = System.currentTimeMillis(),
+                parseStatus = if (isUpiRelated) "PARSED" else "UNMATCHED"
             )
 
             archivedSmsDao.insertArchivedSms(archivedSms)

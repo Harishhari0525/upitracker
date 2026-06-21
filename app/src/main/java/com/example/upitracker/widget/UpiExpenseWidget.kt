@@ -36,6 +36,8 @@ import com.example.upitracker.data.AppDatabase
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.flow.first
+import com.example.upitracker.util.ThemePreference
 
 class UpiExpenseWidget : GlanceAppWidget() {
 
@@ -51,17 +53,18 @@ class UpiExpenseWidget : GlanceAppWidget() {
 
         // ✨ 2. Now you can safely call your DAO (Blocking or Suspend both work here)
         val spentAmount = db.transactionDao().getSpentAmountInRangeSync(startTime, endTime, "Refund") ?: 0.0
+        val hideAmount = ThemePreference.isWidgetAmountHiddenFlow(context).first()
 
         provideContent {
             GlanceTheme {
                 // ✨ 3. Pass the pre-loaded data to the UI
-                WidgetContent(spentAmount = spentAmount, viewMode = viewMode)
+                WidgetContent(spentAmount = spentAmount, viewMode = viewMode, hideAmount = hideAmount)
             }
         }
     }
 
     @Composable
-    private fun WidgetContent(spentAmount: Double, viewMode: String) {
+    private fun WidgetContent(spentAmount: Double, viewMode: String, hideAmount: Boolean) {
         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN"))
 
         Column(
@@ -100,7 +103,7 @@ class UpiExpenseWidget : GlanceAppWidget() {
             Spacer(GlanceModifier.height(12.dp))
 
             Text(
-                text = currencyFormatter.format(spentAmount),
+                text = if (hideAmount) "Amount hidden" else currencyFormatter.format(spentAmount),
                 style = TextStyle(
                     color = GlanceTheme.colors.primary,
                     fontSize = 28.sp,

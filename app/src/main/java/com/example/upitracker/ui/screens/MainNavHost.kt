@@ -47,8 +47,8 @@ fun MainNavHost(
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
-    onBackupDatabase: () -> Unit,
-    onRestoreDatabase: () -> Unit,
+    onBackupDatabase: (String) -> Unit,
+    onRestoreDatabase: (String) -> Unit,
     onShowAddTransactionDialog: () -> Unit
 ) {
     val bottomNavItems = listOf(

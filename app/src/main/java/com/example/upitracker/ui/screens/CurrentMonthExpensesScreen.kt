@@ -793,7 +793,7 @@ private fun RecentTransactionsSection(
                             categoryColor = categoryColor,
                             categoryIcon = categoryIcon,
                             onCategoryClick = { categoryName ->
-                                mainViewModel.toggleCategoryFilter(categoryName)
+                                mainViewModel.filterHistoryByCategory(categoryName)
                                 onViewAllClick()
                             }
                         )

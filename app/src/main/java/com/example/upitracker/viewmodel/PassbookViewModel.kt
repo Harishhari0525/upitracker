@@ -20,6 +20,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.example.upitracker.util.toMajorUnits
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -56,30 +61,46 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
     // 1. Core Transaction Database Stream Hook
     // 2. ✨ AIRTIGHT REACTIVE PIPELINE: Dynamically filters your transaction ledger list on the fly
     @OptIn(ExperimentalCoroutinesApi::class)
-    val filteredTransactions: StateFlow<List<Transaction>> = combine(
+    private val passbookQuery = combine(
         _startDate,
         _endDate,
         _transactionType
     ) { start, end, type -> Triple(start, end, type) }
-        .flatMapLatest { (start, end, type) ->
-            transactionDao.getTransactionsForPassbook(
-                startDate = start,
-                endDate = end,
-                type = type.takeUnless { it == PassbookTransactionType.ALL }?.name
-            )
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val passbookSummary: StateFlow<PassbookSummaryState> = filteredTransactions
-        .map { txns ->
-            val debits = txns.filter { it.type.equals("DEBIT", ignoreCase = true) }.sumOf { it.amountPaise }.toMajorUnits()
-            val credits = txns.filter { it.type.equals("CREDIT", ignoreCase = true) }.sumOf { it.amountPaise }.toMajorUnits()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val filteredTransactions: Flow<PagingData<Transaction>> = passbookQuery
+        .flatMapLatest { (start, end, type) ->
+            Pager(PagingConfig(pageSize = 50, prefetchDistance = 15, enablePlaceholders = false)) {
+                transactionDao.getTransactionsForPassbookPaged(
+                    startDate = start,
+                    endDate = end,
+                    type = type.takeUnless { it == PassbookTransactionType.ALL }?.name
+                )
+            }.flow
+        }
+        .cachedIn(viewModelScope)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val passbookSummary: StateFlow<PassbookSummaryState> = passbookQuery
+        .flatMapLatest { (start, end, type) ->
+            transactionDao.getPassbookTotals(start, end, type.takeUnless { it == PassbookTransactionType.ALL }?.name)
+        }
+        .map { totals ->
+            val debits = totals.totalDebitPaise.toMajorUnits()
+            val credits = totals.totalCreditPaise.toMajorUnits()
             PassbookSummaryState(
                 totalDebit = debits,
                 totalCredit = credits,
                 netBalance = credits - debits
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PassbookSummaryState())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val passbookTransactionCount: StateFlow<Int> = passbookQuery
+        .flatMapLatest { (start, end, type) ->
+            transactionDao.getPassbookCount(start, end, type.takeUnless { it == PassbookTransactionType.ALL }?.name)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val allCategories: StateFlow<List<Category>> = categoryDao.getAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -196,8 +217,12 @@ class PassbookViewModel(application: Application) : AndroidViewModel(application
         _includeCategoryBreakdown.value = include
     }
 
-    fun generateAndSavePdf(context: Context, uri: Uri) {
-        val transactionsToExport = filteredTransactions.value
+    suspend fun generateAndSavePdf(context: Context, uri: Uri) {
+        val transactionsToExport = transactionDao.getTransactionsForPassbookSnapshot(
+            startDate.value,
+            endDate.value,
+            transactionType.value.takeUnless { it == PassbookTransactionType.ALL }?.name
+        )
         if (transactionsToExport.isEmpty()) return
 
         val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())

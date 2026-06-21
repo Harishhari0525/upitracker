@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+/app/release/
+/app/src.zip
+*.log
+/log.txt
+/vuln.txt
+/.idea/copilot.data.migration.agent.xml
+/.idea/planningMode.xml

@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,7 +61,9 @@ import com.example.upitracker.viewmodel.MainViewModel
 private sealed interface DataDialog {
     data object None : DataDialog
     data object RefundKeyword : DataDialog
-    data object RestoreConfirm : DataDialog
+    data class RestoreConfirm(val password: String) : DataDialog
+    data object BackupPassword : DataDialog
+    data object RestorePassword : DataDialog
 }
 
 @Composable
@@ -69,8 +72,8 @@ fun DataManagementScreen(
     mainViewModel: MainViewModel,
     onImportOldSms: () -> Unit,
     onRefreshSmsArchive: () -> Unit,
-    onBackupDatabase: () -> Unit,
-    onRestoreDatabase: () -> Unit,
+    onBackupDatabase: (String) -> Unit,
+    onRestoreDatabase: (String) -> Unit,
     onNavigateToArchive: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRules: () -> Unit,
@@ -84,6 +87,7 @@ fun DataManagementScreen(
     val isRestoring by mainViewModel.isRestoring.collectAsState()
     val refundKeyword by mainViewModel.refundKeyword.collectAsState()
     val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
+    val balanceDrifts by mainViewModel.balanceDrifts.collectAsState()
 
     var activeDialog by remember { mutableStateOf<DataDialog>(DataDialog.None) }
 
@@ -115,6 +119,22 @@ fun DataManagementScreen(
                     title = "Manage",
                     subtitle = "Control categories, rules, archive, and refund behavior"
                 )
+            }
+
+            if (balanceDrifts.isNotEmpty()) {
+                item {
+                    ExpressiveQuickActionCard(
+                        icon = Icons.Filled.Warning,
+                        title = "Balance reconciliation",
+                        subtitle = "${balanceDrifts.size} possible missing or inconsistent transactions detected",
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val newest = balanceDrifts.first()
+                            mainViewModel.selectTransaction(newest.transactionId)
+                            mainViewModel.postPlainSnackbarMessage("Newest discrepancy selected in ${newest.bankName}.")
+                        }
+                    )
+                }
             }
 
             item {
@@ -259,7 +279,7 @@ fun DataManagementScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         if (!isBackingUp) {
-                            onBackupDatabase()
+                            activeDialog = DataDialog.BackupPassword
                         }
                     }
                 )
@@ -277,7 +297,7 @@ fun DataManagementScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         if (!isRestoring) {
-                            activeDialog = DataDialog.RestoreConfirm
+                            activeDialog = DataDialog.RestorePassword
                         }
                     }
                 )
@@ -341,12 +361,38 @@ fun DataManagementScreen(
             )
         }
 
+        is DataDialog.BackupPassword -> {
+            var password by remember { mutableStateOf("") }
+            BackupPasswordDialog(
+                title = "Backup protection",
+                password = password,
+                onPasswordChange = { password = it },
+                onDismiss = { activeDialog = DataDialog.None },
+                onConfirm = {
+                    activeDialog = DataDialog.None
+                    onBackupDatabase(password)
+                }
+            )
+        }
+
+        is DataDialog.RestorePassword -> {
+            var password by remember { mutableStateOf("") }
+            BackupPasswordDialog(
+                title = "Backup password",
+                password = password,
+                onPasswordChange = { password = it },
+                onDismiss = { activeDialog = DataDialog.None },
+                onConfirm = { activeDialog = DataDialog.RestoreConfirm(password) }
+            )
+        }
+
         is DataDialog.RestoreConfirm -> {
+            val restore = activeDialog as DataDialog.RestoreConfirm
             RestoreConfirmDialog(
                 onDismiss = { activeDialog = DataDialog.None },
                 onConfirm = {
                     activeDialog = DataDialog.None
-                    onRestoreDatabase()
+                    onRestoreDatabase(restore.password)
                 }
             )
         }
@@ -462,5 +508,36 @@ private fun RestoreConfirmDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+private fun BackupPasswordDialog(
+    title: String,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Use at least 8 characters for a portable backup. Leave blank only for a device-bound legacy backup.")
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+            }
+
+        },
+        confirmButton = {
+            Button(onClick = onConfirm, enabled = password.isBlank() || password.length >= 8) { Text("Continue") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

@@ -20,8 +20,8 @@ import kotlinx.coroutines.launch
         RecurringRule::class,
         Category::class
     ],
-    version = 25,
-    exportSchema = false
+    version = 27,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
@@ -34,6 +34,18 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        val MIGRATION_25_26: Migration = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE archived_sms_messages SET originalBody = 'redacted:' || id")
+            }
+        }
+
+        val MIGRATION_26_27: Migration = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE archived_sms_messages ADD COLUMN parseStatus TEXT NOT NULL DEFAULT 'PARSED'")
+            }
+        }
 
         val MIGRATION_22_23: Migration = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -157,8 +169,32 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP TABLE IF EXISTS upi_lite_summaries")
-                // Room auto-creates based on new schema for version 2
+                db.execSQL("ALTER TABLE upi_lite_summaries RENAME TO upi_lite_summaries_legacy")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `upi_lite_summaries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `transactionCount` INTEGER NOT NULL,
+                        `totalAmount` REAL NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `bank` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO upi_lite_summaries (id, transactionCount, totalAmount, date, bank)
+                    SELECT id, transactionCount, totalAmount,
+                           CASE
+                               WHEN typeof(date) = 'integer' THEN CAST(date AS INTEGER)
+                               WHEN date GLOB '[0-9]*' THEN CAST(date AS INTEGER)
+                               ELSE 0
+                           END,
+                           bank
+                    FROM upi_lite_summaries_legacy
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE upi_lite_summaries_legacy")
             }
         }
 
@@ -433,8 +469,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13,MIGRATION_13_14, MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,
                         MIGRATION_18_19,MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
-                        MIGRATION_23_24, MIGRATION_24_25)
-                    .fallbackToDestructiveMigration(false)  // only if absolutely necessary during heavy dev
+                        MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27)
                     .addCallback(AppDatabaseCallback(context.applicationContext, CoroutineScope(Dispatchers.IO)))
                     .build()
                 INSTANCE = instance

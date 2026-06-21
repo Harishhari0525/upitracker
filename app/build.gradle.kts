@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.GradleException
 
 plugins {
     alias(libs.plugins.android.application)
@@ -14,6 +15,40 @@ val calculatedVersionCode = (project.findProperty("versionCode") as? String)?.to
     ?: ((semanticParts.getOrElse(0) { 0 } * 1_000_000) +
         (semanticParts.getOrElse(1) { 0 } * 1_000) +
         semanticParts.getOrElse(2) { 0 })
+
+fun releaseSecret(name: String): String? =
+    providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+        ?: providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+
+val releaseStorePath = releaseSecret("UPITRACKER_STORE_FILE")
+    ?: (project.findProperty("android.injected.signing.store.file") as? String)
+    ?: System.getProperty("android.injected.signing.store.file")
+val releaseStorePassword = releaseSecret("UPITRACKER_STORE_PASSWORD")
+    ?: (project.findProperty("android.injected.signing.store.password") as? String)
+    ?: System.getProperty("android.injected.signing.store.password")
+val releaseKeyAlias = releaseSecret("UPITRACKER_KEY_ALIAS")
+    ?: (project.findProperty("android.injected.signing.key.alias") as? String)
+    ?: System.getProperty("android.injected.signing.key.alias")
+val releaseKeyPassword = releaseSecret("UPITRACKER_KEY_PASSWORD")
+    ?: (project.findProperty("android.injected.signing.key.password") as? String)
+    ?: System.getProperty("android.injected.signing.key.password")
+val releaseStoreFile = releaseStorePath?.let { file(it) }
+val hasReleaseSigning = releaseStoreFile?.isFile == true &&
+    releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null
+val releaseSigningRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true) &&
+        (it.contains("assemble", ignoreCase = true) ||
+            it.contains("bundle", ignoreCase = true) ||
+            it.contains("package", ignoreCase = true) ||
+            it.contains("install", ignoreCase = true))
+}
+if (releaseSigningRequested && !hasReleaseSigning) {
+    throw GradleException(
+        "Release signing is incomplete. Check UPITRACKER_STORE_FILE, UPITRACKER_STORE_PASSWORD, " +
+            "UPITRACKER_KEY_ALIAS, and UPITRACKER_KEY_PASSWORD in ~/.gradle/gradle.properties. " +
+            "Refusing to create a release artifact with a debug key."
+    )
+}
 
 android {
     namespace = "com.example.upitracker"
@@ -31,25 +66,18 @@ android {
 
     signingConfigs {
         create("release") {
-            // These properties will be passed in securely by the GitHub Actions workflow.
-            // You can also place them in a local gradle.properties file for local builds.
-            val storeFile = file(System.getProperty("android.injected.signing.store.file", "none"))
-            if (storeFile.exists()) {
-                this.storeFile = storeFile
-                this.storePassword = System.getProperty("android.injected.signing.store.password")
-                this.keyAlias = System.getProperty("android.injected.signing.key.alias")
-                this.keyPassword = System.getProperty("android.injected.signing.key.password")
+            if (hasReleaseSigning) {
+                this.storeFile = releaseStoreFile
+                this.storePassword = releaseStorePassword
+                this.keyAlias = releaseKeyAlias
+                this.keyPassword = releaseKeyPassword
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -73,12 +101,13 @@ android {
             excludes += "/META-INF/NOTICE*"
             excludes += "/META-INF/DEPENDENCIES"
             excludes += "/META-INF/INDEX.LIST"
-            excludes += "/*.kotlin_module"
-        }
-        dex {
-            useLegacyPackaging = true
         }
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
 }
 
 kotlin {

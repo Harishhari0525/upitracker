@@ -20,6 +20,17 @@ interface ArchivedSmsMessageDao {
     @Query("SELECT * FROM archived_sms_messages ORDER BY originalTimestamp DESC")
     fun getAllArchivedSms(): Flow<List<ArchivedSmsMessage>>
 
+    @Query("""
+        SELECT originalSender FROM archived_sms_messages
+        WHERE originalTimestamp BETWEEN :timestamp - :toleranceMs AND :timestamp + :toleranceMs
+        ORDER BY ABS(originalTimestamp - :timestamp) ASC
+        LIMIT 1
+    """)
+    suspend fun findSenderNear(timestamp: Long, toleranceMs: Long = 300000L): String?
+
+    @Query("SELECT * FROM archived_sms_messages WHERE parseStatus = 'UNMATCHED' ORDER BY originalTimestamp DESC LIMIT :limit")
+    fun getRecentParserFailures(limit: Int = 100): Flow<List<ArchivedSmsMessage>>
+
     // Optional: For clearing all archived messages
     @Query("DELETE FROM archived_sms_messages")
     suspend fun deleteAllArchivedSms()

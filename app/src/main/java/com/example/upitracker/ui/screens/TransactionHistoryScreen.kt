@@ -473,13 +473,19 @@ private fun UpiTransactionsList(
         AnimatedVisibility(visible = pagedTransactions.itemCount > 0 && areFiltersActive) {
             FilteredTotalsBar(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                totalDebit = totals.totalDebit,
-                totalCredit = totals.totalCredit
+                totalDebitPaise = totals.totalDebitPaise,
+                totalCreditPaise = totals.totalCreditPaise
             )
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (isLoading) {
+            val refreshError = pagedTransactions.loadState.refresh as? LoadState.Error
+            if (refreshError != null) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Could not load transactions: ${refreshError.error.message ?: "Unknown error"}")
+                    Button(onClick = { pagedTransactions.retry() }) { Text("Retry") }
+                }
+            } else if (isLoading) {
                 CircularProgressIndicator()
             } else if (pagedTransactions.itemCount == 0 && pagedTransactions.loadState.refresh is LoadState.NotLoading) {
                 LottieEmptyState(
@@ -569,6 +575,11 @@ private fun UpiTransactionsList(
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator()
                             }
+                        }
+                    }
+                    if (pagedTransactions.loadState.append is LoadState.Error) {
+                        item(key = "paging-error") {
+                            TextButton(onClick = { pagedTransactions.retry() }) { Text("Retry loading more") }
                         }
                     }
                 }

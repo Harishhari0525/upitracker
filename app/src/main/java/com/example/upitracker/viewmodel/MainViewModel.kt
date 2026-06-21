@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
 import com.example.upitracker.data.AppDatabase
+import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
@@ -47,10 +48,12 @@ import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.AppTheme
+import com.example.upitracker.util.AutoLockDelay
 import com.example.upitracker.util.BankIdentifier
 import com.example.upitracker.util.HomeScreenStyle
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
+import com.example.upitracker.util.PortableBackupCrypto
 import com.example.upitracker.util.TagUtils
 import com.example.upitracker.util.toPaise
 import com.example.upitracker.util.toMajorUnits
@@ -212,8 +215,8 @@ data class TransactionFilters(
 )
 
 data class FilteredTotals(
-    val totalDebit: Double = 0.0,
-    val totalCredit: Double = 0.0
+    val totalDebitPaise: Long = 0L,
+    val totalCreditPaise: Long = 0L
 )
 
 data class GroupedUpiLiteSummaries(
@@ -330,14 +333,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val latestBankBalances: StateFlow<List<TransactionDao.BankBalance>> = transactionDao.getLatestBankBalances()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val balanceDrifts: StateFlow<List<TransactionDao.BalanceDrift>> = transactionDao.getBalanceDrifts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Smart Subscription Detector ---
     data class DetectedSubscription(val merchant: String, val amount: Double, val frequencyDays: Int, val confidenceScore: Float)
+    private val _dismissedSubscriptions = MutableStateFlow<Set<String>>(emptySet())
     
     val detectedSubscriptions: StateFlow<List<DetectedSubscription>> = combine(
         _transactions,
-        recurringRules
-    ) { transactions, rules ->
+        recurringRules,
+        _dismissedSubscriptions
+    ) { transactions, rules, dismissed ->
         val debits = transactions.filter { it.type == "DEBIT" }
         val potentialSubs = mutableListOf<DetectedSubscription>()
         
@@ -383,8 +390,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         
-        potentialSubs.sortedByDescending { it.confidenceScore }
+        potentialSubs.filterNot { "${it.merchant}|${it.amount}" in dismissed }.sortedByDescending { it.confidenceScore }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    data class SubscriptionPriceChange(val merchant: String, val previousAmount: Double, val latestAmount: Double)
+    val subscriptionPriceChanges: StateFlow<List<SubscriptionPriceChange>> = combine(_transactions, recurringRules) { transactions, rules ->
+        rules.mapNotNull { rule ->
+            val latest = transactions.firstOrNull {
+                it.type == "DEBIT" && it.senderOrReceiver.equals(rule.description, ignoreCase = true)
+            } ?: return@mapNotNull null
+            if (latest.amountPaise > (rule.amountPaise * 1.02).toLong()) {
+                SubscriptionPriceChange(rule.description, rule.amount, latest.amount)
+            } else null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun dismissDetectedSubscription(subscription: DetectedSubscription) {
+        _dismissedSubscriptions.value += "${subscription.merchant}|${subscription.amount}"
+    }
 
     val refundKeyword: StateFlow<String> = ThemePreference.getRefundKeywordFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Refund")
@@ -451,8 +474,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Calculate Loyalty Share (Percentage of total spend in their primary category)
             val primaryCategory = history.groupingBy { it.category }.eachCount().maxByOrNull { it.value }?.key
             val loyaltyShare = if (!primaryCategory.isNullOrBlank()) {
-                val allCategoryTxns = _transactions.value.filter { it.category == primaryCategory && it.type == "DEBIT" && !it.isArchived && it.pendingDeletionTimestamp == null }
-                val categoryTotal = allCategoryTxns.sumOf { it.amountPaise }.toMajorUnits()
+                val categoryTotal = transactionDao.getCategoryDebitTotalPaise(primaryCategory).toMajorUnits()
                 if (categoryTotal > 0) (total / categoryTotal).toFloat() else 1f
             } else {
                 1f // If uncategorized, they have 100% share of "uncategorized" effectively
@@ -491,6 +513,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val linkedSelectedTransaction: StateFlow<Transaction?> = selectedTransaction.flatMapLatest { transaction ->
+        when {
+            transaction == null -> flowOf(null)
+            transaction.linkedTransactionId != null -> transactionDao.getTransactionById(transaction.linkedTransactionId)
+            else -> transactionDao.getTransactionLinkedToFlow(transaction.id)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val categorySuggestionRules: StateFlow<List<CategorySuggestionRule>> =
         categorySuggestionRuleDao.getAllRules()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -498,6 +529,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
 
     private val archivedSmsDao = db.archivedSmsMessageDao()
+    val parserFailures: StateFlow<List<ArchivedSmsMessage>> = archivedSmsDao.getRecentParserFailures()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val filters: StateFlow<TransactionFilters> = combine(
         _selectedUpiTransactionType,
@@ -544,20 +577,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userCategories: StateFlow<List<Category>> =
-        combine(_transactions, allCategories) { transactions, allCategories ->
+        combine(transactionDao.getMostUsedCategoryNames(), allCategories) { frequentCategoryNames, allCategories ->
             // Create a map of category names to their full Category objects for easy lookup
             val categoryMap = allCategories.associateBy { it.name }
 
             // Count the frequency of each category name in the transactions
-            val frequentCategoryNames = transactions
-                .filter { !it.category.isNullOrBlank() }
-                .groupingBy { it.category!! }
-                .eachCount()
-                .toList()
-                .sortedByDescending { it.second } // Sort by most used
-                .take(7) // Take the top 7
-                .map { it.first } // Get just the names
-
             // Map the frequent names back to their full Category objects
             frequentCategoryNames.mapNotNull { name -> categoryMap[name] }
         }
@@ -608,7 +632,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return yearStart to yearEnd
     }
 
-    fun backupDatabase(targetUri: Uri, contentResolver: ContentResolver) {
+    fun backupDatabase(targetUri: Uri, contentResolver: ContentResolver, password: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             _isBackingUp.value = true
             val snapshotFile = File(getApplication<Application>().cacheDir, "upi_tracker_snapshot_${System.nanoTime()}.db")
@@ -617,7 +641,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 db.openHelper.writableDatabase.execSQL("VACUUM INTO '$escapedPath'")
 
                 contentResolver.openOutputStream(targetUri)?.use { outputStream ->
-                    writeChunkedEncryptedBackup(snapshotFile, outputStream)
+                    if (password.isBlank()) {
+                        writeChunkedEncryptedBackup(snapshotFile, outputStream)
+                    } else {
+                        snapshotFile.inputStream().use { source ->
+                            PortableBackupCrypto.encrypt(source, outputStream, password.toCharArray())
+                        }
+                    }
                 } ?: throw IOException("Failed to open output stream for URI: $targetUri")
 
                 postPlainSnackbarMessage("Backup successful (Encrypted)!")
@@ -632,7 +662,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun restoreDatabase(sourceUri: Uri, contentResolver: ContentResolver) {
+    fun restoreDatabase(sourceUri: Uri, contentResolver: ContentResolver, password: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             _isRestoring.value = true
             val context = getApplication<Application>()
@@ -643,7 +673,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 contentResolver.openInputStream(sourceUri)?.use { inputStream ->
                     restoreFile.outputStream().buffered().use { outputStream ->
-                        readEncryptedBackup(inputStream, outputStream)
+                        val buffered = if (inputStream.markSupported()) inputStream else inputStream.buffered()
+                        if (PortableBackupCrypto.isPortable(buffered)) {
+                            require(password.isNotBlank()) { "This portable backup requires its password" }
+                            PortableBackupCrypto.decrypt(buffered, outputStream, password.toCharArray())
+                        } else {
+                            readEncryptedBackup(buffered, outputStream)
+                        }
                     }
                 } ?: throw IOException("Failed to open input stream for URI: $sourceUri")
 
@@ -787,6 +823,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isNotificationActionsEnabled: StateFlow<Boolean> = ThemePreference.isNotificationActionsEnabledFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val isNotificationContentRedacted: StateFlow<Boolean> = ThemePreference.isNotificationContentRedactedFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val isWidgetAmountHidden: StateFlow<Boolean> = ThemePreference.isWidgetAmountHiddenFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val autoLockDelay: StateFlow<AutoLockDelay> = ThemePreference.getAutoLockDelayFlow(application)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AutoLockDelay.IMMEDIATE)
+
     val isOnboardingCompleted: StateFlow<Boolean> =
         OnboardingPreference.isOnboardingCompletedFlow(application)
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -846,15 +890,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val budgetStatuses: StateFlow<List<BudgetStatus>> =
-        combine(_nonRefundDebits, _budgets) { transactions, budgets ->
-            if (budgets.isEmpty()) return@combine emptyList()
-
-            val debitTransactions = transactions.filter {
-                it.type.equals("DEBIT", ignoreCase = true) &&
-                        !it.category.equals(refundCategory, ignoreCase = true)
-            }
-
+        combine(_budgets, transactionDao.observeTransactionCount(), refundKeyword) { budgets, _, refund -> budgets to refund }
+        .mapLatest { (budgets, refund) ->
             budgets.map { budget ->
                 val rolloverAmount = if (budget.allowRollover) {
                     val (prevPeriodStart, prevPeriodEnd) = when (budget.periodType) {
@@ -862,9 +901,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         BudgetPeriod.MONTHLY -> getPreviousMonthRange()
                         BudgetPeriod.YEARLY -> getPreviousYearRange()
                     }
-                    val spentInPrevPeriod = debitTransactions
-                        .filter { it.category.equals(budget.categoryName, true) && it.date in prevPeriodStart..prevPeriodEnd }
-                        .sumOf { it.amountPaise }.toMajorUnits()
+                    val spentInPrevPeriod = transactionDao.getSpentAmountPaiseForCategoryInRangeSync(
+                        budget.categoryName, prevPeriodStart, prevPeriodEnd, refund
+                    )?.toMajorUnits() ?: 0.0
                     budget.budgetAmount - spentInPrevPeriod
                 } else {
                     0.0
@@ -876,9 +915,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     BudgetPeriod.YEARLY -> getCurrentYearRange()
                 }
 
-                val spentInCurrentPeriod = debitTransactions
-                    .filter { it.category.equals(budget.categoryName, true) && it.date in currentPeriodStart..currentPeriodEnd }
-                    .sumOf { it.amountPaise }.toMajorUnits()
+                val spentInCurrentPeriod = transactionDao.getSpentAmountPaiseForCategoryInRangeSync(
+                    budget.categoryName, currentPeriodStart, currentPeriodEnd, refund
+                )?.toMajorUnits() ?: 0.0
 
                 val effectiveBudget = budget.budgetAmount + rolloverAmount
                 val progress = if (effectiveBudget > 0) (spentInCurrentPeriod / effectiveBudget).toFloat().coerceIn(0f, 1f) else 0f
@@ -896,7 +935,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     effectiveBudget = effectiveBudget
                 )
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.flowOn(Dispatchers.IO).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isExportingCsv = MutableStateFlow(false)
     val isExportingCsv: StateFlow<Boolean> = _isExportingCsv.asStateFlow()
@@ -1321,6 +1360,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _categoryFilter.value = currentFilter
     }
 
+    /** Opens history for exactly one category without carrying stale history filters. */
+    fun filterHistoryByCategory(categoryName: String) {
+        _selectedUpiTransactionType.value = UpiTransactionTypeFilter.ALL
+        _selectedDateRangeStart.value = null
+        _selectedDateRangeEnd.value = null
+        _searchQuery.value = ""
+        _showUncategorized.value = false
+        _showOnlyLinked.value = false
+        _amountFilterType.value = AmountFilterType.ALL
+        _amountFilterValue1.value = null
+        _amountFilterValue2.value = null
+        _bankFilter.value = null
+        _categoryFilter.value = setOf(categoryName)
+    }
+
     // Add this function to clear the filter
     fun clearCategoryFilter() {
         _categoryFilter.value = emptySet()
@@ -1490,30 +1544,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun backfillBankNames() {
         viewModelScope.launch(Dispatchers.IO) {
             postPlainSnackbarMessage("Starting bank name sync...")
-            val allTransactions = transactionDao.getAllTransactionsSnapshot()
-            val transactionsToUpdate = allTransactions.filter { it.bankName.isNullOrEmpty() }
-
-            if (transactionsToUpdate.isEmpty()) {
-                postPlainSnackbarMessage("All transactions are already up to date.")
-                return@launch
-            }
-
-            val allSms = archivedSmsDao.getAllArchivedSms().first()
             var updatedCount = 0
-
-            // Create a lookup map from SMS messages for efficiency
-            val smsBankLookup = allSms.associateBy(
-                keySelector = { it.originalBody.trim() }, // Use the SMS body as a key
-                valueTransform = { BankIdentifier.getBankName(it.originalSender) }
-            )
-            transactionsToUpdate.forEach { transaction ->
-                // Find the matching SMS and get its bank name
-                val bankName = smsBankLookup[transaction.description.trim()]
-                if (bankName != null) {
-                    transactionDao.update(transaction.copy(bankName = bankName))
-                    updatedCount++
+            var offset = 0
+            val pageSize = 250
+            do {
+                val page = transactionDao.getTransactionsPage(pageSize, offset)
+                page.filter { it.bankName.isNullOrBlank() }.forEach { transaction ->
+                    archivedSmsDao.findSenderNear(transaction.date)?.let { sender ->
+                        transactionDao.update(transaction.copy(bankName = BankIdentifier.getBankName(sender)))
+                        updatedCount++
+                    }
                 }
-            }
+                offset += page.size
+            } while (page.size == pageSize)
             postPlainSnackbarMessage("Sync complete. Updated $updatedCount transactions.")
         }
     }
@@ -1636,6 +1679,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             ThemePreference.setNotificationActionsEnabled(getApplication(), enabled)
         }
+    }
+
+    fun setNotificationContentRedacted(enabled: Boolean) {
+        viewModelScope.launch { ThemePreference.setNotificationContentRedacted(getApplication(), enabled) }
+    }
+
+    fun setWidgetAmountHidden(enabled: Boolean) {
+        viewModelScope.launch {
+            ThemePreference.setWidgetAmountHidden(getApplication(), enabled)
+            SmsProcessingService.updateWidgets(getApplication())
+        }
+    }
+
+    fun setAutoLockDelay(delay: AutoLockDelay) {
+        viewModelScope.launch { ThemePreference.setAutoLockDelay(getApplication(), delay) }
     }
 
     fun onFilterSheetDismiss() {
@@ -1868,9 +1926,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     priority = priority,
                     logic = logic
                 )
-                categorySuggestionRuleDao.insertRuleAndApplyRetroactively(newRule)
-                postPlainSnackbarMessage("New categorization rule saved.")
+                categorySuggestionRuleDao.insert(newRule)
+                val affectedIds = matchingRuleTransactionIds(field, matcher, keyword, logic)
+                if (affectedIds.isNotEmpty()) {
+                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, category)
+                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, category)
+                }
+                postPlainSnackbarMessage("Rule saved. ${affectedIds.size} existing transactions updated.")
             }
+        }
+    }
+
+    data class RuleApplicationUndo(val transactionIds: List<Int>, val category: String)
+    private val _lastRuleApplication = MutableStateFlow<RuleApplicationUndo?>(null)
+    val lastRuleApplication: StateFlow<RuleApplicationUndo?> = _lastRuleApplication.asStateFlow()
+
+    suspend fun previewRuleMatchingCount(
+        field: RuleField,
+        matcher: RuleMatcher,
+        keyword: String,
+        logic: RuleLogic
+    ): Int = matchingRuleTransactionIds(field, matcher, keyword, logic).size
+
+    private suspend fun matchingRuleTransactionIds(
+        field: RuleField,
+        matcher: RuleMatcher,
+        keyword: String,
+        logic: RuleLogic
+    ): List<Int> {
+        val terms = keyword.split(',').map(String::trim).filter(String::isNotBlank)
+        if (terms.isEmpty()) return emptyList()
+        val matches = terms.map { term ->
+            categorySuggestionRuleDao.findMatchingTransactionIds(field.name, matcher.name, term).toSet()
+        }
+        return when (logic) {
+            RuleLogic.ANY -> matches.flatten().distinct()
+            RuleLogic.ALL -> matches.drop(1).fold(matches.first()) { result, ids -> result intersect ids }.toList()
+        }
+    }
+
+    fun undoLastRuleApplication() {
+        val undo = _lastRuleApplication.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            categorySuggestionRuleDao.undoCategorization(undo.transactionIds, undo.category)
+            _lastRuleApplication.value = null
+            postPlainSnackbarMessage("Rule application undone for ${undo.transactionIds.size} transactions.")
         }
     }
 
@@ -2189,23 +2289,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isExportingCsv.value = true
             try {
-                val allTransactions = withContext(Dispatchers.IO) {
-                    transactionDao.getAllTransactionsSnapshot()
-                }
-                if (allTransactions.isEmpty()) {
-                    postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_no_transactions))
-                    _isExportingCsv.value = false
-                    return@launch
-                }
                 withContext(Dispatchers.IO) {
-                    val csvString = CsvExporter.exportTransactionsToCsvString(allTransactions)
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(csvString.toByteArray())
-                        outputStream.flush()
+                        outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
+                            CsvExporter.writeHeader(writer)
+                            var offset = 0
+                            val pageSize = 500
+                            var exported = 0
+                            do {
+                                val page = transactionDao.getTransactionsPage(pageSize, offset)
+                                page.forEach { CsvExporter.writeTransaction(writer, it) }
+                                exported += page.size
+                                offset += page.size
+                            } while (page.size == pageSize)
+                            if (exported == 0) {
+                                throw NoSuchElementException("No transactions available for export")
+                            }
+                        }
                     } ?: throw IOException("Failed to open output stream for URI: $uri")
                 }
 
                 postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_success))
+            } catch (_: NoSuchElementException) {
+                postSnackbarMessage(getApplication<Application>().getString(R.string.csv_export_no_transactions))
             } catch (e: IOException) {
                 Log.e("MainViewModelCSV", "Error exporting CSV: ${e.message}", e)
                 postSnackbarMessage(
@@ -2355,8 +2461,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .map { totals ->
             FilteredTotals(
-                totalDebit = totals.totalDebitPaise.toMajorUnits(),
-                totalCredit = totals.totalCreditPaise.toMajorUnits()
+                totalDebitPaise = totals.totalDebitPaise,
+                totalCreditPaise = totals.totalCreditPaise
             )
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, FilteredTotals())
@@ -2402,7 +2508,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     logic = logic
                 )
                 categorySuggestionRuleDao.update(updatedRule)
-                postPlainSnackbarMessage("Rule updated successfully.")
+                val affectedIds = matchingRuleTransactionIds(field, matcher, keyword, logic)
+                if (affectedIds.isNotEmpty()) {
+                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, category)
+                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, category)
+                }
+                postPlainSnackbarMessage("Rule updated. ${affectedIds.size} existing transactions categorized.")
             }
         }
     }

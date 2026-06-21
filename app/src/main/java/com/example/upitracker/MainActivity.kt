@@ -53,16 +53,28 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
 class MainActivity : FragmentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
+    private var pendingBackupPassword = ""
+    private var pendingRestorePassword = ""
+    private var autoLockJob: Job? = null
 
     private val lifecycleObserver = object : DefaultLifecycleObserver {
         override fun onStop(owner: LifecycleOwner) {
-            // Re-lock the app when it goes to the background
-            mainViewModel.setPinUnlocked(false)
+            autoLockJob?.cancel()
+            autoLockJob = lifecycleScope.launch {
+                delay(mainViewModel.autoLockDelay.value.milliseconds)
+                mainViewModel.setPinUnlocked(false)
+            }
+        }
+
+        override fun onStart(owner: LifecycleOwner) {
+            autoLockJob?.cancel()
         }
     }
 
@@ -104,7 +116,8 @@ class MainActivity : FragmentActivity() {
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             uri?.let {
                 contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                mainViewModel.backupDatabase(it, contentResolver)
+                mainViewModel.backupDatabase(it, contentResolver, pendingBackupPassword)
+                pendingBackupPassword = ""
             }
         }
 
@@ -112,7 +125,8 @@ class MainActivity : FragmentActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let {
                 contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                mainViewModel.restoreDatabase(it, contentResolver)
+                mainViewModel.restoreDatabase(it, contentResolver, pendingRestorePassword)
+                pendingRestorePassword = ""
             }
         }
 
@@ -352,8 +366,14 @@ class MainActivity : FragmentActivity() {
                 modifier = Modifier.padding(innerPadding),
                 onImportOldSms = { requestSmsPermissionAndThenSync(isInitialImport = true) },
                 onRefreshSmsArchive = { requestSmsPermissionAndThenSync(isInitialImport = false) },
-                onBackupDatabase = { backupDatabaseLauncher.launch("upi_tracker_backup.db") },
-                onRestoreDatabase = { restoreDatabaseLauncher.launch(arrayOf("application/octet-stream")) },
+                onBackupDatabase = { password ->
+                    pendingBackupPassword = password
+                    backupDatabaseLauncher.launch(if (password.isBlank()) "upi_tracker_backup.db" else "upi_tracker_portable.upibak")
+                },
+                onRestoreDatabase = { password ->
+                    pendingRestorePassword = password
+                    restoreDatabaseLauncher.launch(arrayOf("application/octet-stream", "application/x-upitracker-backup"))
+                },
                 onShowAddTransactionDialog = { showAddTransactionDialog = true },
                 mainViewModel = mainViewModel
             )
@@ -465,43 +485,41 @@ class MainActivity : FragmentActivity() {
         workManager.enqueueUniquePeriodicWork(MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, statementRequest)
     }
 
-    private suspend fun getAllSms(sinceTimestamp: Long = 0L): List<Triple<String, String, Long>> = withContext(Dispatchers.IO) {
-        val smsList = mutableListOf<Triple<String, String, Long>>()
+    private data class SmsPage(
+        val messages: List<Triple<String, String, Long>>,
+        val lastTimestamp: Long,
+        val lastId: Long
+    )
 
-        val hasPermission = ContextCompat.checkSelfPermission(
-            this@MainActivity,
-            Manifest.permission.READ_SMS
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) {
-            Log.w("MainActivitySmsRead", "Skipping history import sync loop: READ_SMS permission not granted yet.")
-            return@withContext smsList
+    private suspend fun readSmsBatch(
+        afterTimestamp: Long,
+        afterId: Long,
+        limit: Int
+    ): SmsPage = withContext(Dispatchers.IO) {
+        val batch = ArrayList<Triple<String, String, Long>>(limit)
+        if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            return@withContext SmsPage(batch, afterTimestamp, afterId)
         }
-
-        val uriSms = "content://sms/inbox".toUri()
-        val projection = arrayOf("address", "date", "body")
-        val selection = if (sinceTimestamp > 0) "date > ?" else null
-        val selectionArgs = if (sinceTimestamp > 0) arrayOf(sinceTimestamp.toString()) else null
-
-        try {
-            contentResolver.query(uriSms, projection, selection, selectionArgs, "date DESC")?.use { cursor ->
-                val addressIdx = cursor.getColumnIndexOrThrow("address")
-                val bodyIdx = cursor.getColumnIndexOrThrow("body")
-                val dateIdx = cursor.getColumnIndexOrThrow("date")
-                while (cursor.moveToNext()) {
-                    smsList.add(
-                        Triple(
-                            cursor.getString(addressIdx) ?: "",
-                            cursor.getString(bodyIdx) ?: "",
-                            cursor.getLong(dateIdx)
-                        )
-                    )
-                }
+        var lastTimestamp = afterTimestamp
+        var lastId = afterId
+        contentResolver.query(
+            "content://sms/inbox".toUri(),
+            arrayOf("_id", "address", "date", "body"),
+            "date > ? OR (date = ? AND _id > ?)",
+            arrayOf(afterTimestamp.toString(), afterTimestamp.toString(), afterId.toString()),
+            "date ASC, _id ASC"
+        )?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow("_id")
+            val addressIdx = cursor.getColumnIndexOrThrow("address")
+            val bodyIdx = cursor.getColumnIndexOrThrow("body")
+            val dateIdx = cursor.getColumnIndexOrThrow("date")
+            while (batch.size < limit && cursor.moveToNext()) {
+                lastId = cursor.getLong(idIdx)
+                lastTimestamp = cursor.getLong(dateIdx)
+                batch.add(Triple(cursor.getString(addressIdx).orEmpty(), cursor.getString(bodyIdx).orEmpty(), cursor.getLong(dateIdx)))
             }
-        } catch (e: Exception) {
-            Log.e("MainActivitySmsRead", "Error reading SMS from ContentResolver provider", e)
         }
-        smsList
+        SmsPage(batch, lastTimestamp, lastId)
     }
 
     private fun processSmsInbox(
@@ -590,16 +608,52 @@ class MainActivity : FragmentActivity() {
                 }
             }
             
-            val allSms = getAllSms(sinceTimestamp = lastProcessed)
             val loadingStateSetter = if (isInitialImport) mainViewModel::setSmsImportingState else mainViewModel::setIsRefreshingSmsArchive
             val onCompleteMessage = if (isInitialImport) "Import" else "Refresh"
 
-            // Forward current sync intent cleanly down to the processing layer loop engine
-            processSmsInbox(
-                smsList = allSms,
-                isInitialImport = isInitialImport,
-                setLoadingState = loadingStateSetter,
-                onComplete = { txnCount, summaryCount, _ ->
+            loadingStateSetter(true)
+            lifecycleScope.launch(Dispatchers.IO) {
+                var processedCount = 0
+                var cursorTimestamp = lastProcessed
+                var cursorId = -1L
+                var txnCount = 0
+                var summaryCount = 0
+                var archivedCount = 0
+                val pageSize = 50
+                val config = SmsProcessingService.fetchProcessingConfig(this@MainActivity)
+                try {
+                    var batch: List<Triple<String, String, Long>>
+                    do {
+                        val page = readSmsBatch(cursorTimestamp, cursorId, pageSize)
+                        batch = page.messages
+                        if (batch.isNotEmpty()) {
+                            val result = SmsProcessingService.processSmsBatch(
+                                this@MainActivity, batch, updateWidget = false, config = config
+                            )
+                            txnCount += result.newTxnCount
+                            summaryCount += result.processedSummaries
+                            archivedCount += result.archivedCount
+                            processedCount += batch.size
+                            cursorTimestamp = page.lastTimestamp
+                            cursorId = page.lastId
+                            ThemePreference.setLastProcessedSmsTimestamp(this@MainActivity, batch.last().third)
+                            withContext(Dispatchers.Main) {
+                                mainViewModel.updateSmsSyncProgress(processedCount, processedCount + if (batch.size == pageSize) 1 else 0, isInitialImport)
+                            }
+                        }
+                    } while (batch.size == pageSize)
+                } catch (e: Exception) {
+                    Log.e("MainActivitySmsRead", "Error processing paged SMS import", e)
+                    withContext(Dispatchers.Main) {
+                        mainViewModel.postSnackbarMessage("SMS sync stopped because an error occurred.")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        mainViewModel.clearSmsSyncProgress()
+                        loadingStateSetter(false)
+                    }
+                }
+                withContext(Dispatchers.Main) {
                     lifecycleScope.launch {
                         ThemePreference.setLastSyncExecutionTimestamp(this@MainActivity, System.currentTimeMillis())
                     }
@@ -619,7 +673,7 @@ class MainActivity : FragmentActivity() {
                     }
                     mainViewModel.postSnackbarMessage(finalMessage)
                 }
-            )
+            }
         }
     }
 

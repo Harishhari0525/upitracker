@@ -196,7 +196,8 @@ object NotificationHelper {
     fun showNewTransactionNotification(
         context: Context, 
         transaction: com.example.upitracker.data.Transaction,
-        suggestedCategories: List<String> = listOf("Food", "Transport", "Bills")
+        suggestedCategories: List<String> = listOf("Food", "Transport", "Bills"),
+        redactContent: Boolean = true
     ) {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
@@ -233,9 +234,9 @@ object NotificationHelper {
         // 3. Build Notification
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_stat_notifications) // Ensure this icon exists
-            .setContentTitle("New Spend: ${currencyFormatter.format(transaction.amount)}")
-            .setContentText(transaction.description)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(transaction.description))
+            .setContentTitle(if (redactContent) "New transaction recorded" else "New Spend: ${currencyFormatter.format(transaction.amount)}")
+            .setContentText(if (redactContent) "Open UPI Tracker to view details" else transaction.description)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(if (redactContent) "Financial details are hidden" else transaction.description))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)

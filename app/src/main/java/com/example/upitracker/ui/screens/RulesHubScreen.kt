@@ -25,6 +25,7 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -120,6 +121,7 @@ private fun CategorizationRulesContent(
 ) {
     val userCategories by mainViewModel.userCategories.collectAsState(initial = emptyList())
     val rules by mainViewModel.categorySuggestionRules.collectAsState()
+    val lastApplication by mainViewModel.lastRuleApplication.collectAsState()
 
     var ruleToEdit by remember { mutableStateOf<CategorySuggestionRule?>(null) }
     var showAddEditDialog by remember { mutableStateOf(false) }
@@ -160,6 +162,14 @@ private fun CategorizationRulesContent(
                         title = "Categorization Rules",
                         subtitle = "${rules.size} rules active"
                     )
+                }
+
+                if (lastApplication != null) {
+                    item {
+                        TextButton(onClick = mainViewModel::undoLastRuleApplication) {
+                            Text("Undo last application (${lastApplication!!.transactionIds.size} transactions)")
+                        }
+                    }
                 }
 
                 items(
@@ -204,6 +214,7 @@ private fun CategorizationRulesContent(
         AddEditRuleDialog(
             userCategories = userCategories,
             ruleToEdit = ruleToEdit,
+            previewMatchCount = mainViewModel::previewRuleMatchingCount,
             onDismiss = { showAddEditDialog = false },
             onConfirm = { field, matcher, keyword, category, priority, logic ->
                 if (ruleToEdit == null) {

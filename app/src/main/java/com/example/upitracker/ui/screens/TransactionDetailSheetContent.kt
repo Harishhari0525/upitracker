@@ -274,14 +274,8 @@ fun TransactionDetailSheetContent(
         } else {
             // --- VIEW MODE UI ---
             val allTransactions by mainViewModel.transactions.collectAsState()
+            val linkedTxn by mainViewModel.linkedSelectedTransaction.collectAsState()
             val isDebit = transaction!!.type == "DEBIT"
-            val linkedTxn = if (isDebit) {
-                transaction!!.linkedTransactionId?.let { linkId ->
-                    allTransactions.find { it.id == linkId }
-                }
-            } else {
-                allTransactions.find { it.linkedTransactionId == transaction!!.id }
-            }
 
             TransactionDetailHeader(transaction = transaction!!, linkedTransaction = linkedTxn)
 
@@ -314,9 +308,7 @@ fun TransactionDetailSheetContent(
                     HorizontalDivider(modifier = Modifier.padding(horizontal = ExpressiveTokens.spacing.lg, vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                     if (isDebit) {
-                        val linkedRefund = transaction!!.linkedTransactionId?.let { linkId ->
-                            allTransactions.find { it.id == linkId }
-                        }
+                        val linkedRefund = linkedTxn
                         if (linkedRefund != null) {
                             Column(
                                 modifier = Modifier
@@ -373,7 +365,7 @@ fun TransactionDetailSheetContent(
                             }
                         }
                     } else {
-                        val linkedDebit = allTransactions.find { it.linkedTransactionId == transaction!!.id }
+                        val linkedDebit = linkedTxn
                         if (linkedDebit != null) {
                             Column(
                                 modifier = Modifier

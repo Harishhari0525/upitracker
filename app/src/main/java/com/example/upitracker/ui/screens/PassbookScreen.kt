@@ -38,6 +38,8 @@ import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
 
 @Composable
 fun PassbookScreen(
@@ -45,7 +47,8 @@ fun PassbookScreen(
     passbookViewModel: PassbookViewModel = viewModel()
 ) {
     val transactionType by passbookViewModel.transactionType.collectAsState()
-    val transactions by passbookViewModel.filteredTransactions.collectAsState()
+    val transactions = passbookViewModel.filteredTransactions.collectAsLazyPagingItems()
+    val transactionCount by passbookViewModel.passbookTransactionCount.collectAsState()
     val allCategories by passbookViewModel.allCategories.collectAsState()
     val startDate by passbookViewModel.startDate.collectAsState()
     val endDate by passbookViewModel.endDate.collectAsState()
@@ -118,7 +121,7 @@ fun PassbookScreen(
                     val filename = "Passbook_${dateFormat.format(Date())}.pdf"
                     pdfSaverLauncher.launch(filename)
                 },
-                enabled = !isExportingPdf && transactions.isNotEmpty(),
+                enabled = !isExportingPdf && transactionCount > 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
@@ -333,11 +336,27 @@ fun PassbookScreen(
             item {
                 ExpressiveSectionHeader(
                     title = "Ledger Preview",
-                    subtitle = "${transactions.size} transactions matching query bounds"
+                    subtitle = "$transactionCount transactions matching query bounds"
                 )
             }
 
-            if (transactions.isEmpty()) {
+            when (val refreshState = transactions.loadState.refresh) {
+                is LoadState.Loading -> item {
+                    Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is LoadState.Error -> item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Could not load statement: ${refreshState.error.message ?: "Unknown error"}")
+                        Button(onClick = { transactions.retry() }) { Text("Retry") }
+                    }
+                }
+                is LoadState.NotLoading -> if (transactions.itemCount == 0) {
                 item {
                     Box(
                         modifier = Modifier
@@ -351,11 +370,12 @@ fun PassbookScreen(
                         )
                     }
                 }
-            } else {
+                } else {
                 items(
-                    items = transactions,
-                    key = { "passbook-txn-${it.id}" }
-                ) { transaction ->
+                    count = transactions.itemCount,
+                    key = { index -> transactions.peek(index)?.let { "passbook-txn-${it.id}" } ?: "passbook-placeholder-$index" }
+                ) { index ->
+                    val transaction = transactions[index] ?: return@items
                     val categoryDetails = allCategories.find { category ->
                         category.name.equals(transaction.category, ignoreCase = true)
                     }
@@ -368,6 +388,13 @@ fun PassbookScreen(
                         isSelected = false,
                         showCheckbox = false
                     )
+                }
+                if (transactions.loadState.append is LoadState.Loading) {
+                    item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                }
+                if (transactions.loadState.append is LoadState.Error) {
+                    item { TextButton(onClick = { transactions.retry() }) { Text("Retry loading more") } }
+                }
                 }
             }
         }

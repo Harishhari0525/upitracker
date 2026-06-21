@@ -33,6 +33,13 @@ enum class HomeScreenStyle(val displayName: String) {
     INSIGHTS("Smart Insights Dashboard")
 }
 
+enum class AutoLockDelay(val displayName: String, val milliseconds: Long) {
+    IMMEDIATE("Immediately", 0L),
+    FIFTEEN_SECONDS("After 15 seconds", 15_000L),
+    ONE_MINUTE("After 1 minute", 60_000L),
+    FIVE_MINUTES("After 5 minutes", 300_000L)
+}
+
 object ThemePreference {
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
     private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
@@ -46,6 +53,9 @@ object ThemePreference {
 
     private val TRANSACTION_ALERTS_ENABLED_KEY = booleanPreferencesKey("transaction_alerts_enabled")
     private val NOTIFICATION_ACTIONS_ENABLED_KEY = booleanPreferencesKey("notification_actions_enabled")
+    private val NOTIFICATION_CONTENT_REDACTED_KEY = booleanPreferencesKey("notification_content_redacted")
+    private val WIDGET_AMOUNTS_HIDDEN_KEY = booleanPreferencesKey("widget_amounts_hidden")
+    private val AUTO_LOCK_DELAY_KEY = stringPreferencesKey("auto_lock_delay")
 
     /**
      * Retrieves the Flow for the dark mode preference.
@@ -181,6 +191,30 @@ object ThemePreference {
         context.settingsDataStore.edit { prefs ->
             prefs[NOTIFICATION_ACTIONS_ENABLED_KEY] = enabled
         }
+    }
+
+    fun isNotificationContentRedactedFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[NOTIFICATION_CONTENT_REDACTED_KEY] != false }
+
+    suspend fun setNotificationContentRedacted(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { it[NOTIFICATION_CONTENT_REDACTED_KEY] = enabled }
+    }
+
+    fun isWidgetAmountHiddenFlow(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[WIDGET_AMOUNTS_HIDDEN_KEY] != false }
+
+    suspend fun setWidgetAmountHidden(context: Context, enabled: Boolean) {
+        context.settingsDataStore.edit { it[WIDGET_AMOUNTS_HIDDEN_KEY] = enabled }
+    }
+
+    fun getAutoLockDelayFlow(context: Context): Flow<AutoLockDelay> =
+        context.settingsDataStore.data.map { prefs ->
+            runCatching { AutoLockDelay.valueOf(prefs[AUTO_LOCK_DELAY_KEY] ?: AutoLockDelay.IMMEDIATE.name) }
+                .getOrDefault(AutoLockDelay.IMMEDIATE)
+        }
+
+    suspend fun setAutoLockDelay(context: Context, delay: AutoLockDelay) {
+        context.settingsDataStore.edit { it[AUTO_LOCK_DELAY_KEY] = delay.name }
     }
 
 }

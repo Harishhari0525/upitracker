@@ -44,6 +44,32 @@ interface CategorySuggestionRuleDao {
     """)
     suspend fun applyRuleToPastTransactions(keyword: String, categoryName: String)
 
+    @Query("""
+        SELECT id FROM transactions
+        WHERE category IS NULL AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
+          AND (
+            (:field = 'DESCRIPTION' AND (
+              (:matcher = 'CONTAINS' AND LOWER(description) LIKE '%' || LOWER(:keyword) || '%') OR
+              (:matcher = 'EQUALS' AND LOWER(description) = LOWER(:keyword)) OR
+              (:matcher = 'STARTS_WITH' AND LOWER(description) LIKE LOWER(:keyword) || '%') OR
+              (:matcher = 'ENDS_WITH' AND LOWER(description) LIKE '%' || LOWER(:keyword))
+            )) OR
+            (:field = 'SENDER_OR_RECEIVER' AND (
+              (:matcher = 'CONTAINS' AND LOWER(senderOrReceiver) LIKE '%' || LOWER(:keyword) || '%') OR
+              (:matcher = 'EQUALS' AND LOWER(senderOrReceiver) = LOWER(:keyword)) OR
+              (:matcher = 'STARTS_WITH' AND LOWER(senderOrReceiver) LIKE LOWER(:keyword) || '%') OR
+              (:matcher = 'ENDS_WITH' AND LOWER(senderOrReceiver) LIKE '%' || LOWER(:keyword))
+            ))
+          )
+    """)
+    suspend fun findMatchingTransactionIds(field: String, matcher: String, keyword: String): List<Int>
+
+    @Query("UPDATE transactions SET category = :categoryName WHERE id IN (:ids)")
+    suspend fun categorizeTransactions(ids: List<Int>, categoryName: String)
+
+    @Query("UPDATE transactions SET category = NULL WHERE id IN (:ids) AND category = :categoryName")
+    suspend fun undoCategorization(ids: List<Int>, categoryName: String)
+
     @Transaction
     suspend fun insertRuleAndApplyRetroactively(rule: CategorySuggestionRule) {
         // Step 1: Save the new rule to the database

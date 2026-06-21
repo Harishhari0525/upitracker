@@ -5,6 +5,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.io.Writer
 
 object CsvExporter {
 
@@ -40,6 +41,30 @@ object CsvExporter {
             )
         }
         return stringBuilder.toString()
+    }
+
+    fun writeHeader(writer: Writer) {
+        writer.appendLine("ID,Date,Type,Amount,Description,SenderOrReceiver,Category,Note")
+    }
+
+    fun writeTransaction(writer: Writer, txn: Transaction) {
+        val dateFormatted = try {
+            csvDateFormat.format(Instant.ofEpochMilli(txn.date).atZone(ZoneId.systemDefault()))
+        } catch (_: Exception) {
+            txn.date.toString()
+        }
+        writer.appendLine(
+            listOf(
+                txn.id.toString() to false,
+                dateFormatted to false,
+                txn.type to false,
+                String.format(Locale.US, "%.2f", txn.amount) to false,
+                txn.description to true,
+                txn.senderOrReceiver to true,
+                txn.category.orEmpty() to true,
+                txn.note to true
+            ).joinToString(",") { (value, protectFormula) -> escapeCsvField(value, protectFormula) }
+        )
     }
 
     /**
