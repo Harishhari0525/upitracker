@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 import com.example.upitracker.R
 import com.example.upitracker.data.Budget
 import com.example.upitracker.data.RecurringRule
@@ -27,6 +28,10 @@ object NotificationHelper {
 
     private const val APP_UPDATES_CHANNEL_ID = "app_updates_channel"
     private const val MONTHLY_STATEMENT_CHANNEL_ID = "monthly_statement_channel"
+    const val EXTRA_TRANSACTION_ID = "TXN_ID"
+    const val EXTRA_CATEGORY = "CATEGORY"
+    const val EXTRA_NOTIFICATION_ID = "NOTIF_ID"
+    const val REMOTE_INPUT_CATEGORY = "REMOTE_INPUT_CATEGORY"
 
     fun createNotificationChannels(context: Context) {
         val notificationManager: NotificationManager =
@@ -214,21 +219,51 @@ object NotificationHelper {
         val notificationId = transaction.id
         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
 
-        // 2. Create Action Intents for suggested categories
-        val actions = suggestedCategories.map { category ->
+        // 2. Create Action Intents for suggested categories.
+        // Most Android notification layouts reliably show only three actions, so keep
+        // two quick categories and reserve one slot for manual category input.
+        val categoryActionsEnabled = suggestedCategories.isNotEmpty()
+        val quickCategories = if (categoryActionsEnabled) suggestedCategories.distinct().take(2) else emptyList()
+        val actions = quickCategories.map { category ->
             val intent = Intent(context, CategorizeReceiver::class.java).apply {
-                putExtra("TXN_ID", transaction.id)
-                putExtra("CATEGORY", category)
-                putExtra("NOTIF_ID", notificationId)
+                putExtra(EXTRA_TRANSACTION_ID, transaction.id)
+                putExtra(EXTRA_CATEGORY, category)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
             }
             // RequestCode must be unique for each action!
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                transaction.id * 10 + suggestedCategories.indexOf(category),
+                transaction.id * 10 + quickCategories.indexOf(category),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             NotificationCompat.Action.Builder(0, category, pendingIntent).build()
+        }
+
+        val customCategoryAction = if (categoryActionsEnabled) {
+            val customCategoryInput = RemoteInput.Builder(REMOTE_INPUT_CATEGORY)
+                .setLabel("Type category")
+                .build()
+            val customCategoryIntent = Intent(context, CategorizeReceiver::class.java).apply {
+                putExtra(EXTRA_TRANSACTION_ID, transaction.id)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            val customCategoryPendingIntent = PendingIntent.getBroadcast(
+                context,
+                transaction.id * 10 + 9,
+                customCategoryIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            NotificationCompat.Action.Builder(
+                0,
+                "Custom",
+                customCategoryPendingIntent
+            )
+                .addRemoteInput(customCategoryInput)
+                .setAllowGeneratedReplies(false)
+                .build()
+        } else {
+            null
         }
 
         // 3. Build Notification
@@ -243,6 +278,7 @@ object NotificationHelper {
 
         // Add the actions buttons
         actions.forEach { builder.addAction(it) }
+        customCategoryAction?.let { builder.addAction(it) }
 
         manager.notify(notificationId, builder.build())
     }

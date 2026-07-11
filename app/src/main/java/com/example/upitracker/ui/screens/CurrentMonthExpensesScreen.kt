@@ -77,6 +77,7 @@ import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.expressiveHeroGradient
 import com.example.upitracker.util.OnboardingPreference
 import com.example.upitracker.util.animateEnter
 import com.example.upitracker.util.getCategoryIcon
@@ -114,12 +115,14 @@ fun CurrentMonthExpensesScreen(
     val recentTransactions by mainViewModel.currentMonthExpenseItems.collectAsState()
     val recurringRules by mainViewModel.recurringRules.collectAsState()
     val isImporting by mainViewModel.isImportingSms.collectAsState()
+    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState()
     val allCategories by mainViewModel.allCategories.collectAsState()
     val isDashboardLoading by mainViewModel.isDashboardLoading.collectAsState()
     val latestBankBalances by mainViewModel.latestBankBalances.collectAsState()
 
     val smsSyncState by mainViewModel.smsSyncProgress.collectAsState()
     val isSyncingAllSms = smsSyncState.isSyncing
+    val isSmsSyncing = isImporting || isRefreshingSmsArchive
     val smsSyncProgressFloat = smsSyncState.percentage
 
     val pullRefreshState = rememberPullToRefreshState()
@@ -165,8 +168,8 @@ fun CurrentMonthExpensesScreen(
             contentWindowInsets = WindowInsets(0),
             topBar = {
                 ExpressiveTopBar(
-                    title = "Home",
-                    subtitle = "A cumulative dashboard for the month",
+                    title = "Today",
+                    subtitle = "Your money, as it moves",
                     actions = {
                         TextButton(onClick = onViewInsightsClick) {
                             Icon(
@@ -193,13 +196,13 @@ fun CurrentMonthExpensesScreen(
             ) {
                 PullToRefreshBox(
                     modifier = Modifier.fillMaxSize(),
-                    isRefreshing = isImporting,
+                    isRefreshing = isSmsSyncing,
                     onRefresh = onRefresh,
                     state = pullRefreshState,
                     indicator = {
                         PullToRefreshDefaults.Indicator(
                             state = pullRefreshState,
-                            isRefreshing = isImporting,
+                            isRefreshing = isSmsSyncing,
                             modifier = Modifier.align(Alignment.TopCenter),
                             color = MaterialTheme.colorScheme.primary,
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -281,6 +284,7 @@ fun CurrentMonthExpensesScreen(
                                 mainViewModel = mainViewModel,
                                 onViewAllClick = onViewAllClick,
                                 onRefresh = onRefresh,
+                                isSyncing = isSmsSyncing,
                                 modifier = Modifier.introShowCaseTarget(
                                     index = 1,
                                     content = {
@@ -373,13 +377,11 @@ private fun TotalExpensesHeroCard(
                 .build()
         )
     }
+    val currentMonthLabel = remember {
+        SimpleDateFormat("MMMM", Locale.getDefault()).format(Date())
+    }
 
-    val heroShape = RoundedCornerShape(
-        topStart = 28.dp,
-        topEnd = 28.dp,
-        bottomStart = 28.dp,
-        bottomEnd = 10.dp
-    )
+    val heroShape = ExpressiveTokens.corners.hero
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -392,9 +394,10 @@ private fun TotalExpensesHeroCard(
         )
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(expressiveHeroGradient(), heroShape)
+                    .padding(
                     horizontal = ExpressiveTokens.spacing.xl,
                     vertical = ExpressiveTokens.spacing.xl
                 ),
@@ -404,8 +407,8 @@ private fun TotalExpensesHeroCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = "Current Month's Expenses",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "SPENT THIS MONTH",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
 
@@ -427,7 +430,7 @@ private fun TotalExpensesHeroCard(
                     Text(
                         text = currencyFormatter.format(targetTotal),
                         style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         lineHeight = 40.sp
                     )
@@ -436,21 +439,21 @@ private fun TotalExpensesHeroCard(
                 Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
 
                 Text(
-                    text = "Simple monthly view",
+                    text = "$currentMonthLabel payment pulse",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                 )
             }
 
             Icon(
-                imageVector = Icons.Filled.AccountBalanceWallet,
+                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                 contentDescription = "Monthly Expenses",
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                     .padding(8.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     }
@@ -507,7 +510,7 @@ private fun MonthlyStatCard(
         modifier = modifier,
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
@@ -710,6 +713,7 @@ private fun RecentTransactionsSection(
     mainViewModel: MainViewModel,
     onViewAllClick: () -> Unit,
     onRefresh: () -> Unit,
+    isSyncing: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -739,6 +743,7 @@ private fun RecentTransactionsSection(
                 
                 androidx.compose.material3.Button(
                     onClick = onRefresh,
+                    enabled = !isSyncing,
                     shape = ExpressiveTokens.corners.large
                 ) {
                     Icon(
@@ -747,7 +752,7 @@ private fun RecentTransactionsSection(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Import from SMS")
+                    Text(if (isSyncing) "Syncing..." else "Sync SMS")
                 }
             }
         } else {

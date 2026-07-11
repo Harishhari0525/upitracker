@@ -89,6 +89,7 @@ fun TransactionHistoryScreen(
     DisposableEffect(Unit) {
         onDispose {
             mainViewModel.clearAllHistoryFilters()
+            mainViewModel.clearSelection()
         }
     }
 
@@ -112,8 +113,8 @@ fun TransactionHistoryScreen(
                     )
                 } else {
                     ExpressiveTopBar(
-                        title = "History",
-                        subtitle = "Search, filter, and manage transactions"
+                        title = "Activity",
+                        subtitle = "Every payment in one place"
                     )
                 }
             }
@@ -474,7 +475,9 @@ private fun UpiTransactionsList(
             FilteredTotalsBar(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 totalDebitPaise = totals.totalDebitPaise,
-                totalCreditPaise = totals.totalCreditPaise
+                totalCreditPaise = totals.totalCreditPaise,
+                debitCount = totals.debitCount,
+                creditCount = totals.creditCount
             )
         }
 
@@ -1172,26 +1175,68 @@ private fun BulkCategorizeDialog(
     onDismiss: () -> Unit,
     onCategorySelected: (String) -> Unit
 ) {
+    var query by remember { mutableStateOf("") }
+    val filteredCategories = remember(categories, query) {
+        categories
+            .filter { it.name.contains(query, ignoreCase = true) }
+            .sortedWith(
+                compareBy<Category> { if (it.name.startsWith(query, ignoreCase = true)) 0 else 1 }
+                    .thenBy { it.name.lowercase() }
+            )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Apply a Category") },
         text = {
-            LazyColumn {
-                items(categories) { category ->
-                    ListItem(
-                        headlineContent = { Text(category.name) },
-                        modifier = Modifier.clickable { onCategorySelected(category.name) },
-                        leadingContent = {
-                            val categoryIcon = getCategoryIcon(category)
-                            CategoryIconView(
-                                categoryIcon = categoryIcon,
-                                size = FilterChipDefaults.IconSize,
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+            Column(verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)) {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search or create category") },
+                    singleLine = true
+                )
+
+                LazyColumn {
+                    items(filteredCategories) { category ->
+                        ListItem(
+                            headlineContent = { Text(category.name) },
+                            modifier = Modifier.clickable { onCategorySelected(category.name) },
+                            leadingContent = {
+                                val categoryIcon = getCategoryIcon(category)
+                                CategoryIconView(
+                                    categoryIcon = categoryIcon,
+                                    size = FilterChipDefaults.IconSize,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+                    }
+
+                    if (filteredCategories.isEmpty() && query.isNotBlank()) {
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Create \"$query\"") },
+                                supportingContent = { Text("This category will be created and applied.") },
+                                modifier = Modifier.clickable { onCategorySelected(query.trim()) },
+                                leadingContent = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = null
+                                    )
+                                }
                             )
                         }
-                    )
+                    } else if (categories.isEmpty()) {
+                        item {
+                            ListItem(
+                                headlineContent = { Text("No categories yet") },
+                                supportingContent = { Text("Type a category name to create one.") }
+                            )
+                        }
+                    }
                 }
             }
         },

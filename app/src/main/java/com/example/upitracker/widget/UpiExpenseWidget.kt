@@ -75,7 +75,18 @@ class UpiExpenseWidget : GlanceAppWidget() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // --- Header: Toggle Tabs ---
+            Text(
+                text = "PAYMENT PULSE",
+                style = TextStyle(
+                    color = GlanceTheme.colors.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            )
+
+            Spacer(GlanceModifier.height(8.dp))
+
+            // Compact period switcher uses the same vocabulary as the app shell.
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
@@ -100,7 +111,7 @@ class UpiExpenseWidget : GlanceAppWidget() {
                 )
             }
 
-            Spacer(GlanceModifier.height(12.dp))
+            Spacer(GlanceModifier.height(14.dp))
 
             Text(
                 text = if (hideAmount) "Amount hidden" else currencyFormatter.format(spentAmount),
@@ -115,8 +126,19 @@ class UpiExpenseWidget : GlanceAppWidget() {
             Spacer(GlanceModifier.height(4.dp))
 
             Text(
-                text = if (viewMode == "TODAY") "Spent Today" else "Spent This Month",
+                text = if (viewMode == "TODAY") "SPENT TODAY" else "SPENT THIS MONTH",
                 style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp)
+            )
+
+            Spacer(GlanceModifier.height(8.dp))
+
+            Text(
+                text = "━━━━●━━━━━━━━",
+                style = TextStyle(
+                    color = GlanceTheme.colors.primary,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
             )
 
             Spacer(GlanceModifier.defaultWeight())
@@ -140,7 +162,7 @@ class UpiExpenseWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "+ Add Expense",
+                    text = "+ Add payment",
                     style = TextStyle(color = GlanceTheme.colors.onPrimaryContainer, fontWeight = FontWeight.Medium)
                 )
             }

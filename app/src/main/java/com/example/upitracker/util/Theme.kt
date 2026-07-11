@@ -20,11 +20,77 @@ import androidx.compose.ui.unit.dp
 import com.example.upitracker.viewmodel.MainViewModel
 
 val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(28.dp),
-    extraLarge = RoundedCornerShape(36.dp)
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(9.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(22.dp)
+)
+
+// Payment Pulse is deliberately stable across devices. Financial hierarchy and
+// semantic colours should not change when Android's wallpaper changes.
+private val PaymentPulseLightColorScheme = lightColorScheme(
+    primary = Color(0xFF4B57DB),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE4E7FF),
+    onPrimaryContainer = Color(0xFF171D69),
+    secondary = Color(0xFF087F70),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD1F5EC),
+    onSecondaryContainer = Color(0xFF003D35),
+    tertiary = Color(0xFFE76562),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFFFDAD8),
+    onTertiaryContainer = Color(0xFF5B1112),
+    error = Color(0xFFC44735),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD3),
+    onErrorContainer = Color(0xFF410002),
+    background = Color(0xFFF5F3FC),
+    onBackground = Color(0xFF17162A),
+    surface = Color(0xFFFFFBFF),
+    onSurface = Color(0xFF17162A),
+    surfaceVariant = Color(0xFFE8E5F2),
+    onSurfaceVariant = Color(0xFF5F5B70),
+    outline = Color(0xFF817C93),
+    outlineVariant = Color(0xFFD8D3E2),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF1EEF9),
+    surfaceContainer = Color(0xFFECE8F5),
+    surfaceContainerHigh = Color(0xFFE5E1F0),
+    surfaceContainerHighest = Color(0xFFDCD7E9)
+)
+
+private val PaymentPulseDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFBBC0FF),
+    onPrimary = Color(0xFF202778),
+    primaryContainer = Color(0xFF353D9F),
+    onPrimaryContainer = Color(0xFFE1E3FF),
+    secondary = Color(0xFF72DBC7),
+    onSecondary = Color(0xFF00382F),
+    secondaryContainer = Color(0xFF005047),
+    onSecondaryContainer = Color(0xFF9AF8E3),
+    tertiary = Color(0xFFFFB3AF),
+    onTertiary = Color(0xFF68000A),
+    tertiaryContainer = Color(0xFF8D2527),
+    onTertiaryContainer = Color(0xFFFFDAD8),
+    error = Color(0xFFFFB4A8),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD3),
+    background = Color(0xFF0D0C19),
+    onBackground = Color(0xFFEAE6F4),
+    surface = Color(0xFF151326),
+    onSurface = Color(0xFFEAE6F4),
+    surfaceVariant = Color(0xFF47425B),
+    onSurfaceVariant = Color(0xFFC9C3D8),
+    outline = Color(0xFF9690A8),
+    outlineVariant = Color(0xFF49445C),
+    surfaceContainerLowest = Color(0xFF090811),
+    surfaceContainerLow = Color(0xFF18152A),
+    surfaceContainer = Color(0xFF211C38),
+    surfaceContainerHigh = Color(0xFF2B2550),
+    surfaceContainerHighest = Color(0xFF383064)
 )
 
 private val ForestLightColorScheme = lightColorScheme(
@@ -400,20 +466,7 @@ private fun selectedColorScheme(
 ): ColorScheme {
     val context = LocalContext.current
 
-    return when (appTheme) {
-        AppTheme.FOREST -> if (isDarkMode) ForestDarkColorScheme else ForestLightColorScheme
-        AppTheme.OCEAN -> if (isDarkMode) OceanDarkColorScheme else OceanLightColorScheme
-        AppTheme.ROSE -> if (isDarkMode) RoseDarkColorScheme else RoseLightColorScheme
-        AppTheme.LAVENDER -> if (isDarkMode) LavenderDarkColorScheme else LavenderLightColorScheme
-        AppTheme.SUNSET -> if (isDarkMode) SunsetDarkColorScheme else SunsetLightColorScheme
-        AppTheme.MINT -> if (isDarkMode) MintDarkColorScheme else MintLightColorScheme
-        AppTheme.MONOCHROME -> if (isDarkMode) MonochromeDarkColorScheme else MonochromeLightColorScheme
-        AppTheme.GOLD -> if (isDarkMode) GoldDarkColorScheme else GoldLightColorScheme
-        AppTheme.CYBER -> if (isDarkMode) CyberDarkColorScheme else CyberLightColorScheme
-        AppTheme.DEFAULT -> {
-            if (isDarkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-    }
+    return if (isDarkMode) PaymentPulseDarkColorScheme else PaymentPulseLightColorScheme
 }
 
 @Composable

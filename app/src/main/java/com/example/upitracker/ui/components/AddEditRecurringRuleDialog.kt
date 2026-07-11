@@ -15,6 +15,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,13 +43,15 @@ fun AddEditRecurringRuleDialog(
         amount: Double,
         category: String,
         period: BudgetPeriod,
-        day: Int
+        day: Int,
+        createTransactionOnDueDate: Boolean
     ) -> Unit
 ) {
     var description by remember { mutableStateOf(ruleToEdit?.description ?: "") }
     var amount by remember { mutableStateOf(ruleToEdit?.amount?.toString() ?: "") }
     var category by remember { mutableStateOf(ruleToEdit?.categoryName ?: "") }
     var dayOfMonth by remember { mutableStateOf(ruleToEdit?.dayOfPeriod?.toString() ?: "") }
+    var createTransactionOnDueDate by remember { mutableStateOf(ruleToEdit?.createTransactionOnDueDate ?: false) }
 
     val selectedPeriod by remember {
         mutableStateOf(ruleToEdit?.periodType ?: BudgetPeriod.MONTHLY)
@@ -77,7 +80,7 @@ fun AddEditRecurringRuleDialog(
                 )
 
                 Text(
-                    text = "Track subscriptions, rent, EMIs, and fixed bills automatically.",
+                    text = "Track subscriptions, rent, EMIs, and fixed bills.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -139,15 +142,19 @@ fun AddEditRecurringRuleDialog(
                         shape = ExpressiveTokens.corners.medium
                     )
 
-                    val filteredCategories = userCategories.filter {
-                        it.name.contains(category, ignoreCase = true)
-                    }
+                    val filteredCategories = userCategories
+                        .filter { it.name.contains(category, ignoreCase = true) }
+                        .sortedWith(
+                            compareBy<com.example.upitracker.data.Category> {
+                                if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
+                            }.thenBy { it.name.lowercase() }
+                        )
 
-                    if (filteredCategories.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = isCategoryExpanded,
-                            onDismissRequest = { isCategoryExpanded = false }
-                        ) {
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        if (filteredCategories.isNotEmpty()) {
                             filteredCategories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -159,6 +166,21 @@ fun AddEditRecurringRuleDialog(
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                 )
                             }
+                        } else {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (category.isBlank()) {
+                                            "No categories yet"
+                                        } else {
+                                            "No match. Save to create \"$category\""
+                                        }
+                                    )
+                                },
+                                onClick = {},
+                                enabled = false,
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
                         }
                     }
                 }
@@ -204,7 +226,7 @@ fun AddEditRecurringRuleDialog(
                         if (isDayOfMonthError) {
                             Text("Must be between 1 and 31")
                         } else {
-                            Text("Payment will be created monthly on this day.")
+                            Text("Payment is due monthly on this day.")
                         }
                     },
                     keyboardOptions = KeyboardOptions(
@@ -214,6 +236,28 @@ fun AddEditRecurringRuleDialog(
                     singleLine = true,
                     shape = ExpressiveTokens.corners.medium
                 )
+
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Create debit entry automatically",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Turn this off if the bank/payment app will send an SMS for this payment. You will still get reminders, but no duplicate debit card will be created.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = createTransactionOnDueDate,
+                        onCheckedChange = { createTransactionOnDueDate = it }
+                    )
+                }
             }
         },
         confirmButton = {
@@ -238,7 +282,8 @@ fun AddEditRecurringRuleDialog(
                             amountDouble,
                             category,
                             selectedPeriod,
-                            dayInt
+                            dayInt,
+                            createTransactionOnDueDate
                         )
                     }
                 },

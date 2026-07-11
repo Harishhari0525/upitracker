@@ -36,7 +36,9 @@ interface TransactionDao {
     @Query("""
         SELECT
             COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN amount ELSE 0 END), 0) AS totalDebitPaise,
-            COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise
+            COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise,
+            COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END), 0) AS debitCount,
+            COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END), 0) AS creditCount
         FROM transactions
         WHERE isArchived = 0
           AND pendingDeletionTimestamp IS NULL
@@ -84,7 +86,12 @@ interface TransactionDao {
     @RawQuery(observedEntities = [Transaction::class])
     fun getFilteredTransactionsPaged(query: SupportSQLiteQuery): PagingSource<Int, Transaction>
 
-    data class TransactionTotals(val totalDebitPaise: Long, val totalCreditPaise: Long)
+    data class TransactionTotals(
+        val totalDebitPaise: Long,
+        val totalCreditPaise: Long,
+        val debitCount: Int,
+        val creditCount: Int
+    )
 
     @RawQuery(observedEntities = [Transaction::class])
     fun getFilteredTotals(query: SupportSQLiteQuery): Flow<TransactionTotals>
@@ -110,6 +117,33 @@ interface TransactionDao {
         endDate: Long,
         description: String,
         senderOrReceiver: String
+    ): Transaction?
+
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE amount = :amount
+          AND type = 'DEBIT'
+          AND date BETWEEN :startDate AND :endDate
+          AND isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND senderOrReceiver != 'Recurring'
+          AND (
+            LOWER(TRIM(category)) = LOWER(TRIM(:categoryName))
+            OR LOWER(description) LIKE '%' || LOWER(:description) || '%'
+            OR LOWER(:description) LIKE '%' || LOWER(description) || '%'
+          )
+        ORDER BY ABS(date - :dueDate) ASC
+        LIMIT 1
+        """
+    )
+    suspend fun findSimilarDebitNearDate(
+        amount: Long,
+        startDate: Long,
+        endDate: Long,
+        dueDate: Long,
+        description: String,
+        categoryName: String
     ): Transaction?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -142,6 +176,10 @@ interface TransactionDao {
             }
             if (strictExisting.bankName == null && transaction.bankName != null) {
                 toUpdate = toUpdate.copy(bankName = transaction.bankName)
+                updated = true
+            }
+            if (isBadPartyName(strictExisting.senderOrReceiver) && !isBadPartyName(transaction.senderOrReceiver)) {
+                toUpdate = toUpdate.copy(senderOrReceiver = transaction.senderOrReceiver)
                 updated = true
             }
             if (updated) {
@@ -191,9 +229,24 @@ interface TransactionDao {
                             balanceAfterTransactionPaise = transaction.balanceAfterTransactionPaise,
                             bankName = if (p.bankName == null || p.bankName == "Other Bank") transaction.bankName else p.bankName
                         ))
+                    } else if (isBadPartyName(p.senderOrReceiver) && !isBadPartyName(transaction.senderOrReceiver)) {
+                        update(p.copy(senderOrReceiver = transaction.senderOrReceiver))
                     }
                 }
                 // It's a duplicate, return -1L
+                return -1L
+            }
+
+            if (isLikelySameBankNotification(p, transaction)) {
+                val updatedTxn = p.copy(
+                    bankName = p.bankName ?: transaction.bankName,
+                    balanceAfterTransactionPaise = p.balanceAfterTransactionPaise ?: transaction.balanceAfterTransactionPaise,
+                    description = chooseRicherText(p.description, transaction.description),
+                    senderOrReceiver = chooseBetterParty(p.senderOrReceiver, transaction.senderOrReceiver)
+                )
+                if (updatedTxn != p) {
+                    update(updatedTxn)
+                }
                 return -1L
             }
         }
@@ -256,6 +309,21 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
     suspend fun updateCategoryName(oldCategory: String, newCategory: String)
+
+    @Query("""
+        UPDATE transactions
+        SET category = :categoryName
+        WHERE id != :excludeId
+          AND senderOrReceiver = :senderOrReceiver
+          AND isArchived = 0
+          AND pendingDeletionTimestamp IS NULL
+          AND (category IS NULL OR TRIM(category) = '')
+    """)
+    suspend fun categorizeUncategorizedBySender(
+        senderOrReceiver: String,
+        categoryName: String,
+        excludeId: Int = -1
+    ): Int
 
     @Query("UPDATE transactions SET category = NULL WHERE category = :categoryName")
     suspend fun clearCategoryForTransactions(categoryName: String)
@@ -403,4 +471,73 @@ private fun extractUpiReferenceNumber(text: String): String? {
     val digitRegex = Regex("""\b(\d{12})\b""")
     val digitMatch = digitRegex.find(text)
     return digitMatch?.groupValues?.get(1)
+}
+
+private fun isLikelySameBankNotification(existing: Transaction, incoming: Transaction): Boolean {
+    if (existing.senderOrReceiver == "Manual Entry" || incoming.senderOrReceiver == "Manual Entry") return false
+    if (existing.senderOrReceiver == "Recurring" || incoming.senderOrReceiver == "Recurring") return false
+
+    val closeInTime = kotlin.math.abs(existing.date - incoming.date) <= 10_000L
+    if (!closeInTime) return false
+
+    val sameSender = normalizeDuplicateKey(existing.senderOrReceiver) == normalizeDuplicateKey(incoming.senderOrReceiver)
+    val sameBank = !existing.bankName.isNullOrBlank() &&
+        !incoming.bankName.isNullOrBlank() &&
+        existing.bankName.equals(incoming.bankName, ignoreCase = true)
+
+    if (!sameSender && !sameBank) return false
+
+    val existingRef = extractUpiReferenceNumber(existing.description)
+    val incomingRef = extractUpiReferenceNumber(incoming.description)
+    if (existingRef != null && incomingRef != null && existingRef != incomingRef) return false
+
+    return true
+}
+
+private fun normalizeDuplicateKey(value: String): String =
+    value.lowercase()
+        .replace(Regex("""[^a-z0-9]"""), "")
+        .trim()
+
+private fun chooseRicherText(existing: String, incoming: String): String =
+    if (incoming.length > existing.length) incoming else existing
+
+private fun chooseBetterParty(existing: String, incoming: String): String =
+    when {
+        isBadPartyName(existing) && !isBadPartyName(incoming) -> incoming
+        !isBadPartyName(existing) -> existing
+        else -> chooseRicherText(existing, incoming)
+    }
+
+private fun isBadPartyName(value: String): Boolean {
+    val normalized = normalizeDuplicateKey(value)
+    val lower = value.lowercase()
+    return normalized.isBlank() ||
+        normalized == "manualentry" ||
+        normalized == "recurring" ||
+        normalized == "otherbank" ||
+        normalized == "bank" ||
+        normalized == "dispute" ||
+        normalized == "alert" ||
+        normalized == "alerts" ||
+        normalized == "cmplnt" ||
+        normalized == "notice" ||
+        normalized == "update" ||
+        normalized == "secure" ||
+        normalized == "info" ||
+        normalized == "icici" ||
+        normalized == "icicit" ||
+        normalized == "hdfc" ||
+        normalized == "hdfcbk" ||
+        normalized == "sbibnk" ||
+        normalized == "axis" ||
+        normalized == "axisbk" ||
+        value.length > 60 ||
+        lower.contains(" debited") ||
+        lower.contains(" credited") ||
+        lower.contains(" account") ||
+        lower.contains(" balance") ||
+        lower.contains(" transaction") ||
+        lower.contains(" has been ") ||
+        lower.contains(" available ")
 }

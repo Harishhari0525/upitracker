@@ -310,19 +310,18 @@ object SmsProcessingService {
     }
 
     fun resolveBankName(sender: String, body: String): String {
-        val normalizedSender = if (sender.contains("-")) {
-            sender.substringAfter("-").uppercase(Locale.getDefault()).trim()
-        } else {
-            sender.uppercase(Locale.getDefault()).trim()
-        }
+        val normalizedSender = BankIdentifier.normalizeDltSenderHeader(sender)
 
         var bankName = BankIdentifier.getBankName(sender)
+            ?: BankIdentifier.getBankName(normalizedSender)
 
         if (
             bankName.isNullOrBlank() ||
             normalizedSender == "DISPUTE" ||
             normalizedSender == "ALERT" ||
             normalizedSender == "CMPLNT" ||
+            normalizedSender == "NOTICE" ||
+            normalizedSender == "UPDATE" ||
             bankName.uppercase(Locale.getDefault()) == "DISPUTE"
         ) {
             val bodyLower = body.lowercase(Locale.getDefault())

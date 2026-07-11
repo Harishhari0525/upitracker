@@ -171,15 +171,19 @@ fun AddEditBudgetDialog(
                         shape = ExpressiveTokens.corners.medium
                     )
 
-                    val filteredCategories = userCategories.filter {
-                        it.name.contains(category, ignoreCase = true)
-                    }
+                    val filteredCategories = userCategories
+                        .filter { it.name.contains(category, ignoreCase = true) }
+                        .sortedWith(
+                            compareBy<com.example.upitracker.data.Category> {
+                                if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
+                            }.thenBy { it.name.lowercase() }
+                        )
 
-                    if (filteredCategories.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = isCategoryExpanded,
-                            onDismissRequest = { isCategoryExpanded = false }
-                        ) {
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        if (filteredCategories.isNotEmpty()) {
                             filteredCategories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -191,6 +195,21 @@ fun AddEditBudgetDialog(
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                 )
                             }
+                        } else {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (category.isBlank()) {
+                                            "No categories yet"
+                                        } else {
+                                            "No match. Save to create \"$category\""
+                                        }
+                                    )
+                                },
+                                onClick = {},
+                                enabled = false,
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
                         }
                     }
                 }

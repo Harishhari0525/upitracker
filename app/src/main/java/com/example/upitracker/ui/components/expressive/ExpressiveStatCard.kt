@@ -31,7 +31,7 @@ fun ExpressiveStatCard(
         modifier = modifier,
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card

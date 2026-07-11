@@ -75,7 +75,7 @@ import com.example.upitracker.data.BudgetPeriod
 fun BudgetScreen(
     mainViewModel: MainViewModel
 ) {
-    val userCategories by mainViewModel.userCategories.collectAsState(initial = emptyList())
+    val allCategories by mainViewModel.allCategories.collectAsState(initial = emptyList())
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val tabTitles = listOf("Spending Budgets", "Recurring Payments")
@@ -91,7 +91,7 @@ fun BudgetScreen(
 
     if (showAddBudgetDialog) {
         AddEditBudgetDialog(
-            userCategories = userCategories,
+            userCategories = allCategories,
             budgetStatus = null,
             onDismiss = { showAddBudgetDialog = false },
             onConfirm = { category, amount, period, allowRollover ->
@@ -108,7 +108,7 @@ fun BudgetScreen(
 
     if (budgetToEdit != null) {
         AddEditBudgetDialog(
-            userCategories = userCategories,
+            userCategories = allCategories,
             budgetStatus = budgetToEdit,
             onDismiss = { budgetToEdit = null },
             onConfirm = { category, amount, period, allowRollover ->
@@ -126,16 +126,17 @@ fun BudgetScreen(
 
     if (showAddRecurringDialog) {
         AddEditRecurringRuleDialog(
-            userCategories = userCategories,
+            userCategories = allCategories,
             ruleToEdit = null,
             onDismiss = { showAddRecurringDialog = false },
-            onConfirm = { description, amount, category, period, day ->
+            onConfirm = { description, amount, category, period, day, createTransactionOnDueDate ->
                 mainViewModel.addRecurringRule(
                     description,
                     amount,
                     category,
                     period,
-                    day
+                    day,
+                    createTransactionOnDueDate
                 )
                 showAddRecurringDialog = false
             }
@@ -144,17 +145,18 @@ fun BudgetScreen(
 
     if (ruleToEdit != null) {
         AddEditRecurringRuleDialog(
-            userCategories = userCategories,
+            userCategories = allCategories,
             ruleToEdit = ruleToEdit,
             onDismiss = { ruleToEdit = null },
-            onConfirm = { description, amount, category, period, day ->
+            onConfirm = { description, amount, category, period, day, createTransactionOnDueDate ->
                 mainViewModel.updateRecurringRule(
                     ruleToEdit!!.id,
                     description,
                     amount,
                     category,
                     period,
-                    day
+                    day,
+                    createTransactionOnDueDate
                 )
                 ruleToEdit = null
             }
@@ -175,7 +177,7 @@ fun BudgetScreen(
             },
             text = {
                 Text(
-                    "This feature allows you to automatically track fixed payments like subscriptions, rent, EMIs, and bills. The app creates a transaction for you on the date you specify."
+                    "Use recurring payments for subscriptions, rent, EMIs, and fixed bills. If the payment already sends an SMS, keep it reminder-only to avoid duplicate debit cards. Turn on auto-entry only for cash/manual/non-SMS payments."
                 )
             },
             confirmButton = {
@@ -199,7 +201,7 @@ fun BudgetScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Budgets",
+                title = "Plan",
                 subtitle = if (pagerState.currentPage == 0) {
                     "Control category-wise spending limits"
                 } else {
@@ -440,7 +442,8 @@ private fun RecurringList(
                                     amount = sub.amount,
                                     category = "Subscriptions", // Default category
                                     period = period,
-                                    dayOfPeriod = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+                                    dayOfPeriod = Calendar.getInstance().get(Calendar.DAY_OF_MONTH),
+                                    createTransactionOnDueDate = false
                                 )
                             }) {
                                 Text("Add to Tracking")

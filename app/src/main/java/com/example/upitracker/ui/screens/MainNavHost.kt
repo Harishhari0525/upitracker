@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,21 +67,17 @@ fun MainNavHost(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(26.dp)),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 8.dp
                 ) {
                     bottomNavItems.forEach { screen ->
                         val isSelected = currentRoute == screen.route
                         NavigationBarItem(
                             icon = {
-                                if (screen.animatedIconRes != null) {
-                                    val painter = rememberAnimatedVectorPainter(
-                                        AnimatedImageVector.animatedVectorResource(id = screen.animatedIconRes),
-                                        atEnd = isSelected
-                                    )
-                                    Icon(painter, contentDescription = stringResource(screen.labelResId))
-                                } else {
-                                    Icon(screen.icon, contentDescription = stringResource(screen.labelResId))
-                                }
+                                Icon(screen.icon, contentDescription = stringResource(screen.labelResId))
                             },
                             label = {
                                 Text(stringResource(screen.labelResId), style = MaterialTheme.typography.labelSmall)
@@ -99,7 +96,9 @@ fun MainNavHost(
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -136,7 +135,7 @@ fun MainNavHost(
                     onViewInsightsClick = {
                         rootNavController.navigate("insights_screen")
                     },
-                    onRefresh = onImportOldSms
+                    onRefresh = onRefreshSmsArchive
                 )
             }
 
@@ -163,6 +162,14 @@ fun MainNavHost(
                 popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
             ) {
                 RulesHubScreen(onBack = { rootNavController.popBackStack() }, mainViewModel = mainViewModel)
+            }
+
+            composable(
+                "advanced_sms_parser",
+                enterTransition = { expressiveSlideIn() }, exitTransition = { expressiveSlideOut() },
+                popEnterTransition = { expressivePopEnter() }, popExitTransition = { expressivePopExit() }
+            ) {
+                AdvancedSmsParserScreen(onBack = { rootNavController.popBackStack() }, mainViewModel = mainViewModel)
             }
 
             composable(
@@ -214,6 +221,7 @@ fun MainNavHost(
                     onNavigateToArchive = { rootNavController.navigate("archived_transactions") },
                     onNavigateToCategories = { rootNavController.navigate("category_management") },
                     onNavigateToRules = { rootNavController.navigate("rule_management") },
+                    onNavigateToAdvancedParser = { rootNavController.navigate("advanced_sms_parser") },
                     onNavigateToPassbook = { rootNavController.navigate("passbook_screen") },
                     onExportToCsv = {
                         val timestamp =

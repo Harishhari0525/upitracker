@@ -141,6 +141,12 @@ fun CategoryManagementScreen(
                     )
                 }
 
+                item {
+                    TextButton(onClick = mainViewModel::mergeDuplicateCategoryNames) {
+                        Text("Merge duplicate names")
+                    }
+                }
+
                 items(
                     items = categories,
                     key = { it.id }

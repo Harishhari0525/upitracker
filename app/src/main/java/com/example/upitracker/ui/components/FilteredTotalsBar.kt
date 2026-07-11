@@ -26,7 +26,9 @@ import java.math.BigDecimal
 fun FilteredTotalsBar(
     modifier: Modifier = Modifier,
     totalDebitPaise: Long,
-    totalCreditPaise: Long
+    totalCreditPaise: Long,
+    debitCount: Int,
+    creditCount: Int
 ) {
     val currencyFormatter = remember {
         NumberFormat.getCurrencyInstance(
@@ -69,7 +71,7 @@ fun FilteredTotalsBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TotalColumn(
-                label = "DEBIT",
+                label = "DEBIT ($debitCount)",
                 value = currencyFormatter.format(BigDecimal.valueOf(totalDebitPaise, 2)),
                 color = debitColor,
                 modifier = Modifier.weight(1f)
@@ -81,7 +83,7 @@ fun FilteredTotalsBar(
             )
 
             TotalColumn(
-                label = "CREDIT",
+                label = "CREDIT ($creditCount)",
                 value = currencyFormatter.format(BigDecimal.valueOf(totalCreditPaise, 2)),
                 color = creditColor,
                 modifier = Modifier.weight(1f)

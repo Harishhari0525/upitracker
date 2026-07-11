@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Info
@@ -88,6 +87,7 @@ private enum class PinChangeStep {
 private sealed interface SettingsDialog {
     data object None : SettingsDialog
     data object ThemeChooser : SettingsDialog
+    data object Notifications : SettingsDialog
     data object DeleteAllConfirm : SettingsDialog
     data object Privacy : SettingsDialog
     data object About : SettingsDialog
@@ -130,8 +130,8 @@ fun SettingsScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Settings",
-                subtitle = "Personalize and secure your tracker"
+                title = "More",
+                subtitle = "Tools, privacy, and preferences"
             )
         }
     ) { paddingValues ->
@@ -150,7 +150,7 @@ fun SettingsScreen(
             item {
                 ExpressiveSectionHeader(
                     title = "Appearance",
-                    subtitle = "Theme and home screen preferences"
+                    subtitle = "Display and privacy preferences"
                 )
             }
 
@@ -171,16 +171,6 @@ fun SettingsScreen(
             }
 
             item {
-                val currentTheme by mainViewModel.appTheme.collectAsState()
-
-                SettingItemRow(
-                    icon = Icons.Filled.Palette,
-                    title = "App Theme",
-                    summary = "Current: ${currentTheme.displayName}",
-                    onClick = { activeDialog = SettingsDialog.ThemeChooser }
-                )
-            }
-            item {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
@@ -195,49 +185,20 @@ fun SettingsScreen(
 
             item {
                 val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
+                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
+                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
+                val summary = buildList {
+                    add(if (alertsEnabled) "Alerts on" else "Alerts off")
+                    if (alertsEnabled) add(if (actionsEnabled) "Quick actions on" else "Quick actions off")
+                    add(if (redacted) "Details hidden" else "Details visible")
+                }.joinToString(" · ")
 
                 SettingItemRow(
                     icon = Icons.Filled.Notifications,
-                    title = "Transaction Alerts",
-                    summary = if (alertsEnabled) "Show alerts for new transactions" else "Disabled",
-                    onClick = { mainViewModel.setTransactionAlertsEnabled(!alertsEnabled) }
-                ) {
-                    Switch(
-                        checked = alertsEnabled,
-                        onCheckedChange = { mainViewModel.setTransactionAlertsEnabled(it) }
-                    )
-                }
-            }
-
-            item {
-                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
-                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
-
-                val titleColor = if (alertsEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                val iconTint = if (alertsEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.38f)
-
-                SettingItemRow(
-                    icon = Icons.AutoMirrored.Filled.Label,
-                    title = "Categorization Actions",
-                    summary = if (alertsEnabled) {
-                        if (actionsEnabled) "Show quick categories on alerts" else "Disabled"
-                    } else {
-                        "Requires Transaction Alerts enabled"
-                    },
-                    onClick = { 
-                        if (alertsEnabled) {
-                            mainViewModel.setNotificationActionsEnabled(!actionsEnabled) 
-                        }
-                    },
-                    titleColor = titleColor,
-                    iconTint = iconTint
-                ) {
-                    Switch(
-                        checked = actionsEnabled && alertsEnabled,
-                        onCheckedChange = { mainViewModel.setNotificationActionsEnabled(it) },
-                        enabled = alertsEnabled
-                    )
-                }
+                    title = "Notifications",
+                    summary = summary,
+                    onClick = { activeDialog = SettingsDialog.Notifications }
+                )
             }
 
             item {
@@ -263,18 +224,6 @@ fun SettingsScreen(
                             if (isPinSet) PinChangeStep.VERIFY_OLD else PinChangeStep.SET_NEW
                     }
                 )
-            }
-
-            item {
-                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
-                SettingItemRow(
-                    icon = Icons.Filled.Notifications,
-                    title = "Hide notification details",
-                    summary = "Do not show amount or merchant on the lock screen",
-                    onClick = { mainViewModel.setNotificationContentRedacted(!redacted) }
-                ) {
-                    Switch(checked = redacted, onCheckedChange = mainViewModel::setNotificationContentRedacted)
-                }
             }
 
             item {
@@ -391,6 +340,22 @@ fun SettingsScreen(
                         mainViewModel.setAppTheme(it)
                         activeDialog = SettingsDialog.None
                     }
+                )
+            }
+
+            is SettingsDialog.Notifications -> {
+                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
+                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
+                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
+
+                NotificationSettingsDialog(
+                    alertsEnabled = alertsEnabled,
+                    actionsEnabled = actionsEnabled,
+                    redacted = redacted,
+                    onAlertsChanged = mainViewModel::setTransactionAlertsEnabled,
+                    onActionsChanged = mainViewModel::setNotificationActionsEnabled,
+                    onRedactedChanged = mainViewModel::setNotificationContentRedacted,
+                    onDismiss = { activeDialog = SettingsDialog.None }
                 )
             }
 
@@ -517,9 +482,9 @@ fun SettingItemRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        shape = ExpressiveTokens.corners.large,
+        shape = ExpressiveTokens.corners.small,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card,
@@ -531,7 +496,7 @@ fun SettingItemRow(
                 .fillMaxWidth()
                 .padding(
                     horizontal = ExpressiveTokens.compact.cardHorizontal,
-                    vertical = ExpressiveTokens.compact.cardVertical
+                    vertical = ExpressiveTokens.spacing.md
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -622,6 +587,102 @@ private fun ThemeChooserDialog(
             }
         }
     )
+}
+
+@Composable
+private fun NotificationSettingsDialog(
+    alertsEnabled: Boolean,
+    actionsEnabled: Boolean,
+    redacted: Boolean,
+    onAlertsChanged: (Boolean) -> Unit,
+    onActionsChanged: (Boolean) -> Unit,
+    onRedactedChanged: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = ExpressiveTokens.corners.extraLarge,
+        icon = {
+            Icon(
+                imageVector = Icons.Filled.Notifications,
+                contentDescription = null
+            )
+        },
+        title = {
+            Text(
+                text = "Notifications",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+            ) {
+                NotificationToggleRow(
+                    title = "Transaction alerts",
+                    summary = "Show a notification when a new transaction is detected.",
+                    checked = alertsEnabled,
+                    onCheckedChange = onAlertsChanged
+                )
+
+                NotificationToggleRow(
+                    title = "Quick category actions",
+                    summary = "Show suggested categories and custom category input on transaction alerts.",
+                    checked = actionsEnabled && alertsEnabled,
+                    enabled = alertsEnabled,
+                    onCheckedChange = onActionsChanged
+                )
+
+                NotificationToggleRow(
+                    title = "Hide notification details",
+                    summary = "Hide amount and merchant details on the lock screen.",
+                    checked = redacted,
+                    onCheckedChange = onRedactedChanged
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+}
+
+@Composable
+private fun NotificationToggleRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
+    }
 }
 
 @Composable

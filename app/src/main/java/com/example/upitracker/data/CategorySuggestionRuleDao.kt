@@ -24,6 +24,20 @@ interface CategorySuggestionRuleDao {
     @Query("SELECT * FROM category_suggestion_rules ORDER BY priority DESC")
     fun getAllRules(): Flow<List<CategorySuggestionRule>>
 
+    @Query("""
+        SELECT COUNT(*) FROM category_suggestion_rules
+        WHERE fieldToMatch = :field
+          AND matcher = :matcher
+          AND LOWER(keyword) = LOWER(:keyword)
+          AND LOWER(categoryName) = LOWER(:categoryName)
+    """)
+    suspend fun countEquivalentRules(
+        field: String,
+        matcher: String,
+        keyword: String,
+        categoryName: String
+    ): Int
+
     @Query("UPDATE category_suggestion_rules SET categoryName = :newName WHERE categoryName = :oldName")
     suspend fun updateCategoryNameInRules(oldName: String, newName: String)
 
@@ -39,14 +53,14 @@ interface CategorySuggestionRuleDao {
     @Query("""
         UPDATE transactions 
         SET category = :categoryName 
-        WHERE category IS NULL 
+        WHERE (category IS NULL OR TRIM(category) = '')
         AND description LIKE '%' || :keyword || '%'
     """)
     suspend fun applyRuleToPastTransactions(keyword: String, categoryName: String)
 
     @Query("""
         SELECT id FROM transactions
-        WHERE category IS NULL AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
+        WHERE (category IS NULL OR TRIM(category) = '') AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
           AND (
             (:field = 'DESCRIPTION' AND (
               (:matcher = 'CONTAINS' AND LOWER(description) LIKE '%' || LOWER(:keyword) || '%') OR

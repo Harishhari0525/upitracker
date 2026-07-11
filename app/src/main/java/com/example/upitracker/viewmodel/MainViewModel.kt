@@ -51,6 +51,7 @@ import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.AutoLockDelay
 import com.example.upitracker.util.BankIdentifier
 import com.example.upitracker.util.HomeScreenStyle
+import com.example.upitracker.util.inferCategoryDefaults
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
 import com.example.upitracker.util.PortableBackupCrypto
@@ -216,7 +217,9 @@ data class TransactionFilters(
 
 data class FilteredTotals(
     val totalDebitPaise: Long = 0L,
-    val totalCreditPaise: Long = 0L
+    val totalCreditPaise: Long = 0L,
+    val debitCount: Int = 0,
+    val creditCount: Int = 0
 )
 
 data class GroupedUpiLiteSummaries(
@@ -1493,7 +1496,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         amount: Double,
         category: String,
         period: BudgetPeriod,
-        dayOfPeriod: Int
+        dayOfPeriod: Int,
+        createTransactionOnDueDate: Boolean = true
     ) {
         if (description.isBlank() || amount <= 0 || category.isBlank()) {
             postPlainSnackbarMessage("Invalid input. Please fill all fields.")
@@ -1503,17 +1507,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             // ✨ FIX: Matching the clean signature pass
             val firstDueDate = calculateNextDueDate(dayOfPeriod, period)
+            val canonicalCategory = ensureCategoryExistsAndReturnName(category)
 
             val newRule = RecurringRule(
                 amount = amount,
                 description = description,
-                categoryName = category,
+                categoryName = canonicalCategory,
                 periodType = period,
                 dayOfPeriod = dayOfPeriod,
-                nextDueDate = firstDueDate
+                nextDueDate = firstDueDate,
+                createTransactionOnDueDate = createTransactionOnDueDate
             )
             recurringRuleDao.insert(newRule)
-            postPlainSnackbarMessage("Recurring transaction for '$description' saved.")
+            val mode = if (createTransactionOnDueDate) "auto-entry" else "reminder-only"
+            postPlainSnackbarMessage("Recurring payment for '$description' saved as $mode.")
         }
     }
 
@@ -1567,7 +1574,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         newAmount: Double,
         newCategory: String,
         newPeriod: BudgetPeriod,
-        newDay: Int
+        newDay: Int,
+        createTransactionOnDueDate: Boolean = true
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val originalRule = recurringRuleDao.getRuleById(ruleId) ?: return@launch
@@ -1579,13 +1587,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 originalRule.nextDueDate
             }
 
+            val canonicalCategory = ensureCategoryExistsAndReturnName(newCategory)
+
             val updatedRule = originalRule.copy(
                 description = newDescription,
                 amountPaise = newAmount.toPaise(),
-                categoryName = newCategory,
+                categoryName = canonicalCategory,
                 periodType = newPeriod,
                 dayOfPeriod = newDay,
-                nextDueDate = nextDueDate
+                nextDueDate = nextDueDate,
+                createTransactionOnDueDate = createTransactionOnDueDate
             )
             recurringRuleDao.update(updatedRule)
             postPlainSnackbarMessage("Recurring rule updated.")
@@ -1596,6 +1607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
+                val canonicalCategory = ensureCategoryExistsAndReturnName(trimmedCategory)
                 val (startDate, _) = when (periodType) {
                     BudgetPeriod.WEEKLY -> getCurrentWeekRange()
                     BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
@@ -1604,7 +1616,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val budget = com.example.upitracker.data.Budget(
                     id = budgetId ?: 0,
-                    categoryName = trimmedCategory,
+                    categoryName = canonicalCategory,
                     budgetAmount = amount,
                     periodType = periodType,
                     startDate = startDate,
@@ -1778,18 +1790,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             originalTransaction?.let { it ->
                 val isManualEntry = it.senderOrReceiver == "Manual Entry"
+                val trimmedCategory = newCategory?.trim()?.takeIf { cat -> cat.isNotBlank() }
+                val canonicalCategory = trimmedCategory?.let { catName ->
+                    categoryDao.getCategoryByNameCaseInsensitive(catName)?.name ?: catName
+                }
 
                 val updatedTransaction = if (isManualEntry) {
                     it.copy(
                         description = newDescription.trim(),
                         amountPaise = newAmount.toPaise(),
-                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true },
+                        category = canonicalCategory,
                         note = newNote.trim(),
                         receiptImagePath = newReceiptPath ?: it.receiptImagePath
                     )
                 } else {
                     it.copy(
-                        category = newCategory?.trim().takeIf { cat -> cat?.isNotBlank() == true },
+                        category = canonicalCategory,
                         note = newNote.trim(),
                         receiptImagePath = newReceiptPath ?: it.receiptImagePath
                     )
@@ -1799,16 +1815,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     deleteManagedReceiptFile(it.receiptImagePath)
                 }
 
-                newCategory?.trim()?.takeIf { it.isNotBlank() }?.let { catName ->
-                    if (categoryDao.getCategoryByName(catName) == null) {
+                var matchingUpdated = 0
+                canonicalCategory?.let { catName ->
+                    if (categoryDao.getCategoryByNameCaseInsensitive(catName) == null) {
+                        val defaults = inferCategoryDefaults(catName)
                         categoryDao.insert(
                             Category(
                                 name = catName,
-                                iconName = "Category",
-                                colorHex = "#808080"
+                                iconName = defaults.iconName,
+                                colorHex = defaults.colorHex
                             )
                         )
                     }
+                    matchingUpdated = transactionDao.categorizeUncategorizedBySender(
+                        senderOrReceiver = updatedTransaction.senderOrReceiver,
+                        categoryName = catName,
+                        excludeId = updatedTransaction.id
+                    )
                     checkAndRecommendAutoRule(updatedTransaction.senderOrReceiver, catName)
                 }
 
@@ -1828,7 +1851,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     postPlainSnackbarMessage("Unlinked refund from purchase.")
                 }
 
-                postPlainSnackbarMessage("Transaction updated successfully!")
+                if (matchingUpdated > 0) {
+                    postPlainSnackbarMessage("Transaction updated. $matchingUpdated matching uncategorized transaction(s) also categorized.")
+                } else {
+                    postPlainSnackbarMessage("Transaction updated successfully!")
+                }
             }
         }
     }
@@ -1914,23 +1941,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         keyword: String,
         category: String,
         priority: Int,
-        logic: RuleLogic
+        logic: RuleLogic,
+        applyToExisting: Boolean = true
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             if (keyword.isNotBlank() && category.isNotBlank()) {
+                val canonicalCategory = ensureCategoryExistsAndReturnName(category.trim())
                 val newRule = CategorySuggestionRule(
                     fieldToMatch = field,
                     matcher = matcher,
                     keyword = keyword,
-                    categoryName = category,
+                    categoryName = canonicalCategory,
                     priority = priority,
                     logic = logic
                 )
                 categorySuggestionRuleDao.insert(newRule)
-                val affectedIds = matchingRuleTransactionIds(field, matcher, keyword, logic)
+                val affectedIds = if (applyToExisting) matchingRuleTransactionIds(field, matcher, keyword, logic) else emptyList()
                 if (affectedIds.isNotEmpty()) {
-                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, category)
-                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, category)
+                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, canonicalCategory)
+                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, canonicalCategory)
                 }
                 postPlainSnackbarMessage("Rule saved. ${affectedIds.size} existing transactions updated.")
             }
@@ -1982,6 +2011,164 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ✨✨✨ START: NEW CATEGORY MANAGEMENT FUNCTIONS ✨✨✨
+    private data class PopularCategoryRulePreset(
+        val keyword: String,
+        val categoryName: String,
+        val field: RuleField = RuleField.SENDER_OR_RECEIVER,
+        val matcher: RuleMatcher = RuleMatcher.CONTAINS,
+        val priority: Int = 20
+    )
+
+    private val popularCategoryRulePresets = listOf(
+        PopularCategoryRulePreset("swiggy", "Food", priority = 40),
+        PopularCategoryRulePreset("zomato", "Food", priority = 40),
+        PopularCategoryRulePreset("dominos", "Food"),
+        PopularCategoryRulePreset("pizza hut", "Food"),
+        PopularCategoryRulePreset("mcdonald", "Food"),
+        PopularCategoryRulePreset("kfc", "Food"),
+        PopularCategoryRulePreset("blinkit", "Groceries"),
+        PopularCategoryRulePreset("zepto", "Groceries"),
+        PopularCategoryRulePreset("bigbasket", "Groceries"),
+        PopularCategoryRulePreset("dmart", "Groceries"),
+        PopularCategoryRulePreset("amazon", "Shopping"),
+        PopularCategoryRulePreset("flipkart", "Shopping"),
+        PopularCategoryRulePreset("myntra", "Shopping"),
+        PopularCategoryRulePreset("ajio", "Shopping"),
+        PopularCategoryRulePreset("uber", "Transport"),
+        PopularCategoryRulePreset("ola", "Transport"),
+        PopularCategoryRulePreset("rapido", "Transport"),
+        PopularCategoryRulePreset("metro", "Transport"),
+        PopularCategoryRulePreset("irctc", "Travel"),
+        PopularCategoryRulePreset("redbus", "Travel"),
+        PopularCategoryRulePreset("bus ticket", "Travel", field = RuleField.DESCRIPTION),
+        PopularCategoryRulePreset("flight", "Travel", field = RuleField.DESCRIPTION),
+        PopularCategoryRulePreset("makemytrip", "Travel"),
+        PopularCategoryRulePreset("goibibo", "Travel"),
+        PopularCategoryRulePreset("airtel", "Bills"),
+        PopularCategoryRulePreset("jio", "Bills"),
+        PopularCategoryRulePreset("electricity", "Bills", field = RuleField.DESCRIPTION),
+        PopularCategoryRulePreset("netflix", "Entertainment"),
+        PopularCategoryRulePreset("prime video", "Entertainment"),
+        PopularCategoryRulePreset("spotify", "Entertainment"),
+        PopularCategoryRulePreset("hotstar", "Entertainment"),
+        PopularCategoryRulePreset("apollo", "Health"),
+        PopularCategoryRulePreset("pharmeasy", "Health"),
+        PopularCategoryRulePreset("1mg", "Health")
+    )
+
+    fun addPopularCategoryRulePresets() {
+        viewModelScope.launch(Dispatchers.IO) {
+            var addedRules = 0
+            val updatedTransactionIds = mutableSetOf<Int>()
+
+            ensureCategoryExists("Travel", iconName = "Flight", colorHex = "#3F51B5")
+
+            popularCategoryRulePresets
+                .sortedWith(
+                    compareByDescending<PopularCategoryRulePreset> { it.priority }
+                        .thenByDescending { it.keyword.length }
+                )
+                .forEach { preset ->
+                    val canonicalCategory = ensureCategoryExistsAndReturnName(preset.categoryName)
+
+                    val alreadyExists = categorySuggestionRuleDao.countEquivalentRules(
+                        field = preset.field.name,
+                        matcher = preset.matcher.name,
+                        keyword = preset.keyword,
+                        categoryName = canonicalCategory
+                    ) > 0
+
+                    if (!alreadyExists) {
+                        val rule = CategorySuggestionRule(
+                            fieldToMatch = preset.field,
+                            matcher = preset.matcher,
+                            keyword = preset.keyword,
+                            categoryName = canonicalCategory,
+                            priority = preset.priority,
+                            logic = RuleLogic.ANY
+                        )
+                        categorySuggestionRuleDao.insert(rule)
+                        addedRules++
+                    }
+
+                    val affectedIds = matchingRuleTransactionIds(
+                        field = preset.field,
+                        matcher = preset.matcher,
+                        keyword = preset.keyword,
+                        logic = RuleLogic.ANY
+                    )
+                    if (affectedIds.isNotEmpty()) {
+                        categorySuggestionRuleDao.categorizeTransactions(affectedIds, canonicalCategory)
+                        updatedTransactionIds += affectedIds
+                    }
+                }
+
+            postPlainSnackbarMessage("Popular presets added: $addedRules rules, ${updatedTransactionIds.size} existing transactions updated.")
+        }
+    }
+
+    private suspend fun seedMissingPopularCategoryRulePresets() {
+        popularCategoryRulePresets
+            .sortedWith(
+                compareByDescending<PopularCategoryRulePreset> { it.priority }
+                    .thenByDescending { it.keyword.length }
+            )
+            .forEach { preset ->
+                val canonicalCategory = ensureCategoryExistsAndReturnName(preset.categoryName)
+                val alreadyExists = categorySuggestionRuleDao.countEquivalentRules(
+                    field = preset.field.name,
+                    matcher = preset.matcher.name,
+                    keyword = preset.keyword,
+                    categoryName = canonicalCategory
+                ) > 0
+                if (!alreadyExists) {
+                    categorySuggestionRuleDao.insert(
+                        CategorySuggestionRule(
+                            fieldToMatch = preset.field,
+                            matcher = preset.matcher,
+                            keyword = preset.keyword,
+                            categoryName = canonicalCategory,
+                            priority = preset.priority,
+                            logic = RuleLogic.ANY
+                        )
+                    )
+                }
+            }
+    }
+
+    private suspend fun ensureCategoryExists(
+        name: String,
+        iconName: String? = null,
+        colorHex: String? = null
+    ) {
+        if (categoryDao.getCategoryByNameCaseInsensitive(name) == null) {
+            val defaults = inferCategoryDefaults(name)
+            categoryDao.insert(
+                Category(
+                    name = name,
+                    iconName = iconName ?: defaults.iconName,
+                    colorHex = colorHex ?: defaults.colorHex
+                )
+            )
+        }
+    }
+
+    private suspend fun ensureCategoryExistsAndReturnName(name: String): String {
+        val trimmedName = name.trim()
+        val existing = categoryDao.getCategoryByNameCaseInsensitive(trimmedName)
+        if (existing != null) return existing.name
+
+        val defaults = inferCategoryDefaults(trimmedName)
+        categoryDao.insert(
+            Category(
+                name = trimmedName,
+                iconName = defaults.iconName,
+                colorHex = defaults.colorHex
+            )
+        )
+        return trimmedName
+    }
+
     fun addCategory(name: String, iconName: String, colorHex: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedName = name.trim()
@@ -1990,12 +2177,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             // Check for duplicates
-            if (categoryDao.getCategoryByName(trimmedName) != null) {
+            if (categoryDao.getCategoryByNameCaseInsensitive(trimmedName) != null) {
                 postPlainSnackbarMessage("Category '$trimmedName' already exists.")
                 return@launch
             }
 
-            val newCategory = Category(name = trimmedName, iconName = iconName, colorHex = colorHex)
+            val defaults = inferCategoryDefaults(trimmedName)
+            val newCategory = Category(
+                name = trimmedName,
+                iconName = iconName.takeIf { it.isNotBlank() } ?: defaults.iconName,
+                colorHex = colorHex.takeIf { it.isNotBlank() } ?: defaults.colorHex
+            )
             categoryDao.insert(newCategory)
             postPlainSnackbarMessage("Category '$trimmedName' added.")
         }
@@ -2012,13 +2204,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // If name is changed, check if the new name conflicts with another existing category
             val oldName = category.name
             if (!category.name.equals(trimmedName, ignoreCase = true)) {
-                if (categoryDao.getCategoryByName(trimmedName) != null) {
+                if (categoryDao.getCategoryByNameCaseInsensitive(trimmedName) != null) {
                     postPlainSnackbarMessage("Category '$trimmedName' already exists.")
                     return@launch
                 }
                 // Also update the name in all associated transactions
                 transactionDao.updateCategoryName(category.name, trimmedName)
                 categorySuggestionRuleDao.updateCategoryNameInRules(oldName, trimmedName)
+                budgetDao.updateCategoryName(oldName, trimmedName)
             }
 
             val updatedCategory = category.copy(
@@ -2035,8 +2228,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             categorySuggestionRuleDao.deleteRulesForCategory(category.name)
             transactionDao.clearCategoryForTransactions(category.name)
+            budgetDao.deleteByCategoryName(category.name)
             categoryDao.deleteCategoryAndCleanup(category)
             postPlainSnackbarMessage("Category '${category.name}' deleted.")
+        }
+    }
+
+    fun mergeDuplicateCategoryNames() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val categories = allCategories.first()
+            var mergedCount = 0
+
+            categories
+                .groupBy { it.name.trim().lowercase() }
+                .values
+                .filter { it.size > 1 }
+                .forEach { duplicates ->
+                    val canonical = duplicates.minBy { it.id }
+                    duplicates
+                        .filter { it.id != canonical.id }
+                        .forEach { duplicate ->
+                            transactionDao.updateCategoryName(duplicate.name, canonical.name)
+                            categorySuggestionRuleDao.updateCategoryNameInRules(duplicate.name, canonical.name)
+                            budgetDao.updateCategoryName(duplicate.name, canonical.name)
+                            categoryDao.delete(duplicate)
+                            mergedCount++
+                        }
+                }
+
+            postPlainSnackbarMessage(
+                if (mergedCount == 0) {
+                    "No duplicate category names found."
+                } else {
+                    "Merged $mergedCount duplicate category names."
+                }
+            )
         }
     }
 
@@ -2080,25 +2306,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val selectedIds = _selectedTransactionIds.value
             if (selectedIds.isEmpty()) return@launch
+            val canonicalCategory = ensureCategoryExistsAndReturnName(categoryName)
 
             // Fetch all transactions and find the ones that are selected
             val transactionsToUpdate = selectedIds.mapNotNull { transactionDao.getTransactionByIdSync(it) }
 
             transactionsToUpdate.forEach { transaction ->
                 // Update each transaction with the new category
-                val updatedTransaction = transaction.copy(category = categoryName)
+                val updatedTransaction = transaction.copy(category = canonicalCategory)
                 transactionDao.update(updatedTransaction)
             }
 
+            val matchingUpdated = transactionsToUpdate
+                .map { it.senderOrReceiver }
+                .distinct()
+                .sumOf { sender ->
+                    transactionDao.categorizeUncategorizedBySender(
+                        senderOrReceiver = sender,
+                        categoryName = canonicalCategory
+                    )
+                }
+
             // Post a message and clear the selection
-            postPlainSnackbarMessage("${selectedIds.size} transactions categorized as '$categoryName'.")
+            val extraText = if (matchingUpdated > 0) {
+                " $matchingUpdated matching uncategorized transaction(s) also updated."
+            } else {
+                ""
+            }
+            postPlainSnackbarMessage("${selectedIds.size} transactions categorized as '$canonicalCategory'.$extraText")
             withContext(Dispatchers.Main) {
                 clearSelection()
             }
 
             // Check for potential auto-rules for the merchants in this batch
             transactionsToUpdate.map { it.senderOrReceiver }.distinct().forEach { merchant ->
-                checkAndRecommendAutoRule(merchant, categoryName)
+                checkAndRecommendAutoRule(merchant, canonicalCategory)
             }
         }
     }
@@ -2235,6 +2477,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun enterSelectionMode() {
+        _selectedTransactionIds.value = emptySet()
         _isSelectionModeActive.value = true
     }
 
@@ -2253,16 +2496,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val trimmedCategory = category.trim()
-            if (trimmedCategory.isNotEmpty()) {
-                if (categoryDao.getCategoryByName(trimmedCategory) == null) {
+            val canonicalCategory = if (trimmedCategory.isNotEmpty()) {
+                val existingCategory = categoryDao.getCategoryByNameCaseInsensitive(trimmedCategory)
+                val finalCategory = existingCategory?.name ?: trimmedCategory
+                if (existingCategory == null) {
+                    val defaults = inferCategoryDefaults(finalCategory)
                     categoryDao.insert(
                         Category(
-                            name = trimmedCategory,
-                            iconName = "Category",
-                            colorHex = "#808080"
+                            name = finalCategory,
+                            iconName = defaults.iconName,
+                            colorHex = defaults.colorHex
                         )
                     )
                 }
+                finalCategory
+            } else {
+                null
             }
 
             val extractedTags = TagUtils.extractTags(description)
@@ -2270,7 +2519,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 amount = amount,
                 type = type,
                 description = description.trim(),
-                category = trimmedCategory.takeIf { it.isNotEmpty() },
+                category = canonicalCategory,
                 date = date,
                 senderOrReceiver = "Manual Entry",
                 isArchived = false,
@@ -2453,7 +2702,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 SimpleSQLiteQuery(
                     "SELECT " +
                         "COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN amount ELSE 0 END), 0) AS totalDebitPaise, " +
-                        "COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise " +
+                        "COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise, " +
+                        "COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END), 0) AS debitCount, " +
+                        "COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END), 0) AS creditCount " +
                         "FROM transactions$whereClause",
                     args.toTypedArray()
                 )
@@ -2462,7 +2713,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .map { totals ->
             FilteredTotals(
                 totalDebitPaise = totals.totalDebitPaise,
-                totalCreditPaise = totals.totalCreditPaise
+                totalCreditPaise = totals.totalCreditPaise,
+                debitCount = totals.debitCount,
+                creditCount = totals.creditCount
             )
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, FilteredTotals())
@@ -2494,24 +2747,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         keyword: String,
         category: String,
         priority: Int,
-        logic: RuleLogic
+        logic: RuleLogic,
+        applyToExisting: Boolean = true
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             if (keyword.isNotBlank() && category.isNotBlank()) {
+                val canonicalCategory = ensureCategoryExistsAndReturnName(category.trim())
                 val updatedRule = CategorySuggestionRule(
                     id = ruleId, // ✨ Pass the ID here
                     fieldToMatch = field,
                     matcher = matcher,
                     keyword = keyword,
-                    categoryName = category,
+                    categoryName = canonicalCategory,
                     priority = priority,
                     logic = logic
                 )
                 categorySuggestionRuleDao.update(updatedRule)
-                val affectedIds = matchingRuleTransactionIds(field, matcher, keyword, logic)
+                val affectedIds = if (applyToExisting) matchingRuleTransactionIds(field, matcher, keyword, logic) else emptyList()
                 if (affectedIds.isNotEmpty()) {
-                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, category)
-                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, category)
+                    categorySuggestionRuleDao.categorizeTransactions(affectedIds, canonicalCategory)
+                    _lastRuleApplication.value = RuleApplicationUndo(affectedIds, canonicalCategory)
                 }
                 postPlainSnackbarMessage("Rule updated. ${affectedIds.size} existing transactions categorized.")
             }
@@ -2550,6 +2805,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("MainViewModelInit", "Error checking onboarding preference state", e)
             } finally {
                 _isDataReady.value = true
+            }
+        }
+
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                seedMissingPopularCategoryRulePresets()
             }
         }
 

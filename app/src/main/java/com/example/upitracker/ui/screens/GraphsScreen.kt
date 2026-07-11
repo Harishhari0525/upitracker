@@ -127,8 +127,8 @@ fun GraphsScreen(
         topBar = {
             Column {
                 ExpressiveTopBar(
-                    title = "Graphs",
-                    subtitle = "Visualize spending trends with different views"
+                    title = "Insights",
+                    subtitle = "Patterns behind your payments"
                 )
 
                 Box(

@@ -96,7 +96,7 @@ fun TransactionCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = ExpressiveTokens.corners.large,
+        shape = ExpressiveTokens.corners.small,
         border = BorderStroke(
             width = 1.dp,
             color = if (isSelected) MaterialTheme.colorScheme.primary else currentBorderColor
@@ -105,7 +105,7 @@ fun TransactionCard(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLow
+                MaterialTheme.colorScheme.surfaceContainerLowest
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Kills shadow layout recalculations on scroll
@@ -205,31 +205,17 @@ fun TransactionCard(
                     Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
 
                     if (!transaction.category.isNullOrBlank()) {
-                        AssistChip(
-                            onClick = { transaction.category.let(onCategoryClick) },
-                            label = {
-                                Text(
-                                    text = transaction.category,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            leadingIcon = {
-                                CategoryIconView(
-                                    categoryIcon = categoryIcon,
-                                    size = 16.dp,
-                                    containerColor = categoryColor,
-                                    contentColor = Color.White,
-                                    iconTint = Color.White
-                                )
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = categoryColor.copy(alpha = 0.12f),
-                                labelColor = categoryColor,
-                                leadingIconContentColor = categoryColor
-                            ),
-                            border = null
+                        Text(
+                            text = transaction.category.uppercase(),
+                            modifier = Modifier
+                                .clip(ExpressiveTokens.corners.small)
+                                .background(categoryColor.copy(alpha = 0.10f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = categoryColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -264,7 +250,7 @@ private fun TransactionTypeDot(
 
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(30.dp)
             .clip(CircleShape)
             .background(amountColor.copy(alpha = 0.10f)),
         contentAlignment = Alignment.Center
@@ -280,8 +266,26 @@ private fun TransactionTypeDot(
 
 private fun Transaction.displayTitle(): String {
     return when {
-        senderOrReceiver.isNotBlank() && senderOrReceiver != "Manual Entry" -> senderOrReceiver
+        senderOrReceiver.isDisplayablePartyName() -> senderOrReceiver
+        !bankName.isNullOrBlank() && bankName != "Other Bank" -> bankName
         description.isNotBlank() -> description
         else -> "Transaction"
     }
+}
+
+private fun String.isDisplayablePartyName(): Boolean {
+    val value = trim()
+    if (value.isBlank() || value == "Manual Entry") return false
+    if (value.length > 60) return false
+
+    val lower = value.lowercase()
+    return !(
+        lower.contains(" debited") ||
+            lower.contains(" credited") ||
+            lower.contains(" account") ||
+            lower.contains(" balance") ||
+            lower.contains(" transaction") ||
+            lower.contains(" has been ") ||
+            lower.contains(" available ")
+    )
 }

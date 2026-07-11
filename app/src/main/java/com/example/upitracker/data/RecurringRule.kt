@@ -17,6 +17,7 @@ data class RecurringRule(
     val periodType: BudgetPeriod, // We can reuse the BudgetPeriod enum (WEEKLY, MONTHLY, YEARLY)
     val dayOfPeriod: Int, // For MONTHLY: 1-31, for WEEKLY: 1-7 (Monday-Sunday)
     val nextDueDate: Long, // The timestamp for the next time this transaction is due. This is crucial.
+    @ColumnInfo(defaultValue = "1") val createTransactionOnDueDate: Boolean = true,
     val creationDate: Long = System.currentTimeMillis()
 ) {
     @get:Ignore
@@ -31,6 +32,7 @@ data class RecurringRule(
         periodType: BudgetPeriod,
         dayOfPeriod: Int,
         nextDueDate: Long,
+        createTransactionOnDueDate: Boolean = true,
         creationDate: Long = System.currentTimeMillis()
-    ) : this(id, amount.toPaise(), description, categoryName, periodType, dayOfPeriod, nextDueDate, creationDate)
+    ) : this(id, amount.toPaise(), description, categoryName, periodType, dayOfPeriod, nextDueDate, createTransactionOnDueDate, creationDate)
 }

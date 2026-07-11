@@ -20,30 +20,30 @@ import androidx.compose.ui.unit.dp
 data class ExpressiveSpacing(
     val xxs: Dp = 2.dp,
     val xs: Dp = 4.dp,
-    val sm: Dp = 6.dp,
-    val md: Dp = 10.dp,
-    val lg: Dp = 14.dp,
-    val xl: Dp = 18.dp,
-    val xxl: Dp = 22.dp,
-    val xxxl: Dp = 30.dp,
-    val huge: Dp = 38.dp
+    val sm: Dp = 8.dp,
+    val md: Dp = 12.dp,
+    val lg: Dp = 16.dp,
+    val xl: Dp = 20.dp,
+    val xxl: Dp = 24.dp,
+    val xxxl: Dp = 32.dp,
+    val huge: Dp = 40.dp
 )
 
 @Immutable
 data class ExpressiveCorners(
-    val small: CornerBasedShape = RoundedCornerShape(10.dp),
-    val medium: CornerBasedShape = RoundedCornerShape(14.dp),
+    val small: CornerBasedShape = RoundedCornerShape(8.dp),
+    val medium: CornerBasedShape = RoundedCornerShape(12.dp),
     val large: CornerBasedShape = RoundedCornerShape(18.dp),
     val extraLarge: CornerBasedShape = RoundedCornerShape(24.dp),
-    val hero: CornerBasedShape = RoundedCornerShape(28.dp)
+    val hero: CornerBasedShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 10.dp)
 )
 
 @Immutable
 data class ExpressiveElevation(
-    val card: Dp = 1.dp,
-    val cardPressed: Dp = 3.dp,
-    val floating: Dp = 6.dp,
-    val dialog: Dp = 8.dp
+    val card: Dp = 2.dp,
+    val cardPressed: Dp = 5.dp,
+    val floating: Dp = 9.dp,
+    val dialog: Dp = 12.dp
 )
 
 @Immutable
@@ -83,9 +83,9 @@ val ScreenPadding = PaddingValues(
 fun expressiveHeroGradient(): Brush {
     return Brush.linearGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.secondaryContainer
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.secondary
         )
     )
 }
@@ -119,12 +119,12 @@ fun debitContainerColor(): Color {
 
 @Composable
 fun creditColor(): Color {
-    return Color(0xFF1B7F4C)
+    return Color(0xFF087F70)
 }
 
 @Composable
 fun creditContainerColor(): Color {
-    return Color(0xFFD8F8E6)
+    return Color(0xFFD1F5EC)
 }
 
 @Composable
@@ -136,3 +136,12 @@ fun warningColor(): Color {
 fun warningContainerColor(): Color {
     return Color(0xFFFFE7A3)
 }
+
+@Composable
+fun expressiveInsightGradient(): Brush = Brush.linearGradient(
+    colors = listOf(
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    )
+)

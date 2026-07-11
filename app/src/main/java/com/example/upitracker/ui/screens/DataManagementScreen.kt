@@ -25,8 +25,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.SyncLock
 import androidx.compose.material.icons.filled.SyncProblem
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -77,6 +77,7 @@ fun DataManagementScreen(
     onNavigateToArchive: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRules: () -> Unit,
+    onNavigateToAdvancedParser: () -> Unit,
     onNavigateToPassbook: () -> Unit,
     onExportToCsv: () -> Unit
 ) {
@@ -87,16 +88,14 @@ fun DataManagementScreen(
     val isRestoring by mainViewModel.isRestoring.collectAsState()
     val refundKeyword by mainViewModel.refundKeyword.collectAsState()
     val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
-    val balanceDrifts by mainViewModel.balanceDrifts.collectAsState()
-
     var activeDialog by remember { mutableStateOf<DataDialog>(DataDialog.None) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Data & Sync",
-                subtitle = "Imports, backups, rules, and exports",
+                title = "Backup & data",
+                subtitle = "Import, protect, and export your ledger",
                 showBackButton = true,
                 onBackClick = onBack
             )
@@ -121,29 +120,23 @@ fun DataManagementScreen(
                 )
             }
 
-            if (balanceDrifts.isNotEmpty()) {
-                item {
-                    ExpressiveQuickActionCard(
-                        icon = Icons.Filled.Warning,
-                        title = "Balance reconciliation",
-                        subtitle = "${balanceDrifts.size} possible missing or inconsistent transactions detected",
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            val newest = balanceDrifts.first()
-                            mainViewModel.selectTransaction(newest.transactionId)
-                            mainViewModel.postPlainSnackbarMessage("Newest discrepancy selected in ${newest.bankName}.")
-                        }
-                    )
-                }
-            }
-
             item {
                 ExpressiveQuickActionCard(
                     icon = Icons.AutoMirrored.Filled.ReceiptLong,
                     title = "Manage Rules",
-                    subtitle = "Customize auto-categorization and parsing",
+                    subtitle = "Customize auto-categorization",
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onNavigateToRules
+                )
+            }
+
+            item {
+                ExpressiveQuickActionCard(
+                    icon = Icons.Filled.Tune,
+                    title = "Advanced SMS Parser",
+                    subtitle = "Debug unsupported bank SMS formats",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onNavigateToAdvancedParser
                 )
             }
 
@@ -213,16 +206,6 @@ fun DataManagementScreen(
                             onRefreshSmsArchive()
                         }
                     }
-                )
-            }
-
-            item {
-                ExpressiveQuickActionCard(
-                    icon = Icons.Filled.SyncLock,
-                    title = "Re-Sync Bank Names",
-                    subtitle = "Update older transactions with bank data",
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { mainViewModel.backfillBankNames() }
                 )
             }
 

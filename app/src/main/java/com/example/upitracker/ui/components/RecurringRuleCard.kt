@@ -206,6 +206,31 @@ fun RecurringRuleCard(
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (rule.createTransactionOnDueDate) {
+                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                        .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (rule.createTransactionOnDueDate) "Auto-entry" else "Reminder only",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (rule.createTransactionOnDueDate) {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
 
             // Reminder due notice

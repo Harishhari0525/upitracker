@@ -380,9 +380,11 @@ class MainActivity : FragmentActivity() {
         }
 
         if (showAddTransactionDialog) {
-            val userCategories by mainViewModel.userCategories.collectAsState()
+            val allCategories by mainViewModel.allCategories.collectAsState()
+            val frequentCategories by mainViewModel.userCategories.collectAsState()
             AddTransactionDialog(
-                userCategories = userCategories,
+                userCategories = allCategories,
+                initialCategory = frequentCategories.firstOrNull()?.name.orEmpty(),
                 onDismiss = { showAddTransactionDialog = false },
                 onConfirm = { amount, type, description, category, date ->
                     mainViewModel.addManualTransaction(amount, type, description, category, date)
@@ -490,6 +492,19 @@ class MainActivity : FragmentActivity() {
         val lastTimestamp: Long,
         val lastId: Long
     )
+
+    private suspend fun countSmsForImport(fromTimestamp: Long): Int = withContext(Dispatchers.IO) {
+        if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            return@withContext 0
+        }
+        contentResolver.query(
+            "content://sms/inbox".toUri(),
+            arrayOf("_id"),
+            "date >= ?",
+            arrayOf(fromTimestamp.toString()),
+            null
+        )?.use { it.count } ?: 0
+    }
 
     private suspend fun readSmsBatch(
         afterTimestamp: Long,
@@ -621,6 +636,7 @@ class MainActivity : FragmentActivity() {
                 var archivedCount = 0
                 val pageSize = 50
                 val config = SmsProcessingService.fetchProcessingConfig(this@MainActivity)
+                val totalMessages = countSmsForImport(lastProcessed)
                 try {
                     var batch: List<Triple<String, String, Long>>
                     do {
@@ -638,7 +654,11 @@ class MainActivity : FragmentActivity() {
                             cursorId = page.lastId
                             ThemePreference.setLastProcessedSmsTimestamp(this@MainActivity, batch.last().third)
                             withContext(Dispatchers.Main) {
-                                mainViewModel.updateSmsSyncProgress(processedCount, processedCount + if (batch.size == pageSize) 1 else 0, isInitialImport)
+                                mainViewModel.updateSmsSyncProgress(
+                                    current = processedCount.coerceAtMost(totalMessages),
+                                    total = totalMessages,
+                                    isInitial = isInitialImport
+                                )
                             }
                         }
                     } while (batch.size == pageSize)

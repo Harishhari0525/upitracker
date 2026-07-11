@@ -48,7 +48,7 @@ fun ExpressiveTransactionCard(
         onClick = onClick,
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card,
@@ -110,20 +110,13 @@ fun ExpressiveTransactionCard(
                 }
 
                 if (!category.isNullOrBlank()) {
-                    SuggestionChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                text = category,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        Text(
+                            text = category.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    )
                 }
             }
 

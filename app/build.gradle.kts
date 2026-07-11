@@ -9,7 +9,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.0"
 }
 
-val resolvedVersionName = (project.findProperty("versionName") as? String) ?: "2.0.30"
+val resolvedVersionName = (project.findProperty("versionName") as? String) ?: "2.0.32"
 val semanticParts = resolvedVersionName.split('.').map { it.toIntOrNull() ?: 0 }
 val calculatedVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull()
     ?: ((semanticParts.getOrElse(0) { 0 } * 1_000_000) +

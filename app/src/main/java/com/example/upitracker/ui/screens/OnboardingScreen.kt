@@ -73,9 +73,9 @@ fun OnboardingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Card(
-                    shape = ExpressiveTokens.corners.extraLarge,
+                    shape = ExpressiveTokens.corners.hero,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
                     ),
                     elevation = CardDefaults.cardElevation(
                         defaultElevation = ExpressiveTokens.elevation.card
@@ -88,7 +88,7 @@ fun OnboardingScreen(
                             .padding(ExpressiveTokens.spacing.xl)
                             .size(92.dp),
                         colorFilter = ColorFilter.tint(
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                            MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -99,7 +99,7 @@ fun OnboardingScreen(
                     Text(
                         text = stringResource(R.string.onboarding_welcome_title),
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onBackground,
                         textAlign = TextAlign.Center
                     )
@@ -186,7 +186,7 @@ private fun OnboardingFeatureRow(
             Text(text = subtitle)
         },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         )
     )
 }
@@ -202,7 +202,7 @@ private fun UpiLiteOptionCard(
             .clickable { onCheckedChange(!checked) },
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card

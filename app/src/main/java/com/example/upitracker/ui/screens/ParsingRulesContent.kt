@@ -49,7 +49,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -69,8 +68,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.example.upitracker.sms.parseUpiSms
 import com.example.upitracker.sms.SmsProcessingService
-import java.text.DateFormat
-import java.util.Date
 
 @Composable
 fun ParsingRulesContent(
@@ -81,8 +78,6 @@ fun ParsingRulesContent(
     val coroutineScope = rememberCoroutineScope()
 
     val regexListState = remember { mutableStateListOf<String>() }
-    val parserFailures by mainViewModel.parserFailures.collectAsState()
-
     var isLoading by remember { mutableStateOf(true) }
     var showTestSheet by remember { mutableStateOf(false) }
 
@@ -116,24 +111,6 @@ fun ParsingRulesContent(
 
             item {
                 ParsingInfoCard()
-            }
-
-            if (parserFailures.isNotEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Column(Modifier.padding(ExpressiveTokens.spacing.lg), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Data quality review", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                            Text("${parserFailures.size} recent payment-like messages could not be parsed. Message bodies are hashed and never displayed.")
-                            parserFailures.take(5).forEach { failure ->
-                                Text("${failure.originalSender} • ${DateFormat.getDateTimeInstance().format(Date(failure.originalTimestamp))}", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Text("Use Test Pattern below with a redacted sample to create a matching rule.", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
             }
 
             item {

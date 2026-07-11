@@ -1,6 +1,7 @@
 package com.example.upitracker.sms
 
 import com.example.upitracker.data.Transaction
+import com.example.upitracker.util.BankIdentifier
 import java.util.Locale
 
 /**
@@ -123,6 +124,75 @@ private fun extractBalanceFromNormalizedMessage(message: String): Double? {
     return null
 }
 
+private val genericSenderHeaders = setOf(
+    "DISPUTE", "ALERT", "ALERTS", "NOTICE", "CMPLNT", "UPDATE", "VERIFY", "SECURE", "INFO",
+    "ICICI", "ICICIT", "HDFC", "HDFCBK", "SBIBNK", "SBI", "AXIS", "AXISBK", "KOTAK", "KOTAKB",
+    "PNB", "BOB", "BOBTXN", "UNION", "CANARA", "FEDBNK", "IDFC", "YESBNK", "RBLBNK"
+)
+
+private fun fallbackPartyFromSender(sender: String, bankName: String?): String {
+    val header = BankIdentifier.normalizeDltSenderHeader(sender)
+    return if (header in genericSenderHeaders || header.contains("BNK") || header.contains("BANK")) {
+        bankName ?: "Bank"
+    } else {
+        header.takeIf { it.isNotBlank() } ?: sender
+    }
+}
+
+private fun cleanCounterparty(value: String?): String? {
+    val cleaned = value
+        ?.replace(Regex("""\s+"""), " ")
+        ?.trim(' ', '.', ',', ';', ':', '-', '/')
+        ?.takeIf { it.isNotBlank() }
+        ?: return null
+
+    if (cleaned.length < 2 || cleaned.length > 60) return null
+
+    val lower = cleaned.lowercase(Locale.getDefault())
+    val wordCount = cleaned.split(' ').filter { it.isNotBlank() }.size
+    if (
+        wordCount > 5 ||
+        lower.startsWith("rs ") ||
+        lower.startsWith("inr ") ||
+        lower.startsWith("a/c") ||
+        lower.startsWith("acct") ||
+        lower.startsWith("account") ||
+        lower.startsWith("upi ref") ||
+        lower.startsWith("ref ") ||
+        lower.startsWith("on ") ||
+        lower.startsWith("bal") ||
+        lower.contains(" debited") ||
+        lower.contains(" credited") ||
+        lower.contains(" account") ||
+        lower.contains(" balance") ||
+        lower.contains(" available") ||
+        lower.contains(" transaction") ||
+        lower.contains(" txn ") ||
+        lower.contains(" ref ") ||
+        lower.contains(" upi ") ||
+        lower.contains(" has been ") ||
+        lower.contains(" is ")
+    ) {
+        return null
+    }
+
+    return cleaned.uppercase(Locale.getDefault())
+}
+
+private fun extractCounterpartyFromMessage(message: String): String? {
+    val patterns = listOf(
+        Regex("""\b(?:to|from)\s+VPA\s+([A-Za-z0-9.\-_]+@[A-Za-z0-9.\-_]+)""", RegexOption.IGNORE_CASE),
+        Regex("""\bVPA\s+([A-Za-z0-9.\-_]+@[A-Za-z0-9.\-_]+)""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:to|from)\s+([A-Za-z0-9.\-_]+@[A-Za-z0-9.\-_]+)""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:paid to|sent to|transferred to|received from)\s+([A-Za-z0-9 ._\-@]{3,50}?)(?:\s+(?:on|via|using|ref|upi|rs|avl|bal)\b|[.,;]|$)""", RegexOption.IGNORE_CASE),
+        Regex("""\bat\s+([A-Za-z0-9 ._\-@]{3,40}?)(?:\s+(?:on|via|using|ref|upi|rs|avl|bal)\b|[.,;]|$)""", RegexOption.IGNORE_CASE)
+    )
+
+    return patterns.firstNotNullOfOrNull { regex ->
+        cleanCounterparty(regex.find(message)?.groupValues?.getOrNull(1))
+    }
+}
+
 
 fun parseUpiSms(
     message: String,
@@ -158,7 +228,8 @@ fun parseUpiSms(
                 val groups = matchResult.groupValues
                 val amount = groups[template.amountGroup].replace(",", "").toDoubleOrNull() ?: continue
                 
-                val counterpartyInMsg = template.counterpartyGroup?.let { groups.getOrNull(it) }?.trim()?.uppercase()
+                val counterpartyInMsg = cleanCounterparty(template.counterpartyGroup?.let { groups.getOrNull(it) })
+                    ?: extractCounterpartyFromMessage(normalizedMessage)
                 
                 var balanceAfterTxn = template.balanceGroup?.let { 
                     groups.getOrNull(it)?.replace(",", "")?.toDoubleOrNull() 
@@ -172,7 +243,7 @@ fun parseUpiSms(
                     type = template.type,
                     date = smsDate,
                     description = normalizedMessage.take(150),
-                    senderOrReceiver = counterpartyInMsg ?: sender,
+                    senderOrReceiver = counterpartyInMsg ?: fallbackPartyFromSender(sender, bankName),
                     note = "",
                     bankName = bankName,
                     balanceAfterTransaction = balanceAfterTxn
@@ -239,14 +310,8 @@ fun parseUpiSms(
                 if (!isTrustedStream) continue
 
                 val description = normalizedMessage.take(150)
-                val merchantRegex = Regex("""(?:\bat\b|\bto\b|VPA)\s+([A-Za-z0-9.\-_@\s]+?)(?:\s|$)""", RegexOption.IGNORE_CASE)
-                val extractedMerchant = merchantRegex.find(description)?.groupValues?.get(1)?.trim()
-
-                val counterpartyInMsg = if (!extractedMerchant.isNullOrBlank() && extractedMerchant.length < 30) {
-                    extractedMerchant.uppercase()
-                } else {
-                    sender
-                }
+                val counterpartyInMsg = extractCounterpartyFromMessage(description)
+                    ?: fallbackPartyFromSender(sender, bankName)
 
                 val balanceAfterTxn = extractBalanceFromNormalizedMessage(normalizedMessage)
 

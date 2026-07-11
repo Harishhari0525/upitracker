@@ -108,8 +108,8 @@ fun PassbookScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Statement",
-                subtitle = "Generate a PDF passbook for selected transactions",
+                title = "Statements",
+                subtitle = "Review and export your ledger",
                 showBackButton = true,
                 onBackClick = onBack
             )

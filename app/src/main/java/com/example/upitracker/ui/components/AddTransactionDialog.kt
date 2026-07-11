@@ -32,6 +32,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 @Composable
 fun AddTransactionDialog(
     userCategories: List<com.example.upitracker.data.Category>,
+    initialCategory: String = "",
     onDismiss: () -> Unit,
     onConfirm: (
         amount: Double,
@@ -68,7 +70,7 @@ fun AddTransactionDialog(
     val haptics = LocalHapticFeedback.current
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(initialCategory) }
     var selectedType by remember { mutableStateOf("DEBIT") }
 
     var isAmountError by remember { mutableStateOf(false) }
@@ -76,6 +78,12 @@ fun AddTransactionDialog(
 
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialCategory) {
+        if (category.isBlank() && initialCategory.isNotBlank()) {
+            category = initialCategory
+        }
+    }
 
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDateMillis
@@ -229,15 +237,19 @@ fun AddTransactionDialog(
                         shape = ExpressiveTokens.corners.medium
                     )
 
-                    val filteredCategories = userCategories.filter {
-                        it.name.contains(category, ignoreCase = true)
-                    }
+                    val filteredCategories = userCategories
+                        .filter { it.name.contains(category, ignoreCase = true) }
+                        .sortedWith(
+                            compareBy<com.example.upitracker.data.Category> {
+                                if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
+                            }.thenBy { it.name.lowercase() }
+                        )
 
-                    if (filteredCategories.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = isCategoryExpanded,
-                            onDismissRequest = { isCategoryExpanded = false }
-                        ) {
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        if (filteredCategories.isNotEmpty()) {
                             filteredCategories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -248,6 +260,21 @@ fun AddTransactionDialog(
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                 )
                             }
+                        } else {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (category.isBlank()) {
+                                            "No categories yet"
+                                        } else {
+                                            "No match. Save to create \"$category\""
+                                        }
+                                    )
+                                },
+                                onClick = {},
+                                enabled = false,
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
                         }
                     }
                 }

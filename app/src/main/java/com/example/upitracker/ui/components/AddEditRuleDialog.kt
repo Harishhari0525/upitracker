@@ -4,6 +4,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -18,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,7 +52,8 @@ fun AddEditRuleDialog(
         keyword: String,
         category: String,
         priority: Int,
-        logic: RuleLogic
+        logic: RuleLogic,
+        applyToExisting: Boolean
     ) -> Unit
 ) {
     var keyword by remember { mutableStateOf(ruleToEdit?.keyword ?: "") }
@@ -59,6 +62,7 @@ fun AddEditRuleDialog(
     var selectedMatcher by remember { mutableStateOf(ruleToEdit?.matcher ?: RuleMatcher.CONTAINS) }
     var priorityText by remember { mutableStateOf(ruleToEdit?.priority?.toString() ?: "0") }
     var selectedLogic by remember { mutableStateOf(ruleToEdit?.logic ?: RuleLogic.ANY) }
+    var applyToExisting by remember { mutableStateOf(ruleToEdit == null) }
 
     var isFieldExpanded by remember { mutableStateOf(false) }
     var isMatcherExpanded by remember { mutableStateOf(false) }
@@ -225,6 +229,21 @@ fun AddEditRuleDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
 
+                val shortTerms = keyword.split(',').map(String::trim).filter { it.length in 1..2 }
+                if (shortTerms.isNotEmpty()) {
+                    Text(
+                        text = "Warning: very short keywords (${shortTerms.joinToString()}) can match unrelated transactions.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else if (matchingCount >= 25) {
+                    Text(
+                        text = "Warning: this rule matches many existing transactions. Review the keyword before applying.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
                 var isCategoryExpanded by remember { mutableStateOf(false) }
 
                 ExposedDropdownMenuBox(
@@ -251,15 +270,19 @@ fun AddEditRuleDialog(
                         shape = ExpressiveTokens.corners.medium
                     )
 
-                    val filteredCategories = userCategories.filter {
-                        it.name.contains(category, ignoreCase = true)
-                    }
+                    val filteredCategories = userCategories
+                        .filter { it.name.contains(category, ignoreCase = true) }
+                        .sortedWith(
+                            compareBy<com.example.upitracker.data.Category> {
+                                if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
+                            }.thenBy { it.name.lowercase() }
+                        )
 
-                    if (filteredCategories.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = isCategoryExpanded,
-                            onDismissRequest = { isCategoryExpanded = false }
-                        ) {
+                    ExposedDropdownMenu(
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        if (filteredCategories.isNotEmpty()) {
                             filteredCategories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -270,8 +293,45 @@ fun AddEditRuleDialog(
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                 )
                             }
+                        } else {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (category.isBlank()) {
+                                            "No categories yet"
+                                        } else {
+                                            "No match. Save to create \"$category\""
+                                        }
+                                    )
+                                },
+                                onClick = {},
+                                enabled = false,
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
                         }
                     }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Apply to existing uncategorized transactions",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Turn off to use this rule only for future SMS imports.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = applyToExisting,
+                        onCheckedChange = { applyToExisting = it }
+                    )
                 }
 
                 OutlinedTextField(
@@ -300,7 +360,8 @@ fun AddEditRuleDialog(
                             keyword,
                             category,
                             priorityText.toIntOrNull() ?: 0,
-                            selectedLogic
+                            selectedLogic,
+                            applyToExisting
                         )
                     }
                 },

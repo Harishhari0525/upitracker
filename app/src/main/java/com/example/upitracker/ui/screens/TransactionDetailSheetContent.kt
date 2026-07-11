@@ -56,7 +56,7 @@ fun TransactionDetailSheetContent(
     onDismiss: () -> Unit
 ) {
     val transaction by mainViewModel.selectedTransaction.collectAsState()
-    val userCategories by mainViewModel.userCategories.collectAsState()
+    val allCategories by mainViewModel.allCategories.collectAsState()
 
     // --- STATE MANAGEMENT ---
     var isEditMode by remember { mutableStateOf(false) }
@@ -162,15 +162,19 @@ fun TransactionDetailSheetContent(
                     shape = ExpressiveTokens.corners.large
                 )
 
-                val filteredSuggestions = userCategories.filter {
-                    it.name.contains(categoryText, ignoreCase = true)
-                }
+                val filteredSuggestions = allCategories
+                    .filter { it.name.contains(categoryText, ignoreCase = true) }
+                    .sortedWith(
+                        compareBy<com.example.upitracker.data.Category> {
+                            if (it.name.startsWith(categoryText, ignoreCase = true)) 0 else 1
+                        }.thenBy { it.name.lowercase() }
+                    )
 
-                if (filteredSuggestions.isNotEmpty()) {
-                    ExposedDropdownMenu(
-                        expanded = isCategoryExpanded,
-                        onDismissRequest = { isCategoryExpanded = false }
-                    ) {
+                ExposedDropdownMenu(
+                    expanded = isCategoryExpanded,
+                    onDismissRequest = { isCategoryExpanded = false }
+                ) {
+                    if (filteredSuggestions.isNotEmpty()) {
                         filteredSuggestions.forEach { category ->
                             DropdownMenuItem(
                                 text = { Text(category.name) },
@@ -181,6 +185,21 @@ fun TransactionDetailSheetContent(
                                 contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                             )
                         }
+                    } else {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (categoryText.isBlank()) {
+                                        "No categories yet"
+                                    } else {
+                                        "No match. Save to create \"$categoryText\""
+                                    }
+                                )
+                            },
+                            onClick = {},
+                            enabled = false,
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
                     }
                 }
             }
@@ -474,7 +493,7 @@ fun TransactionDetailSheetContent(
             if (showRuleCreatorDialog) {
                 QuickRuleCreatorDialog(
                     transaction = transaction!!,
-                    userCategories = userCategories,
+                    userCategories = allCategories,
                     onDismiss = { showRuleCreatorDialog = false },
                     onSaveRule = { field, keyword, category ->
                         mainViewModel.addCategoryRule(

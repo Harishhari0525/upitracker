@@ -30,12 +30,29 @@ class RecurringTransactionWorker(
             if (dueRules.isNotEmpty()) {
                 Log.d(WORK_NAME, "Found ${dueRules.size} due rules to process.")
                 for (rule in dueRules) {
-                    val newTransaction = Transaction(
-                        amount = rule.amount, type = "DEBIT", date = rule.nextDueDate,
-                        description = rule.description, senderOrReceiver = "Recurring", category = rule.categoryName
-                    )
-                    transactionDao.insert(newTransaction)
-                    Log.d(WORK_NAME, "Created a scheduled transaction")
+                    if (rule.createTransactionOnDueDate) {
+                        val duplicateWindowMs = TimeUnit.HOURS.toMillis(36)
+                        val existingDebit = transactionDao.findSimilarDebitNearDate(
+                            amount = rule.amountPaise,
+                            startDate = rule.nextDueDate - duplicateWindowMs,
+                            endDate = rule.nextDueDate + duplicateWindowMs,
+                            dueDate = rule.nextDueDate,
+                            description = rule.description.trim(),
+                            categoryName = rule.categoryName
+                        )
+                        if (existingDebit == null) {
+                            val newTransaction = Transaction(
+                                amount = rule.amount, type = "DEBIT", date = rule.nextDueDate,
+                                description = rule.description, senderOrReceiver = "Recurring", category = rule.categoryName
+                            )
+                            transactionDao.insert(newTransaction)
+                            Log.d(WORK_NAME, "Created a scheduled transaction")
+                        } else {
+                            Log.d(WORK_NAME, "Skipped recurring auto-entry because a similar debit already exists")
+                        }
+                    } else {
+                        Log.d(WORK_NAME, "Skipped transaction creation for reminder-only recurring rule")
+                    }
 
                     val calendar = Calendar.getInstance().apply { timeInMillis = rule.nextDueDate }
                     when (rule.periodType) {
