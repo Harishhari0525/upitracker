@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.upitracker.R
 import com.example.upitracker.data.AppDatabase
-import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.data.UpiLiteSummary
@@ -47,10 +46,8 @@ import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
-import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.AutoLockDelay
-import com.example.upitracker.util.BankIdentifier
-import com.example.upitracker.util.HomeScreenStyle
+import com.example.upitracker.util.DateUtils
 import com.example.upitracker.util.inferCategoryDefaults
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.PinStorage
@@ -76,15 +73,6 @@ data class MonthlyExpense(
     val yearMonth: String,
     val totalAmount: Double,
     val timestamp: Long
-)
-
-data class MerchantDna(
-    val totalSpent: Double,
-    val transactionCount: Int,
-    val averageSpend: Double,
-    val favoriteDay: String, // e.g., "Friday"
-    val recentTrend: String,  // "↑ 10% vs last month" (Optional, we'll keep it simple for now)
-    val loyaltyShare: Float // ✨ New Field: Percentage of category spend
 )
 
 data class VelocityState(
@@ -123,12 +111,6 @@ data class MonthlyDebitSummaryStats(
     val totalAmount: Double = 0.0,
     val averageAmount: Double = 0.0,
     val highestMonth: MonthlyExpense? = null
-)
-
-data class SpendingTrend(
-    val title: String,
-    val value: String,
-    val subtitle: String
 )
 
 enum class UpiTransactionTypeFilter {
@@ -267,14 +249,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isUpiLiteEnabled: StateFlow<Boolean> = ThemePreference.isUpiLiteEnabledFlow(application)
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
-    val homeScreenStyle: StateFlow<HomeScreenStyle> =
-        ThemePreference.getHomeScreenStyleFlow(application)
-            .stateIn(
-                viewModelScope,
-                SharingStarted.Lazily,
-                HomeScreenStyle.CURRENT_MONTH
-            )
-
 
     private val _upiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
         upiLiteSummaryDao.getAllSummaries()
@@ -336,8 +310,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val latestBankBalances: StateFlow<List<TransactionDao.BankBalance>> = transactionDao.getLatestBankBalances()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val balanceDrifts: StateFlow<List<TransactionDao.BalanceDrift>> = transactionDao.getBalanceDrifts()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
 
     // --- Smart Subscription Detector ---
     data class DetectedSubscription(val merchant: String, val amount: Double, val frequencyDays: Int, val confidenceScore: Float)
@@ -448,56 +421,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _bankFilter = MutableStateFlow<String?>(null)
 
-    private val _merchantDna = MutableStateFlow<MerchantDna?>(null)
-    val merchantDna = _merchantDna.asStateFlow()
 
-    fun loadMerchantDna(sender: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val history = transactionDao.getHistoryForMerchant(sender)
-            if (history.isEmpty()) {
-                _merchantDna.value = null
-                return@launch
-            }
-
-            val total = history.sumOf { it.amountPaise }.toMajorUnits()
-            val count = history.size
-            val avg = total / count
-
-            // Calculate Favorite Day
-            val calendar = Calendar.getInstance()
-            val dayCounts = history.groupingBy {
-                calendar.timeInMillis = it.date
-                calendar.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
-            }.eachCount()
-
-            val topDayInt = dayCounts.maxByOrNull { it.value }?.key ?: Calendar.MONDAY
-            val days = arrayOf("", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
-            val favDay = days.getOrElse(topDayInt) { "Monday" }
-            
-            // Calculate Loyalty Share (Percentage of total spend in their primary category)
-            val primaryCategory = history.groupingBy { it.category }.eachCount().maxByOrNull { it.value }?.key
-            val loyaltyShare = if (!primaryCategory.isNullOrBlank()) {
-                val categoryTotal = transactionDao.getCategoryDebitTotalPaise(primaryCategory).toMajorUnits()
-                if (categoryTotal > 0) (total / categoryTotal).toFloat() else 1f
-            } else {
-                1f // If uncategorized, they have 100% share of "uncategorized" effectively
-            }
-
-            _merchantDna.value = MerchantDna(
-                totalSpent = total,
-                transactionCount = count,
-                averageSpend = avg,
-                favoriteDay = favDay,
-                recentTrend = "",
-                loyaltyShare = loyaltyShare
-            )
-        }
-    }
-
-    // Call this when clearing selection
-    fun clearMerchantDna() {
-        _merchantDna.value = null
-    }
 
     private val _nonRefundDebits: StateFlow<List<Transaction>> =
         combine(_transactions, refundKeyword) { transactions, keyword ->
@@ -531,9 +455,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _searchQuery = MutableStateFlow("")
 
-    private val archivedSmsDao = db.archivedSmsMessageDao()
-    val parserFailures: StateFlow<List<ArchivedSmsMessage>> = archivedSmsDao.getRecentParserFailures()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val filters: StateFlow<TransactionFilters> = combine(
         _selectedUpiTransactionType,
@@ -568,7 +489,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
         .stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Lazily,
+        started = SharingStarted.Eagerly,
         initialValue = TransactionFilters(
             UpiTransactionTypeFilter.ALL, null, null, "",
             false, AmountFilterType.ALL, null, null,
@@ -593,47 +514,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedGraphPeriod = MutableStateFlow(GraphPeriod.SIX_MONTHS)
     val selectedGraphPeriod: StateFlow<GraphPeriod> = _selectedGraphPeriod.asStateFlow()
 
-    private fun getPreviousWeekRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.WEEK_OF_YEAR, -1)
-        calendar.firstDayOfWeek = Calendar.MONDAY
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
-        val weekStart = calendar.timeInMillis
-        calendar.add(Calendar.WEEK_OF_YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val weekEnd = calendar.timeInMillis
-        return weekStart to weekEnd
-    }
 
-    private fun getPreviousMonthRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.MONTH, -1)
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
-        val monthStart = calendar.timeInMillis
-        calendar.add(Calendar.MONTH, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val monthEnd = calendar.timeInMillis
-        return monthStart to monthEnd
-    }
 
     // Add this new public function
     fun setBankFilter(bankName: String?) {
         _bankFilter.value = bankName
     }
 
-    private fun getPreviousYearRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.YEAR, -1)
-        calendar.set(Calendar.DAY_OF_YEAR, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
-        val yearStart = calendar.timeInMillis
-        calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val yearEnd = calendar.timeInMillis
-        return yearStart to yearEnd
-    }
+
 
     fun backupDatabase(targetUri: Uri, contentResolver: ContentResolver, password: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
@@ -817,8 +705,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val BACKUP_MAX_ENCRYPTED_CHUNK_SIZE = BACKUP_CHUNK_SIZE + 4096
     }
 
-    val appTheme: StateFlow<AppTheme> = ThemePreference.getAppThemeFlow(application)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.DEFAULT)
+
 
     val isTransactionAlertsEnabled: StateFlow<Boolean> = ThemePreference.isTransactionAlertsEnabledFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -899,11 +786,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .mapLatest { (budgets, refund) ->
             budgets.map { budget ->
                 val rolloverAmount = if (budget.allowRollover) {
-                    val (prevPeriodStart, prevPeriodEnd) = when (budget.periodType) {
-                        BudgetPeriod.WEEKLY -> getPreviousWeekRange()
-                        BudgetPeriod.MONTHLY -> getPreviousMonthRange()
-                        BudgetPeriod.YEARLY -> getPreviousYearRange()
-                    }
+                    val (prevPeriodStart, prevPeriodEnd) = DateUtils.getPreviousRangeForPeriod(budget.periodType)
                     val spentInPrevPeriod = transactionDao.getSpentAmountPaiseForCategoryInRangeSync(
                         budget.categoryName, prevPeriodStart, prevPeriodEnd, refund
                     )?.toMajorUnits() ?: 0.0
@@ -912,11 +795,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     0.0
                 }
 
-                val (currentPeriodStart, currentPeriodEnd) = when (budget.periodType) {
-                    BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-                    BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-                    BudgetPeriod.YEARLY -> getCurrentYearRange()
-                }
+                val (currentPeriodStart, currentPeriodEnd) = DateUtils.getRangeForPeriod(budget.periodType)
 
                 val spentInCurrentPeriod = transactionDao.getSpentAmountPaiseForCategoryInRangeSync(
                     budget.categoryName, currentPeriodStart, currentPeriodEnd, refund
@@ -994,7 +873,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val where = StringBuilder(" WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL")
         val args = mutableListOf<Any>()
         if (filters.type != UpiTransactionTypeFilter.ALL) {
-            where.append(" AND type = ?")
+            where.append(" AND UPPER(TRIM(type)) = ?")
             args += filters.type.name
         }
         filters.startDate?.let { where.append(" AND date >= ?"); args += it }
@@ -1071,22 +950,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
-    private fun getCurrentMonthDateRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(
-            Calendar.SECOND,
-            0
-        ); calendar.set(Calendar.MILLISECOND, 0)
-        val monthStartTimestamp = calendar.timeInMillis
-        calendar.add(Calendar.MONTH, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val monthEndTimestamp = calendar.timeInMillis
-        return Pair(monthStartTimestamp, monthEndTimestamp)
-    }
-
     val currentMonthExpenseItems: StateFlow<List<HistoryListItem>> =
         combine(_nonRefundDebits, _upiLiteSummaries,  isUpiLiteEnabled) { transactions, summaries, upiLiteEnabled ->
-            val (monthStart, monthEnd) = getCurrentMonthDateRange()
+            val (monthStart, monthEnd) = DateUtils.getCurrentMonthRange()
             val combinedItems = mutableListOf<HistoryListItem>()
 
             // Add debit transactions
@@ -1130,27 +996,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    private fun getPreviousMonthDateRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.MONTH, -1)
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        val monthStartTimestamp = calendar.timeInMillis
-        calendar.add(Calendar.MONTH, 1)
-        calendar.add(Calendar.MILLISECOND, -1)
-        val monthEndTimestamp = calendar.timeInMillis
-        return Pair(monthStartTimestamp, monthEndTimestamp)
-    }
+    val currentMonthTotalIncome: StateFlow<Double> = _transactions
+        .map { transactions ->
+            val (monthStart, monthEnd) = DateUtils.getCurrentMonthRange()
+            transactions.filter {
+                it.type.equals("CREDIT", ignoreCase = true) &&
+                        it.date in monthStart..monthEnd
+            }.sumOf { it.amountPaise }.toMajorUnits()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val previousMonthTotalExpenses: StateFlow<Double> = combine(
         _nonRefundDebits,
         _upiLiteSummaries,
         isUpiLiteEnabled
     ) { transactions, summaries, upiLiteEnabled ->
-        val (monthStart, monthEnd) = getPreviousMonthDateRange()
+        val (monthStart, monthEnd) = DateUtils.getPreviousMonthRange()
         var total = 0.0
 
         val debitTransactions = transactions.filter {
@@ -1248,7 +1109,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _upiLiteSummaries,
             isUpiLiteEnabled
         ) { allTransactions, allSummaries, upiLiteEnabled ->
-            val (rangeStart, rangeEnd) = getDailyTrendDateRange(7)
+            val (rangeStart, rangeEnd) = DateUtils.getDailyTrendDateRange(7)
             val dayLabelFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
             val calendar = Calendar.getInstance()
 
@@ -1384,23 +1245,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    private fun getDailyTrendDateRange(daysToShow: Int): Pair<Long, Long> {
-        val calendar = Calendar.getInstance(); calendar.set(Calendar.HOUR_OF_DAY, 23); calendar.set(
-            Calendar.MINUTE,
-            59
-        ); calendar.set(Calendar.SECOND, 59); calendar.set(Calendar.MILLISECOND, 999)
-        val endDate = calendar.timeInMillis
-        calendar.timeInMillis = System.currentTimeMillis(); calendar.add(
-            Calendar.DAY_OF_YEAR,
-            -(daysToShow - 1)
-        )
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(
-            Calendar.SECOND,
-            0
-        ); calendar.set(Calendar.MILLISECOND, 0)
-        val startDate = calendar.timeInMillis
-        return Pair(startDate, endDate)
-    }
+
 
     val categoryExpensesData: StateFlow<List<CategoryExpense>> =
         combine(
@@ -1548,25 +1393,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isRefreshingSmsArchive.value = false
     }
 
-    fun backfillBankNames() {
-        viewModelScope.launch(Dispatchers.IO) {
-            postPlainSnackbarMessage("Starting bank name sync...")
-            var updatedCount = 0
-            var offset = 0
-            val pageSize = 250
-            do {
-                val page = transactionDao.getTransactionsPage(pageSize, offset)
-                page.filter { it.bankName.isNullOrBlank() }.forEach { transaction ->
-                    archivedSmsDao.findSenderNear(transaction.date)?.let { sender ->
-                        transactionDao.update(transaction.copy(bankName = BankIdentifier.getBankName(sender)))
-                        updatedCount++
-                    }
-                }
-                offset += page.size
-            } while (page.size == pageSize)
-            postPlainSnackbarMessage("Sync complete. Updated $updatedCount transactions.")
-        }
-    }
+
 
     fun updateRecurringRule(
         ruleId: Int,
@@ -1608,11 +1435,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val trimmedCategory = categoryName.trim()
             if (trimmedCategory.isNotBlank() && amount > 0) {
                 val canonicalCategory = ensureCategoryExistsAndReturnName(trimmedCategory)
-                val (startDate, _) = when (periodType) {
-                    BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-                    BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-                    BudgetPeriod.YEARLY -> getCurrentYearRange()
-                }
+                val (startDate, _) = DateUtils.getRangeForPeriod(periodType)
 
                 val budget = com.example.upitracker.data.Budget(
                     id = budgetId ?: 0,
@@ -1675,11 +1498,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showHistoryFilterSheet.value = true
     }
 
-    fun setAppTheme(theme: AppTheme) {
-        viewModelScope.launch {
-            ThemePreference.setAppTheme(getApplication(), theme)
-        }
-    }
+
 
     fun setTransactionAlertsEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -1788,7 +1607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val originalTransaction = transactionDao.getTransactionByIdSync(transactionId)
 
-            originalTransaction?.let { it ->
+            originalTransaction?.let {
                 val isManualEntry = it.senderOrReceiver == "Manual Entry"
                 val trimmedCategory = newCategory?.trim()?.takeIf { cat -> cat.isNotBlank() }
                 val canonicalCategory = trimmedCategory?.let { catName ->
@@ -2626,29 +2445,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun getCurrentWeekRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.firstDayOfWeek = Calendar.MONDAY
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
-        val weekStart = calendar.timeInMillis
-        calendar.add(Calendar.WEEK_OF_YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val weekEnd = calendar.timeInMillis
-        return weekStart to weekEnd
-    }
-
-    private fun getCurrentYearRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_YEAR, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
-        val yearStart = calendar.timeInMillis
-        calendar.add(Calendar.YEAR, 1); calendar.add(Calendar.MILLISECOND, -1)
-        val yearEnd = calendar.timeInMillis
-        return yearStart to yearEnd
-    }
-
     private suspend fun checkBudgetForNewTransaction(transaction: Transaction) {
         if (transaction.type != "DEBIT" || transaction.category.equals(refundKeyword.first(), ignoreCase = true)) {
             return
@@ -2662,11 +2458,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         relevantBudget.let { budget ->
-            val (periodStart, periodEnd) = when (budget.periodType) {
-                BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-                BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-                BudgetPeriod.YEARLY -> getCurrentYearRange()
-            }
+            val (periodStart, periodEnd) = DateUtils.getRangeForPeriod(budget.periodType)
 
             if (budget.lastNotificationTimestamp < periodStart) {
 
@@ -2701,10 +2493,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             transactionDao.getFilteredTotals(
                 SimpleSQLiteQuery(
                     "SELECT " +
-                        "COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN amount ELSE 0 END), 0) AS totalDebitPaise, " +
-                        "COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise, " +
-                        "COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END), 0) AS debitCount, " +
-                        "COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END), 0) AS creditCount " +
+                        "COALESCE(SUM(CASE WHEN UPPER(TRIM(type)) = 'DEBIT' THEN amount ELSE 0 END), 0) AS totalDebitPaise, " +
+                        "COALESCE(SUM(CASE WHEN UPPER(TRIM(type)) = 'CREDIT' THEN amount ELSE 0 END), 0) AS totalCreditPaise, " +
+                        "COALESCE(SUM(CASE WHEN UPPER(TRIM(type)) = 'DEBIT' THEN 1 ELSE 0 END), 0) AS debitCount, " +
+                        "COALESCE(SUM(CASE WHEN UPPER(TRIM(type)) = 'CREDIT' THEN 1 ELSE 0 END), 0) AS creditCount " +
                         "FROM transactions$whereClause",
                     args.toTypedArray()
                 )

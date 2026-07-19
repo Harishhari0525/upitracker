@@ -23,6 +23,7 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.upitracker.R
 import com.example.upitracker.util.ExpressiveTokens
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LottieSplashScreen(
@@ -41,7 +42,7 @@ fun LottieSplashScreen(
     // 2. Clear the splash gate cleanly when the animation reaches completion
     LaunchedEffect(progress) {
         if (progress == 1f) {
-            delay(150) // Tiny cushion to prevent visual thread stutters
+            delay(180.milliseconds) // Tiny cushion to prevent visual thread stutters
             onAnimationFinished()
         }
     }

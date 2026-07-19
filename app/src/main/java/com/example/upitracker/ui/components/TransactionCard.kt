@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.example.upitracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
@@ -7,9 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,15 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Transaction
-import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.ExpressiveTokens
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -50,7 +42,6 @@ fun TransactionCard(
     modifier: Modifier = Modifier,
     transaction: Transaction,
     categoryColor: Color,
-    categoryIcon: CategoryIcon,
     onCategoryClick: (String) -> Unit,
     isSelected: Boolean,
     showCheckbox: Boolean
@@ -63,7 +54,7 @@ fun TransactionCard(
     val isCredit = remember(transaction.type) { transaction.type.contains("CREDIT", ignoreCase = true) }
     val isDebit = remember(transaction.type) { transaction.type.contains("DEBIT", ignoreCase = true) }
 
-    val creditColor = if (isSystemInDarkTheme()) Color(0xFF63DC94) else Color(0xFF006D3D)
+    val creditColor = MaterialTheme.colorScheme.secondary
     val amountColor = when {
         isDebit -> MaterialTheme.colorScheme.error
         isCredit -> creditColor
@@ -116,14 +107,6 @@ fun TransactionCard(
                 .padding(ExpressiveTokens.spacing.lg), // Corrected lowercase token mapping
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TransactionTypeDot(
-                isCredit = isCredit,
-                isDebit = isDebit,
-                amountColor = amountColor
-            )
-
-            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
-
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
@@ -204,12 +187,14 @@ fun TransactionCard(
 
                     Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
 
-                    if (!transaction.category.isNullOrBlank()) {
+                    val category = transaction.category
+                    if (!category.isNullOrBlank()) {
                         Text(
-                            text = transaction.category.uppercase(),
+                            text = category.uppercase(),
                             modifier = Modifier
                                 .clip(ExpressiveTokens.corners.small)
                                 .background(categoryColor.copy(alpha = 0.10f))
+                                .clickable { onCategoryClick(category) }
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
@@ -233,34 +218,6 @@ fun TransactionCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun TransactionTypeDot(
-    isCredit: Boolean,
-    isDebit: Boolean,
-    amountColor: Color
-) {
-    val label = when {
-        isCredit -> "Cr"
-        isDebit -> "Dr"
-        else -> "Tx"
-    }
-
-    Box(
-        modifier = Modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .background(amountColor.copy(alpha = 0.10f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = amountColor
-        )
     }
 }
 

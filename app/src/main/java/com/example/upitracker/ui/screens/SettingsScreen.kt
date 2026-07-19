@@ -2,7 +2,6 @@
 
 package com.example.upitracker.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
@@ -39,7 +37,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -71,7 +68,6 @@ import com.example.upitracker.ui.components.OldPinVerificationComponent
 import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
-import com.example.upitracker.util.AppTheme
 import com.example.upitracker.util.AutoLockDelay
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.PinStorage
@@ -86,7 +82,6 @@ private enum class PinChangeStep {
 
 private sealed interface SettingsDialog {
     data object None : SettingsDialog
-    data object ThemeChooser : SettingsDialog
     data object Notifications : SettingsDialog
     data object DeleteAllConfirm : SettingsDialog
     data object Privacy : SettingsDialog
@@ -330,18 +325,6 @@ fun SettingsScreen(
         }
 
         when (activeDialog) {
-            is SettingsDialog.ThemeChooser -> {
-                val currentTheme by mainViewModel.appTheme.collectAsState()
-
-                ThemeChooserDialog(
-                    currentTheme = currentTheme,
-                    onDismiss = { activeDialog = SettingsDialog.None },
-                    onThemeSelected = {
-                        mainViewModel.setAppTheme(it)
-                        activeDialog = SettingsDialog.None
-                    }
-                )
-            }
 
             is SettingsDialog.Notifications -> {
                 val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
@@ -543,51 +526,7 @@ fun SettingItemRow(
     }
 }
 
-@Composable
-private fun ThemeChooserDialog(
-    currentTheme: AppTheme,
-    onDismiss: () -> Unit,
-    onThemeSelected: (AppTheme) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = ExpressiveTokens.corners.extraLarge,
-        title = {
-            Text(
-                text = "Choose a Theme",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                AppTheme.entries.forEach { theme ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onThemeSelected(theme) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = theme == currentTheme,
-                            onClick = { onThemeSelected(theme) }
-                        )
 
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Text(theme.displayName)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 private fun NotificationSettingsDialog(

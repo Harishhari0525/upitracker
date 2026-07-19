@@ -13,7 +13,7 @@ val widgetViewModeKey = stringPreferencesKey("widget_view_mode")
 class ToggleViewModeAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         // Get the requested mode ("TODAY" or "MONTH")
-        val newMode = parameters[ActionParameters.Key<String>("mode")] ?: "MONTH"
+        val newMode = parameters[ActionParameters.Key("mode")] ?: "MONTH"
 
         // Save it to the widget's state
         updateAppWidgetState(context, glanceId) { prefs ->

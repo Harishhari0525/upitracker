@@ -1,6 +1,8 @@
 package com.example.upitracker.ui.components.expressive
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -12,9 +14,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 
 @Composable
@@ -43,12 +48,20 @@ fun ExpressiveQuickActionCard(
             ),
             verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
-            )
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.52f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
 
             Text(
                 text = title,

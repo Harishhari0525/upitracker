@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun PremiumFloatingSnackbarHost(
@@ -31,7 +32,7 @@ fun PremiumFloatingSnackbarHost(
     // ✨ AUTOMATIC DISMISS TIMER FIX: Forces the snackbar to dismiss itself after a set duration
     LaunchedEffect(currentSnackbarData) {
         if (currentSnackbarData != null) {
-            delay(4000) // Keeps the toast pill visible for exactly 4 seconds
+            delay(4000.milliseconds) // Keeps the toast pill visible for exactly 4 seconds
             currentSnackbarData.dismiss() // Safely clears the current message queue line
         }
     }

@@ -76,7 +76,7 @@ fun AddTransactionDialog(
     var isAmountError by remember { mutableStateOf(false) }
     var isDescriptionError by remember { mutableStateOf(false) }
 
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(initialCategory) {

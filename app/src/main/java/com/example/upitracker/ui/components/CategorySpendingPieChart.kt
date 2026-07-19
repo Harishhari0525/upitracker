@@ -55,9 +55,9 @@ import androidx.compose.ui.unit.toSize
 import androidx.core.graphics.get
 import com.example.upitracker.R
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.CurrencyUtils
 import com.example.upitracker.viewmodel.CategoryExpense
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.min
@@ -343,12 +343,7 @@ fun CategoryLegend(
     var showFullLegendDialog by remember { mutableStateOf(false) }
 
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        )
+        CurrencyUtils.getRupeeFormatter()
     }
 
     Column(modifier = modifier) {
@@ -461,12 +456,7 @@ private fun FullCategoryLegendDialog(
     onDismiss: () -> Unit
 ) {
     val currencyFormat = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        )
+        CurrencyUtils.getRupeeFormatter()
     }
 
     AlertDialog(

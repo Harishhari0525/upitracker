@@ -30,10 +30,10 @@ fun ExpressiveSectionHeader(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = title.uppercase(),
-                style = MaterialTheme.typography.labelMedium,
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -11,38 +11,6 @@ object CsvExporter {
 
     private val csvDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
 
-    /**
-     * Exports a list of transactions to a CSV formatted string.
-     * Includes a header row and handles basic CSV escaping.
-     */
-    fun exportTransactionsToCsvString(transactions: List<Transaction>): String {
-        val header = "ID,Date,Type,Amount,Description,SenderOrReceiver,Category,Note" // Added Category
-        val stringBuilder = StringBuilder()
-        stringBuilder.appendLine(header)
-
-        transactions.forEach { txn ->
-            val dateFormatted = try {
-                csvDateFormat.format(Instant.ofEpochMilli(txn.date).atZone(ZoneId.systemDefault()))
-            } catch (_: Exception) {
-                txn.date.toString() // Fallback to raw timestamp
-            }
-            val amountFormatted = String.format(Locale.US, "%.2f", txn.amount)
-            stringBuilder.appendLine(
-                listOf(
-                    txn.id.toString() to false,
-                    dateFormatted to false,
-                    txn.type to false,
-                    amountFormatted to false,
-                    txn.description to true,
-                    txn.senderOrReceiver to true,
-                    txn.category.orEmpty() to true,
-                    txn.note to true
-                ).joinToString(",") { (value, protectFormula) -> escapeCsvField(value, protectFormula) }
-            )
-        }
-        return stringBuilder.toString()
-    }
-
     fun writeHeader(writer: Writer) {
         writer.appendLine("ID,Date,Type,Amount,Description,SenderOrReceiver,Category,Note")
     }

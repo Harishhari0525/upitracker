@@ -364,12 +364,6 @@ private fun TestPatternSheetContent(
     onClose: () -> Unit,
     onSavePattern: (String) -> Unit
 ) {
-    val context = LocalContext.current
-    val matchFoundText = stringResource(R.string.regex_editor_test_result_match_found)
-    val groupTemplate = stringResource(R.string.regex_editor_test_result_group_template)
-    val noMatchText = stringResource(R.string.regex_editor_test_result_no_match)
-    val invalidRegexText = stringResource(R.string.regex_editor_test_result_invalid_regex)
-
     var newRegex by remember { mutableStateOf("") }
     var sampleSmsText by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -635,8 +629,6 @@ private fun PresetsSection(
         "Simple Spend" to """payment\s*of\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+)""",
         "Simple Receive" to """received\s*Rs\.?\s*([\d,]+\.?\d*|\.?\d+)"""
     )
-
-    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),

@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.sp
 import com.example.upitracker.R
 
 /**
- * Payment Pulse type system.
+ * UPI Tracker financial type system.
  *
  * Work Sans carries the dense ledger and interface content. Poppins is reserved
  * for a small number of high-emphasis financial statements so the product no

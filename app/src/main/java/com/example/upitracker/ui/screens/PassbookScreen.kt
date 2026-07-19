@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -27,7 +26,6 @@ import com.example.upitracker.ui.components.TransactionCard
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.ExpressiveTokens
-import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.PassbookTransactionType
 import com.example.upitracker.viewmodel.PassbookViewModel
@@ -383,7 +381,6 @@ fun PassbookScreen(
                     TransactionCard(
                         transaction = transaction,
                         categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080"),
-                        categoryIcon = getCategoryIcon(categoryDetails),
                         onCategoryClick = {},
                         isSelected = false,
                         showCheckbox = false

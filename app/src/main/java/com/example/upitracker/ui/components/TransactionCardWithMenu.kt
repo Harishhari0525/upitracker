@@ -1,6 +1,6 @@
 package com.example.upitracker.ui.components
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -20,14 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Transaction
-import com.example.upitracker.util.CategoryIcon
 
 @Composable
 fun TransactionCardWithMenu(
@@ -43,7 +41,6 @@ fun TransactionCardWithMenu(
     archiveActionText: String,
     archiveActionIcon: ImageVector,
     categoryColor: Color,
-    categoryIcon: CategoryIcon,
     onCategoryClick: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -58,28 +55,21 @@ fun TransactionCardWithMenu(
             .onSizeChanged {
                 cardWidth = it.width
             }
-            .pointerInput(isSelectionMode) {
-                detectTapGestures(
-                    onLongPress = {
-                        if (!isSelectionMode) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showMenu = true
-                        }
-                    },
-                    onTap = {
-                        if (isSelectionMode) {
-                            onToggleSelection()
-                        } else {
-                            onShowDetails()
-                        }
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) onToggleSelection() else onShowDetails()
+                },
+                onLongClick = {
+                    if (!isSelectionMode) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showMenu = true
                     }
-                )
-            }
+                }
+            )
     ) {
         TransactionCard(
             transaction = transaction,
             categoryColor = categoryColor,
-            categoryIcon = categoryIcon,
             onCategoryClick = onCategoryClick,
             isSelected = isSelected,
             showCheckbox = showCheckbox

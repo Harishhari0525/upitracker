@@ -6,13 +6,13 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.data.Budget
-import com.example.upitracker.data.BudgetPeriod
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.util.BankIdentifier
+import com.example.upitracker.util.DateUtils
 import com.example.upitracker.util.NotificationHelper
 import com.example.upitracker.util.RegexPreference
 import com.example.upitracker.util.TagUtils
@@ -23,7 +23,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 import java.util.Locale
 import java.security.MessageDigest
 
@@ -374,11 +373,7 @@ object SmsProcessingService {
             it.categoryName.equals(transaction.category, ignoreCase = true)
         } ?: return
 
-        val (periodStart, periodEnd) = when (relevantBudget.periodType) {
-            BudgetPeriod.WEEKLY -> getCurrentWeekRange()
-            BudgetPeriod.MONTHLY -> getCurrentMonthDateRange()
-            BudgetPeriod.YEARLY -> getCurrentYearRange()
-        }
+        val (periodStart, periodEnd) = DateUtils.getRangeForPeriod(relevantBudget.periodType)
 
         if (relevantBudget.lastNotificationTimestamp >= periodStart) {
             return
@@ -404,54 +399,5 @@ object SmsProcessingService {
                 )
             )
         }
-    }
-
-    private fun getCurrentMonthDateRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        val start = calendar.timeInMillis
-
-        calendar.add(Calendar.MONTH, 1)
-        calendar.add(Calendar.MILLISECOND, -1)
-
-        return start to calendar.timeInMillis
-    }
-
-    private fun getCurrentWeekRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.firstDayOfWeek = Calendar.MONDAY
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        val start = calendar.timeInMillis
-
-        calendar.add(Calendar.WEEK_OF_YEAR, 1)
-        calendar.add(Calendar.MILLISECOND, -1)
-
-        return start to calendar.timeInMillis
-    }
-
-    private fun getCurrentYearRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.DAY_OF_YEAR, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        val start = calendar.timeInMillis
-
-        calendar.add(Calendar.YEAR, 1)
-        calendar.add(Calendar.MILLISECOND, -1)
-
-        return start to calendar.timeInMillis
     }
 }

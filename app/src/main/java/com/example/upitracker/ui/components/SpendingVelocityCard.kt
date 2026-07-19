@@ -25,8 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.util.ExpressiveTokens
-import java.text.NumberFormat
-import java.util.Locale
+import com.example.upitracker.util.CurrencyUtils
 import kotlin.math.abs
 
 @Composable
@@ -36,14 +35,7 @@ fun SpendingVelocityCard(
     daysRemaining: Int,
     modifier: Modifier = Modifier
 ) {
-    val currencyFormatter = NumberFormat.getCurrencyInstance(
-        Locale.Builder()
-            .setLanguage("en")
-            .setRegion("IN")
-            .build()
-    ).apply {
-        maximumFractionDigits = 0
-    }
+    val currencyFormatter = CurrencyUtils.getRupeeFormatter()
 
     val remainingBudget = totalBudget - totalSpent
     val safeDailySpend = if (daysRemaining > 0) {

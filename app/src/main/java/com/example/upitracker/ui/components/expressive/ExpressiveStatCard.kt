@@ -1,6 +1,8 @@
 package com.example.upitracker.ui.components.expressive
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -15,8 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 
 @Composable
@@ -45,12 +49,20 @@ fun ExpressiveStatCard(
             horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.compact.itemGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
@@ -63,8 +75,8 @@ fun ExpressiveStatCard(
 
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 

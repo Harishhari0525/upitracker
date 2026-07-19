@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -66,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.upitracker.util.CurrencyUtils
 import com.canopas.lib.showcase.IntroShowcase
 import com.canopas.lib.showcase.component.rememberIntroShowcaseState
 import com.example.upitracker.R
@@ -80,19 +80,25 @@ import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.expressiveHeroGradient
 import com.example.upitracker.util.OnboardingPreference
 import com.example.upitracker.util.animateEnter
-import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.TransactionHistoryItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,6 +118,7 @@ fun CurrentMonthExpensesScreen(
 
     val velocityState by mainViewModel.spendingVelocityState.collectAsState()
     val currentMonthExpensesTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
+    val currentMonthIncomeTotal by mainViewModel.currentMonthTotalIncome.collectAsState()
     val recentTransactions by mainViewModel.currentMonthExpenseItems.collectAsState()
     val recurringRules by mainViewModel.recurringRules.collectAsState()
     val isImporting by mainViewModel.isImportingSms.collectAsState()
@@ -236,6 +243,8 @@ fun CurrentMonthExpensesScreen(
                         ) {
                             TotalExpensesHeroCard(
                                 total = currentMonthExpensesTotal,
+                                income = currentMonthIncomeTotal,
+                                transactionCount = transactionCount,
                                 modifier = Modifier.introShowCaseTarget(
                                     index = 0,
                                     content = {
@@ -367,15 +376,12 @@ fun CurrentMonthExpensesScreen(
 @Composable
 private fun TotalExpensesHeroCard(
     total: Double,
+    income: Double,
+    transactionCount: Int,
     modifier: Modifier = Modifier
 ) {
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        )
+        CurrencyUtils.getRupeeFormatter()
     }
     val currentMonthLabel = remember {
         SimpleDateFormat("MMMM", Locale.getDefault()).format(Date())
@@ -383,36 +389,56 @@ private fun TotalExpensesHeroCard(
 
     val heroShape = ExpressiveTokens.corners.hero
 
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+    val pulseRadius by infiniteTransition.animateFloat(
+        initialValue = 4.dp.value,
+        targetValue = 8.dp.value,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseRadius"
+    )
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = heroShape,
         elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card
+            defaultElevation = 0.dp
         ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            containerColor = Color.Transparent
         )
     ) {
-        Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(expressiveHeroGradient(), heroShape)
-                    .padding(
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(expressiveHeroGradient(), heroShape)
+                .padding(
                     horizontal = ExpressiveTokens.spacing.xl,
                     vertical = ExpressiveTokens.spacing.xl
-                ),
-            verticalAlignment = Alignment.CenterVertically
+                )
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column {
                 Text(
-                    text = "SPENT THIS MONTH",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    text = "SPENT IN ${currentMonthLabel.uppercase()}",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.5.sp
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.7f)
                 )
 
-                Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
+                Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
 
                 AnimatedContent(
                     targetState = total,
@@ -429,32 +455,135 @@ private fun TotalExpensesHeroCard(
                 ) { targetTotal ->
                     Text(
                         text = currencyFormatter.format(targetTotal),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        lineHeight = 40.sp
+                        style = MaterialTheme.typography.displayMedium.copy(
+                            fontSize = 40.sp,
+                            letterSpacing = (-1.5).sp
+                        ),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        lineHeight = 44.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.xs))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "$currentMonthLabel payment pulse",
+                    text = "Across $transactionCount transactions",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                    color = Color.White.copy(alpha = 0.6f)
                 )
-            }
 
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                contentDescription = "Monthly Expenses",
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .padding(8.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(100.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowDownward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "₹" + String.format(Locale.US, "%,.0f", total),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(100.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowUpward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "₹" + String.format(Locale.US, "%,.0f", income),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // Sparkline Canvas with a live pulsing dot at the end
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .padding(top = 8.dp)
+                ) {
+                    val width = size.width
+                    val height = size.height
+
+                    val path = Path().apply {
+                        moveTo(0f, height * 0.85f)
+                        cubicTo(
+                            width * 0.15f, height * 0.8f,
+                            width * 0.25f, height * 0.7f,
+                            width * 0.4f, height * 0.55f
+                        )
+                        cubicTo(
+                            width * 0.55f, height * 0.45f,
+                            width * 0.65f, height * 0.65f,
+                            width * 0.8f, height * 0.35f
+                        )
+                        cubicTo(
+                            width * 0.9f, height * 0.15f,
+                            width * 0.95f, height * 0.25f,
+                            width, height * 0.1f
+                        )
+                    }
+
+                    // Stroke
+                    drawPath(
+                        path = path,
+                        color = Color.White.copy(alpha = 0.6f),
+                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    // Fill gradient under path
+                    val fillPath = Path().apply {
+                        addPath(path)
+                        lineTo(width, height)
+                        lineTo(0f, height)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.18f), Color.Transparent)
+                        )
+                    )
+
+                    // Pulse glow circle
+                    drawCircle(
+                        color = Color.White.copy(alpha = pulseAlpha),
+                        radius = pulseRadius.dp.toPx(),
+                        center = Offset(width, height * 0.1f)
+                    )
+
+                    // Center solid circle
+                    drawCircle(
+                        color = Color.White,
+                        radius = 4.dp.toPx(),
+                        center = Offset(width, height * 0.1f)
+                    )
+                }
+            }
         }
     }
 }
@@ -465,12 +594,7 @@ private fun MonthlyQuickStatsSection(
     totalSpent: Double
 ) {
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        )
+        CurrencyUtils.getRupeeFormatter()
     }
 
     val averageAmount = if (transactionCount > 0) {
@@ -632,12 +756,7 @@ private fun UpcomingPaymentRow(
     rule: RecurringRule
 ) {
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        )
+        CurrencyUtils.getRupeeFormatter()
     }
 
     val dateFormat = remember {
@@ -776,8 +895,6 @@ private fun RecentTransactionsSection(
                             parseColor(categoryDetails?.colorHex ?: "#808080")
                         }
 
-                        val categoryIcon = getCategoryIcon(categoryDetails)
-
                         TransactionCardWithMenu(
                             modifier = Modifier.animateEnter(index),
                             transaction = transaction,
@@ -796,7 +913,6 @@ private fun RecentTransactionsSection(
                             archiveActionText = "Archive",
                             archiveActionIcon = Icons.Default.Archive,
                             categoryColor = categoryColor,
-                            categoryIcon = categoryIcon,
                             onCategoryClick = { categoryName ->
                                 mainViewModel.filterHistoryByCategory(categoryName)
                                 onViewAllClick()
@@ -805,9 +921,9 @@ private fun RecentTransactionsSection(
                     }
                 }
             }
+            }
         }
     }
-}
 
 @Composable
 private fun RecentTransactionsHeader(
@@ -855,7 +971,7 @@ private fun RecentTransactionsHeader(
 @Composable
 private fun BankBalancesSection(balances: List<com.example.upitracker.data.TransactionDao.BankBalance>) {
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
+        CurrencyUtils.getRupeeFormatter()
     }
     
     Column(modifier = Modifier.fillMaxWidth()) {

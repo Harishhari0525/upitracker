@@ -56,6 +56,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : FragmentActivity() {
 
@@ -68,7 +69,7 @@ class MainActivity : FragmentActivity() {
         override fun onStop(owner: LifecycleOwner) {
             autoLockJob?.cancel()
             autoLockJob = lifecycleScope.launch {
-                delay(mainViewModel.autoLockDelay.value.milliseconds)
+                delay(mainViewModel.autoLockDelay.value.milliseconds.milliseconds)
                 mainViewModel.setPinUnlocked(false)
             }
         }
@@ -535,73 +536,6 @@ class MainActivity : FragmentActivity() {
             }
         }
         SmsPage(batch, lastTimestamp, lastId)
-    }
-
-    private fun processSmsInbox(
-        smsList: List<Triple<String, String, Long>>,
-        isInitialImport: Boolean, // Pass context down to tell if this is a fresh database seed pass
-        setLoadingState: (Boolean) -> Unit,
-        onComplete: (newTxnCount: Int, processedSummaries: Int, archivedCount: Int) -> Unit
-    ) {
-        setLoadingState(true)
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val totalMessages = smsList.size
-            var globalNewTxn = 0
-            var globalSummaries = 0
-            var globalArchived = 0
-
-            if (totalMessages == 0) {
-                withContext(Dispatchers.Main) {
-                    mainViewModel.clearSmsSyncProgress()
-                    setLoadingState(false)
-                    onComplete(0, 0, 0)
-                }
-                return@launch
-            }
-
-            val config = SmsProcessingService.fetchProcessingConfig(this@MainActivity)
-
-            // Chunk messages into sub-batches of 50 to allow the main thread UI state definitions to breathe
-            val chunkSize = 50
-            val chunks = smsList.chunked(chunkSize)
-            var processedCount = 0
-
-            for (chunk in chunks) {
-                // Execute database writing pass for the current chunk
-                val result = SmsProcessingService.processSmsBatch(
-                    context = this@MainActivity,
-                    smsList = chunk,
-                    updateWidget = false,
-                    config = config
-                )
-
-                globalNewTxn += result.newTxnCount
-                globalSummaries += result.processedSummaries
-                globalArchived += result.archivedCount
-                processedCount += chunk.size
-
-                // ✨ Update last processed timestamp to avoid re-scanning these in the future
-                val latestInBatch = chunk.maxOf { it.third }
-                ThemePreference.setLastProcessedSmsTimestamp(this@MainActivity, latestInBatch)
-
-                // ✨ PROGRESS ACCUMULATION HOOK: Stream updated counts straight to our state engine flow parameters
-                withContext(Dispatchers.Main) {
-                    mainViewModel.updateSmsSyncProgress(
-                        current = processedCount.coerceAtMost(totalMessages),
-                        total = totalMessages,
-                        isInitial = isInitialImport
-                    )
-                }
-            }
-
-            withContext(Dispatchers.Main) {
-                // ✨ TERMINATION HOOK: Flush and reset states once all batch passes complete successfully
-                mainViewModel.clearSmsSyncProgress()
-                setLoadingState(false)
-                onComplete(globalNewTxn, globalSummaries, globalArchived)
-            }
-        }
     }
 
     private fun startFullSmsSync(isInitialImport: Boolean) {

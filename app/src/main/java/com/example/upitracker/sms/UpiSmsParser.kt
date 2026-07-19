@@ -107,9 +107,9 @@ private val creditCardKeywords = listOf(
 
 private fun extractBalanceFromNormalizedMessage(message: String): Double? {
     val balanceRegexes = listOf(
-        Regex("""\b(?:available\s+balance\b|avl\.?\s+bal\b\.?|balance\b|bal\b\.?|a/c\s+bal\b\.?)[^\d]*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE),
-        Regex("""\b(?:avl\b\.?|available\b)\s+(?:limit\b|bal\b\.?|balance\b)[^\d]*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE),
-        Regex("""\b(?:outstanding\b|o/s\b)[^\d]*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE)
+        Regex("""\b(?:available\s+balance\b|avl\.?\s+bal\b\.?|balance\b|bal\b\.?|a/c\s+bal\b\.?)\D*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:avl\b\.?|available\b)\s+(?:limit\b|bal\b\.?|balance\b)\D*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:outstanding\b|o/s\b)\D*?RS\s*(\d+[\d,.]*\d+|\d+)""", RegexOption.IGNORE_CASE)
     )
     for (regex in balanceRegexes) {
         val matchResult = regex.find(message)
@@ -146,7 +146,7 @@ private fun cleanCounterparty(value: String?): String? {
         ?.takeIf { it.isNotBlank() }
         ?: return null
 
-    if (cleaned.length < 2 || cleaned.length > 60) return null
+    if (cleaned.length !in 2..60) return null
 
     val lower = cleaned.lowercase(Locale.getDefault())
     val wordCount = cleaned.split(' ').filter { it.isNotBlank() }.size

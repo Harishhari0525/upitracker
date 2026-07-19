@@ -227,7 +227,7 @@ private fun MonthChangeCard(
     Card(
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         modifier = Modifier.fillMaxWidth()
     ) {

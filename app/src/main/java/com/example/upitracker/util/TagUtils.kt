@@ -5,8 +5,6 @@ object TagUtils {
     private val hashtagRegex = Regex("#\\w+")
 
     fun extractTags(text: String): String {
-        return hashtagRegex.findAll(text)
-            .map { it.value }
-            .joinToString(" ") // Store as "#tag1 #tag2"
+        return hashtagRegex.findAll(text).joinToString(" ") { it.value } // Store as "#tag1 #tag2"
     }
 }

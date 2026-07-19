@@ -393,7 +393,6 @@ private fun UpiTransactionsList(
     isSelectionMode: Boolean,
     selectedIds: Set<Int>
 ) {
-    val selectedUpiFilterType by mainViewModel.selectedUpiTransactionType.collectAsState()
     val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
     val pagedTransactions = mainViewModel.pagedUpiTransactions.collectAsLazyPagingItems()
@@ -403,9 +402,9 @@ private fun UpiTransactionsList(
     val isLoading = pagedTransactions.loadState.refresh is LoadState.Loading
 
     val filters by mainViewModel.filters.collectAsState()
-    val areFiltersActive = remember(filters) {
+    val selectedUpiFilterType = filters.type
+    val hasDetailedFilters = remember(filters) {
         filters.searchQuery.isNotBlank() ||
-                filters.type != UpiTransactionTypeFilter.ALL ||
                 filters.startDate != null ||
                 filters.endDate != null ||
                 filters.amountType != AmountFilterType.ALL ||
@@ -439,7 +438,8 @@ private fun UpiTransactionsList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpiTransactionTypeFilter.entries.forEach { filterType ->
@@ -448,14 +448,21 @@ private fun UpiTransactionsList(
                             filterType.name.lowercase().replaceFirstChar { it.uppercase() }
                         }
                         FilterChip(
-                            modifier = Modifier.padding(end = 8.dp),
+                            modifier = Modifier.weight(1f),
                             selected = selectedUpiFilterType == filterType,
                             onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
                             label = { Text(filterLabelText) },
                             leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
                         )
                     }
-                    Spacer(Modifier.weight(1f))
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = { mainViewModel.enterSelectionMode() }) {
                         Icon(Icons.Default.Checklist, contentDescription = "Enter Selection Mode")
                     }
@@ -471,7 +478,7 @@ private fun UpiTransactionsList(
             }
         }
 
-        AnimatedVisibility(visible = pagedTransactions.itemCount > 0 && areFiltersActive) {
+        AnimatedVisibility(visible = pagedTransactions.itemCount > 0 && hasDetailedFilters) {
             FilteredTotalsBar(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 totalDebitPaise = totals.totalDebitPaise,
@@ -538,8 +545,6 @@ private fun UpiTransactionsList(
                                 c.name.equals(transaction.category, ignoreCase = true)
                             }
                             val categoryColor = parseColor(categoryDetails?.colorHex ?: "#808080")
-                            val categoryIcon = getCategoryIcon(categoryDetails)
-
                             TransactionCardWithMenu(
                                 modifier = Modifier
                                     .animateItem(
@@ -566,7 +571,6 @@ private fun UpiTransactionsList(
                                 archiveActionText = "Archive",
                                 archiveActionIcon = Icons.Default.Archive,
                                 categoryColor = categoryColor,
-                                categoryIcon = categoryIcon,
                                 onCategoryClick = { categoryName ->
                                     if (!isSelectionMode) mainViewModel.toggleCategoryFilter(categoryName)
                                 }

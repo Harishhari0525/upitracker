@@ -2,7 +2,6 @@ package com.example.upitracker.ui.components.expressive
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -33,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.AppMotion
 import com.example.upitracker.util.expressiveHeroGradient
 
 @Composable
@@ -70,14 +70,14 @@ fun ExpressiveHeroCard(
                     Icon(
                         imageVector = Icons.Rounded.AccountBalanceWallet,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
 
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
 
@@ -86,8 +86,8 @@ fun ExpressiveHeroCard(
                 AnimatedContent(
                     targetState = amount,
                     transitionSpec = {
-                        fadeIn(animationSpec = spring()) togetherWith
-                                fadeOut(animationSpec = spring()) using
+                        fadeIn(animationSpec = AppMotion.defaultEffects()) togetherWith
+                                fadeOut(animationSpec = AppMotion.fastEffects()) using
                                 SizeTransform(clip = false)
                     },
                     label = "hero_amount_animation"
@@ -95,8 +95,8 @@ fun ExpressiveHeroCard(
                     Text(
                         text = targetAmount,
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
 
@@ -106,7 +106,7 @@ fun ExpressiveHeroCard(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
                     )
                 }
 
@@ -135,8 +135,8 @@ fun ExpressiveHeroCard(
                                 },
                                 colors = AssistChipDefaults.assistChipColors(
                                     disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.32f),
-                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    disabledLeadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    disabledLeadingIconContentColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             )
                         }
@@ -159,8 +159,8 @@ fun ExpressiveHeroCard(
                                 },
                                 colors = AssistChipDefaults.assistChipColors(
                                     disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.32f),
-                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    disabledLeadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    disabledLeadingIconContentColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             )
                         }

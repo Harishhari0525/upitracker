@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,7 +46,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.upitracker.ui.components.MerchantDnaCard
 import java.io.File
 
 @Composable
@@ -88,20 +86,6 @@ fun TransactionDetailSheetContent(
         }
     }
 
-    LaunchedEffect(transaction) {
-        transaction?.let {
-            // Only load if it's a real merchant (not Manual Entry)
-            if (it.senderOrReceiver != "Manual Entry") {
-                mainViewModel.loadMerchantDna(it.senderOrReceiver)
-            }
-        }
-    }
-
-    // Clear on exit
-    DisposableEffect(Unit) {
-        onDispose { mainViewModel.clearMerchantDna() }
-    }
-
     if (transaction == null) {
         Box(modifier = Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -109,8 +93,6 @@ fun TransactionDetailSheetContent(
         return
     }
     val isManualEntry = transaction!!.senderOrReceiver == "Manual Entry"
-
-    val merchantDna by mainViewModel.merchantDna.collectAsState()
 
     Column(
         modifier = Modifier
@@ -297,14 +279,6 @@ fun TransactionDetailSheetContent(
             val isDebit = transaction!!.type == "DEBIT"
 
             TransactionDetailHeader(transaction = transaction!!, linkedTransaction = linkedTxn)
-
-            // ✨ DNA Card if available
-            if (merchantDna != null) {
-                MerchantDnaCard(
-                    merchantName = transaction!!.senderOrReceiver,
-                    dna = merchantDna!!
-                )
-            }
 
             var showLinkDialog by remember { mutableStateOf(false) }
 
@@ -612,11 +586,7 @@ fun TransactionDetailSheetContent(
 
 @Composable
 private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction: Transaction? = null) {
-    val creditColor = if (isSystemInDarkTheme()) {
-        Color(0xFF63DC94)
-    } else {
-        Color(0xFF006D3D)
-    }
+    val creditColor = MaterialTheme.colorScheme.secondary
 
     val amountColor = if (transaction.type.equals("CREDIT", ignoreCase = true)) {
         creditColor

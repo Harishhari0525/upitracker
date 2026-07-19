@@ -12,7 +12,6 @@ import com.example.upitracker.util.NotificationHelper.EXTRA_CATEGORY
 import com.example.upitracker.util.NotificationHelper.EXTRA_NOTIFICATION_ID
 import com.example.upitracker.util.NotificationHelper.EXTRA_TRANSACTION_ID
 import com.example.upitracker.util.NotificationHelper.REMOTE_INPUT_CATEGORY
-import com.example.upitracker.util.inferCategoryDefaults
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

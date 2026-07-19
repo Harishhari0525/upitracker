@@ -1,6 +1,5 @@
 package com.example.upitracker.ui.components
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 import java.text.NumberFormat
 import java.util.Locale
@@ -42,11 +42,7 @@ fun FilteredTotalsBar(
         }
     }
 
-    val creditColor = if (isSystemInDarkTheme()) {
-        Color(0xFF63DC94)
-    } else {
-        Color(0xFF006D3D)
-    }
+    val creditColor = MaterialTheme.colorScheme.secondary
 
     val debitColor = MaterialTheme.colorScheme.error
 
@@ -54,7 +50,7 @@ fun FilteredTotalsBar(
         modifier = modifier.fillMaxWidth(),
         shape = ExpressiveTokens.corners.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
@@ -71,19 +67,19 @@ fun FilteredTotalsBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TotalColumn(
-                label = "DEBIT ($debitCount)",
+                label = "Spent · $debitCount",
                 value = currencyFormatter.format(BigDecimal.valueOf(totalDebitPaise, 2)),
                 color = debitColor,
                 modifier = Modifier.weight(1f)
             )
 
-            HorizontalDivider(
-                modifier = Modifier
-                    .weight(0.02f)
+            VerticalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
             )
 
             TotalColumn(
-                label = "CREDIT ($creditCount)",
+                label = "Received · $creditCount",
                 value = currencyFormatter.format(BigDecimal.valueOf(totalCreditPaise, 2)),
                 color = creditColor,
                 modifier = Modifier.weight(1f)
@@ -113,7 +109,7 @@ private fun TotalColumn(
         Text(
             text = value,
             style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = color
         )
     }

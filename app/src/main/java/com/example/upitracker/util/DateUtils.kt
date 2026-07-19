@@ -14,6 +14,15 @@ object DateUtils {
         }
     }
 
+    // Helper to get the previous period's start/end timestamps
+    fun getPreviousRangeForPeriod(period: BudgetPeriod): Pair<Long, Long> {
+        return when (period) {
+            BudgetPeriod.WEEKLY -> getPreviousWeekRange()
+            BudgetPeriod.MONTHLY -> getPreviousMonthRange()
+            BudgetPeriod.YEARLY -> getPreviousYearRange()
+        }
+    }
+
     // Returns (Start of Monday, End of Sunday)
     fun getCurrentWeekRange(): Pair<Long, Long> {
         val calendar = Calendar.getInstance()
@@ -51,6 +60,65 @@ object DateUtils {
         calendar.add(Calendar.YEAR, 1)
         calendar.add(Calendar.MILLISECOND, -1)
         val end = calendar.timeInMillis
+        return Pair(start, end)
+    }
+
+    // Returns previous week's range
+    fun getPreviousWeekRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.WEEK_OF_YEAR, -1)
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        setStartOfDay(calendar)
+        val start = calendar.timeInMillis
+
+        calendar.add(Calendar.WEEK_OF_YEAR, 1)
+        calendar.add(Calendar.MILLISECOND, -1)
+        val end = calendar.timeInMillis
+        return Pair(start, end)
+    }
+
+    // Returns previous month's range
+    fun getPreviousMonthRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.MONTH, -1)
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        setStartOfDay(calendar)
+        val start = calendar.timeInMillis
+
+        calendar.add(Calendar.MONTH, 1)
+        calendar.add(Calendar.MILLISECOND, -1)
+        val end = calendar.timeInMillis
+        return Pair(start, end)
+    }
+
+    // Returns previous year's range
+    fun getPreviousYearRange(): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.YEAR, -1)
+        calendar.set(Calendar.DAY_OF_YEAR, 1)
+        setStartOfDay(calendar)
+        val start = calendar.timeInMillis
+
+        calendar.add(Calendar.YEAR, 1)
+        calendar.add(Calendar.MILLISECOND, -1)
+        val end = calendar.timeInMillis
+        return Pair(start, end)
+    }
+
+    // Returns daily trend date range (daysToShow before today to end of today)
+    fun getDailyTrendDateRange(daysToShow: Int): Pair<Long, Long> {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.HOUR_OF_DAY, 23)
+        calendar.set(Calendar.MINUTE, 59)
+        calendar.set(Calendar.SECOND, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        val end = calendar.timeInMillis
+
+        calendar.timeInMillis = System.currentTimeMillis()
+        calendar.add(Calendar.DAY_OF_YEAR, -(daysToShow - 1))
+        setStartOfDay(calendar)
+        val start = calendar.timeInMillis
         return Pair(start, end)
     }
 

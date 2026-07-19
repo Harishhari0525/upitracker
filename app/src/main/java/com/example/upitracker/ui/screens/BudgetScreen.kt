@@ -45,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
-import com.example.upitracker.data.Category
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog

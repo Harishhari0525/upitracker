@@ -24,11 +24,11 @@ object RegexPreference {
             .map { prefs ->
                 prefs[REGEX_SET_KEY] ?: emptySet() // Default to an empty set if not found
             }
-            .catch { exception ->
+            .catch { _ ->
                 // Handle potential exceptions during DataStore read (e.g., IOException)
                 // Log the error and emit an empty set as a fallback
                 // android.util.Log.e("RegexPreference", "Error reading regex patterns", exception)
-                emit(emptySet<String>())
+                emit(emptySet())
             }
 
     /**
@@ -38,36 +38,6 @@ object RegexPreference {
     suspend fun setRegexPatterns(context: Context, patterns: Set<String>) {
         context.regexDataStore.edit { prefs ->
             prefs[REGEX_SET_KEY] = patterns
-        }
-    }
-
-    /**
-     * Adds a single regex pattern to the existing set.
-     * Does nothing if the pattern is already present (due to Set behavior).
-     */
-    suspend fun addRegexPattern(context: Context, pattern: String) {
-        context.regexDataStore.edit { prefs ->
-            val currentPatterns = prefs[REGEX_SET_KEY] ?: emptySet()
-            prefs[REGEX_SET_KEY] = currentPatterns + pattern
-        }
-    }
-
-    /**
-     * Removes a single regex pattern from the set.
-     */
-    suspend fun removeRegexPattern(context: Context, pattern: String) {
-        context.regexDataStore.edit { prefs ->
-            val currentPatterns = prefs[REGEX_SET_KEY] ?: emptySet()
-            prefs[REGEX_SET_KEY] = currentPatterns - pattern
-        }
-    }
-
-    /**
-     * Clears all stored regex patterns.
-     */
-    suspend fun clearAllRegexPatterns(context: Context) {
-        context.regexDataStore.edit { prefs ->
-            prefs.remove(REGEX_SET_KEY) // Or prefs[REGEX_SET_KEY] = emptySet()
         }
     }
 }

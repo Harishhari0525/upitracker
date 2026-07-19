@@ -1,7 +1,6 @@
 @file:OptIn(
     ExperimentalAnimationApi::class,
-    ExperimentalMaterial3Api::class,
-    ExperimentalAnimationGraphicsApi::class
+    ExperimentalMaterial3Api::class
 )
 
 package com.example.upitracker.ui.screens
@@ -9,10 +8,6 @@ package com.example.upitracker.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
-import androidx.compose.animation.graphics.res.animatedVectorResource
-import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
-import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,8 +33,6 @@ import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.runtime.collectAsState
-import com.example.upitracker.util.HomeScreenStyle
 
 @Composable
 fun MainNavHost(
@@ -60,7 +53,6 @@ fun MainNavHost(
     val navBackStackEntry by rootNavController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = bottomNavItems.any { it.route == currentRoute }
-    val homeScreenStyle by mainViewModel.homeScreenStyle.collectAsState()
 
     Scaffold(
         modifier = modifier,

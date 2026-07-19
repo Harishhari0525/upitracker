@@ -32,7 +32,6 @@ import com.example.upitracker.ui.components.TransactionCardWithMenu
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.ExpressiveTokens
-import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
 import com.example.upitracker.viewmodel.MainViewModel
 import androidx.paging.LoadState
@@ -131,7 +130,6 @@ fun ArchivedTransactionsScreen(
                             parseColor(categoryDetails?.colorHex ?: "#808080")
                         }
 
-                        val categoryIcon = getCategoryIcon(categoryDetails)
                         val isSelected = selectedIds.contains(transaction.id)
 
                         TransactionCardWithMenu(
@@ -153,7 +151,6 @@ fun ArchivedTransactionsScreen(
                             archiveActionText = "Restore",
                             archiveActionIcon = Icons.Default.Restore,
                             categoryColor = categoryColor,
-                            categoryIcon = categoryIcon,
                             onCategoryClick = {}
                         )
                     }

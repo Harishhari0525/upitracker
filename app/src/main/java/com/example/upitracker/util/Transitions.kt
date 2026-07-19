@@ -2,7 +2,6 @@ package com.example.upitracker.util
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -10,7 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.unit.IntOffset
 
 // A more expressive, gentle spring for spatial transitions
-private val gentleSpring = spring<IntOffset>(dampingRatio = 0.8f, stiffness = 200f)
+private val gentleSpring = AppMotion.slowSpatial<IntOffset>()
 
 /**
  * An expressive enter transition that slides and fades in from the right.
@@ -20,7 +19,7 @@ fun expressiveSlideIn(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { 300 },
         animationSpec = gentleSpring
-    ) + fadeIn(animationSpec = spring())
+    ) + fadeIn(animationSpec = AppMotion.defaultEffects())
 }
 
 /**
@@ -31,7 +30,7 @@ fun expressiveSlideOut(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { -300 },
         animationSpec = gentleSpring
-    ) + fadeOut(animationSpec = spring())
+    ) + fadeOut(animationSpec = AppMotion.fastEffects())
 }
 
 /**
@@ -42,7 +41,7 @@ fun expressivePopEnter(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { -300 },
         animationSpec = gentleSpring
-    ) + fadeIn(animationSpec = spring())
+    ) + fadeIn(animationSpec = AppMotion.defaultEffects())
 }
 
 /**
@@ -53,5 +52,5 @@ fun expressivePopExit(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { 300 },
         animationSpec = gentleSpring
-    ) + fadeOut(animationSpec = spring())
+    ) + fadeOut(animationSpec = AppMotion.fastEffects())
 }

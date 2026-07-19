@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
@@ -17,11 +16,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
@@ -36,17 +33,8 @@ fun ExpressiveTopBar(
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            ),
-        color = androidx.compose.ui.graphics.Color.Transparent,
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp
     ) {
         Column {
@@ -64,7 +52,7 @@ fun ExpressiveTopBar(
             if (showBackButton && onBackClick != null) {
                 IconButton(
                     onClick = onBackClick,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(48.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
@@ -72,7 +60,7 @@ fun ExpressiveTopBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = "Back",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -104,11 +92,6 @@ fun ExpressiveTopBar(
                 content = actions
             )
           }
-
-          HorizontalDivider(
-              thickness = 1.dp,
-              color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-          )
         }
     }
 }

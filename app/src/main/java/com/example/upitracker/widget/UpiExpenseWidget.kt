@@ -76,7 +76,7 @@ class UpiExpenseWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "PAYMENT PULSE",
+                text = "UPI TRACKER",
                 style = TextStyle(
                     color = GlanceTheme.colors.primary,
                     fontSize = 11.sp,

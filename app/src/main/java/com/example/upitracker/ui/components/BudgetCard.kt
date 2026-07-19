@@ -40,9 +40,8 @@ import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.CurrencyUtils
 import com.example.upitracker.viewmodel.BudgetStatus
-import java.text.NumberFormat
-import java.util.Locale
 
 @Composable
 fun BudgetCard(
@@ -52,14 +51,7 @@ fun BudgetCard(
     onDelete: () -> Unit
 ) {
     val currencyFormatter = remember {
-        NumberFormat.getCurrencyInstance(
-            Locale.Builder()
-                .setLanguage("en")
-                .setRegion("IN")
-                .build()
-        ).apply {
-            maximumFractionDigits = 0
-        }
+        CurrencyUtils.getRupeeFormatter()
     }
 
     var showMenu by remember { mutableStateOf(false) }
@@ -67,13 +59,13 @@ fun BudgetCard(
     val (badgeText, badgeContainerColor, badgeContentColor) = when {
         status.progress >= 1.0f -> Triple("Exceeded", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
         status.progress > 0.85f -> Triple("Warning", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-        else -> Triple("On Track", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+        else -> Triple("On track", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
     }
 
     val progressColor = when {
         status.progress >= 1.0f -> MaterialTheme.colorScheme.error
         status.progress > 0.85f -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.secondary
     }
 
     val rolloverColor = if (status.rolloverAmount >= 0) {
@@ -101,7 +93,7 @@ fun BudgetCard(
             defaultElevation = ExpressiveTokens.elevation.card
         ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(
@@ -140,7 +132,7 @@ fun BudgetCard(
                     Text(
                         text = status.categoryName,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
@@ -159,7 +151,7 @@ fun BudgetCard(
                     Text(
                         text = badgeText,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = badgeContentColor,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
@@ -221,7 +213,7 @@ fun BudgetCard(
                     Text(
                         text = currencyFormatter.format(status.spentAmount),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
@@ -261,14 +253,14 @@ fun BudgetCard(
                 Text(
                     text = remainingText,
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = if (status.remainingAmount < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
                     text = "${(status.progress * 100).toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.SemiBold,
                     color = progressColor
                 )
             }

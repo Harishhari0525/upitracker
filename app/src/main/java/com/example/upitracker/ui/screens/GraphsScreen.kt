@@ -50,6 +50,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
@@ -681,6 +683,9 @@ fun SimpleMonthlyExpenseBarChart(
     Canvas(
         modifier = modifier
             .padding(top = 16.dp, bottom = 8.dp)
+            .semantics {
+                contentDescription = "Monthly spending chart with ${monthlyExpenses.size} periods. Tap a bar for details."
+            }
             .pointerInput(monthlyExpenses, barRegions.size) { // Key with current data size
                 detectTapGestures { tapOffset ->
                     val currentRegions = barRegions.toList() // Work with a stable copy
@@ -824,6 +829,9 @@ fun SimpleDailyExpenseLineChart(
     Canvas(
         modifier = modifier
             .padding(top = 12.dp, end = 8.dp, bottom = 12.dp)
+            .semantics {
+                contentDescription = "Daily spending trend with ${dailyExpenses.size} points. Tap a point for details."
+            }
             .pointerInput(dailyExpenses, pointCoordinates.size) {
                 detectTapGestures { tapOffset ->
                     var newSelectedPointIndex: Int? = null
@@ -979,7 +987,7 @@ fun IncomeExpenseGroupedBarChart(
     modifier: Modifier = Modifier
 ) {
     // --- Define Colors ---
-    val incomeColor = Color(0xFF2E7D32) // Dark green for income
+    val incomeColor = MaterialTheme.colorScheme.secondary
     val expenseColor = MaterialTheme.colorScheme.error
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val selectionHighlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -1034,6 +1042,9 @@ fun IncomeExpenseGroupedBarChart(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .semantics {
+                    contentDescription = "Income and expense comparison for ${data.size} periods. Tap a group for details."
+                }
                 .pointerInput(data) {
                     detectTapGestures { tapOffset ->
                         val tappedIndex = barRegions.indexOfFirst { region -> region.contains(tapOffset.x, tapOffset.y) }

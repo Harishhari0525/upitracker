@@ -15,19 +15,6 @@ import kotlinx.coroutines.flow.map
 // If this DataStore is only for theme, "theme_settings" might be more specific.
 val Context.settingsDataStore by preferencesDataStore(name = "app_settings") // Renamed for clarity if it holds more than just theme
 
-enum class AppTheme(val displayName: String) {
-    DEFAULT("Default"),
-    FOREST("Forest"),
-    OCEAN("Ocean"),
-    ROSE("Rose"),
-    LAVENDER("Lavender"),
-    SUNSET("Sunset"),
-    MINT("Mint"),
-    MONOCHROME("Monochrome"),
-    GOLD("Gold"),
-    CYBER("Cyber")
-}
-
 enum class HomeScreenStyle(val displayName: String) {
     CURRENT_MONTH("Current Month Expenses"),
     INSIGHTS("Smart Insights Dashboard")
@@ -43,8 +30,6 @@ enum class AutoLockDelay(val displayName: String, val milliseconds: Long) {
 object ThemePreference {
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
     private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
-    private val APP_THEME_KEY = stringPreferencesKey("app_theme")
-
     private val REFUND_KEYWORD_KEY = stringPreferencesKey("refund_keyword")
 
     private val LAST_SEEN_VERSION_KEY = stringPreferencesKey("last_seen_version")
@@ -90,18 +75,6 @@ object ThemePreference {
     suspend fun setUpiLiteEnabled(context: Context, enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[UPI_LITE_ENABLED_KEY] = enabled
-        }
-    }
-
-    fun getAppThemeFlow(context: Context): Flow<AppTheme> =
-        context.settingsDataStore.data.map { prefs ->
-            // Default to AppTheme.DEFAULT if nothing is set
-            AppTheme.valueOf(prefs[APP_THEME_KEY] ?: AppTheme.DEFAULT.name)
-        }
-
-    suspend fun setAppTheme(context: Context, theme: AppTheme) {
-        context.settingsDataStore.edit { prefs ->
-            prefs[APP_THEME_KEY] = theme.name
         }
     }
 

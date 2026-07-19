@@ -5,16 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
-import com.example.upitracker.data.AppDatabase
-import com.example.upitracker.data.BudgetPeriod
-import com.example.upitracker.data.Transaction
-import com.example.upitracker.util.BankIdentifier
-import com.example.upitracker.util.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 class SmsReceiver : BroadcastReceiver() {
 

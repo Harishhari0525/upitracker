@@ -38,6 +38,7 @@ import com.example.upitracker.data.RuleLogic
 import com.example.upitracker.data.RuleMatcher
 import com.example.upitracker.util.ExpressiveTokens
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +70,7 @@ fun AddEditRuleDialog(
     var matchingCount by remember { mutableStateOf(0) }
 
     LaunchedEffect(selectedField, selectedMatcher, keyword, selectedLogic) {
-        delay(250)
+        delay(250.milliseconds)
         matchingCount = if (keyword.isBlank()) 0 else previewMatchCount(selectedField, selectedMatcher, keyword, selectedLogic)
     }
 
