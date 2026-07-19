@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.AppMotion
 import com.example.upitracker.util.expressiveHeroGradient
@@ -56,11 +58,14 @@ fun ExpressiveHeroCard(
     ) {
         Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 210.dp)
                 .background(expressiveHeroGradient())
                 .padding(
                     horizontal = ExpressiveTokens.spacing.xl,
                     vertical = ExpressiveTokens.spacing.lg
-                )
+                ),
+            contentAlignment = Alignment.BottomStart
         ) {
             Column {
                 Row(
@@ -94,8 +99,8 @@ fun ExpressiveHeroCard(
                 ) { targetAmount ->
                     Text(
                         text = targetAmount,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 }

@@ -17,6 +17,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -66,7 +67,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -125,11 +125,12 @@ fun GraphsScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             Column {
                 ExpressiveTopBar(
-                    title = "Insights",
+                    title = "Analytics",
                     subtitle = "Patterns behind your payments"
                 )
 
@@ -282,7 +283,7 @@ private fun PageContent(
     var currentlySelectedCategoryNameForPie by remember { mutableStateOf<String?>(null) }
     var selectedIncomeExpensePoint by remember { mutableStateOf<IncomeExpensePoint?>(null) }
 
-    val chartCardShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
+    val chartCardShape = ExpressiveTokens.corners.extraLarge
 
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()) }
     val lastNMonthsExpenses by mainViewModel.lastNMonthsExpenses.collectAsState()
@@ -328,7 +329,12 @@ private fun PageContent(
                         lottieResourceId = R.raw.empty_box_animation
                     )
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize(),shape = chartCardShape) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().height(300.dp).animateContentSize(),
+                        shape = chartCardShape,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f))
+                    ) {
                         SimpleDailyExpenseLineChart(
                             dailyExpenses = dailyTrendExpenses,
                             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -412,7 +418,12 @@ private fun PageContent(
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
-                        ElevatedCard(modifier = Modifier.fillMaxSize().animateContentSize(),shape = chartCardShape) {
+                        Card(
+                            modifier = Modifier.fillMaxSize().animateContentSize(),
+                            shape = chartCardShape,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f))
+                        ) {
                             SimpleMonthlyExpenseBarChart(
                                 monthlyExpenses = lastNMonthsExpenses,
                                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -537,7 +548,12 @@ private fun PageContent(
                         lottieResourceId = R.raw.empty_box_animation
                     )
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize(),shape = chartCardShape) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().height(300.dp).align(Alignment.CenterHorizontally).animateContentSize(),
+                        shape = chartCardShape,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f))
+                    ) {
                         CategorySpendingPieChart(
                             categoryExpenses = categoryData,
                             modifier = Modifier.fillMaxSize(),
@@ -609,7 +625,12 @@ private fun PageContent(
                         lottieResourceId = R.raw.empty_box_animation
                     )
                 } else {
-                    ElevatedCard(modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize(),shape = chartCardShape) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().height(350.dp).animateContentSize(),
+                        shape = chartCardShape,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f))
+                    ) {
                         // ✨ 3. PASS the selection lambda to the chart ✨
                         IncomeExpenseGroupedBarChart(
                             data = recentData,
@@ -1189,7 +1210,11 @@ private fun StatsCard(
 
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large
+        shape = ExpressiveTokens.corners.extraLarge,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
+        )
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),

@@ -39,8 +39,8 @@ data class ExpressiveCorners(
 
 @Immutable
 data class ExpressiveElevation(
-    val card: Dp = 1.dp,
-    val cardPressed: Dp = 3.dp,
+    val card: Dp = 0.dp,
+    val cardPressed: Dp = 1.dp,
     val floating: Dp = 8.dp,
     val dialog: Dp = 10.dp
 )
@@ -48,8 +48,8 @@ data class ExpressiveElevation(
 @Immutable
 data class CompactTokens(
     val screenHorizontal: Dp = 20.dp,
-    val cardHorizontal: Dp = 20.dp,
-    val cardVertical: Dp = 14.dp,
+    val cardHorizontal: Dp = 16.dp,
+    val cardVertical: Dp = 16.dp,
     val sectionGap: Dp = 14.dp,
     val itemGap: Dp = 10.dp,
     val bottomPadding: Dp = 96.dp,
@@ -72,9 +72,10 @@ object ExpressiveTokens {
 fun expressiveHeroGradient(): Brush {
     return Brush.linearGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.tertiary,
-            MaterialTheme.colorScheme.secondary
+            Color(0xFF4F46E5),
+            Color(0xFF6366F1),
+            Color(0xFF7C3AED),
+            Color(0xFF22A7C7)
         )
     )
 }
@@ -90,5 +91,5 @@ fun debitColor(): Color {
 
 @Composable
 fun creditColor(): Color {
-    return Color(0xFF087F70)
+    return MaterialTheme.colorScheme.secondary
 }

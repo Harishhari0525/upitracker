@@ -1,6 +1,7 @@
 package com.example.upitracker.ui.components.expressive
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,16 +29,9 @@ fun ExpressiveQuickActionCard(
     icon: ImageVector = Icons.Rounded.Add,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        onClick = onClick,
-        shape = ExpressiveTokens.corners.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card
-        )
+    PulseGlassCard(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = ExpressiveTokens.corners.large
     ) {
         Column(
             modifier = Modifier.padding(
@@ -52,14 +44,14 @@ fun ExpressiveQuickActionCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(ExpressiveTokens.corners.medium)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.52f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -67,14 +59,14 @@ fun ExpressiveQuickActionCard(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

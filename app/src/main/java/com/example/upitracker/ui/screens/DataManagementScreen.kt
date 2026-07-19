@@ -91,6 +91,7 @@ fun DataManagementScreen(
     var activeDialog by remember { mutableStateOf<DataDialog>(DataDialog.None) }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(

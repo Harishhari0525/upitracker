@@ -46,6 +46,7 @@ fun RulesHubScreen(
     onBack: () -> Unit
 ) {
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
@@ -71,6 +72,7 @@ fun AdvancedSmsParserScreen(
     onBack: () -> Unit
 ) {
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(

@@ -11,9 +11,9 @@ import com.example.upitracker.R
 /**
  * UPI Tracker financial type system.
  *
- * Work Sans carries the dense ledger and interface content. Poppins is reserved
- * for a small number of high-emphasis financial statements so the product no
- * longer reads like a Poppins template from top to bottom.
+ * Work Sans is used throughout as the bundled, optically close counterpart to
+ * the prototype's Inter type system. A single family keeps dense financial data
+ * calm and consistent; hierarchy comes from size, weight, and tabular numbers.
  */
 val PulseDisplay = FontFamily(
     Font(R.font.poppins_medium, FontWeight.Medium),
@@ -33,7 +33,7 @@ val Poppins = PulseDisplay
 val WorkSans = PulseText
 
 private fun display(size: Int, line: Int, weight: FontWeight = FontWeight.SemiBold) = TextStyle(
-    fontFamily = PulseDisplay,
+    fontFamily = PulseText,
     fontWeight = weight,
     fontSize = size.sp,
     lineHeight = line.sp,

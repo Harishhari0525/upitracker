@@ -3,6 +3,7 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -68,6 +69,11 @@ import com.example.upitracker.ui.components.OldPinVerificationComponent
 import com.example.upitracker.ui.components.PinSetupScreen
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.ui.components.expressive.PulseAmber
+import com.example.upitracker.ui.components.expressive.PulseCyan
+import com.example.upitracker.ui.components.expressive.PulseEmerald
+import com.example.upitracker.ui.components.expressive.PulseRose
+import com.example.upitracker.ui.components.expressive.PulseViolet
 import com.example.upitracker.util.AutoLockDelay
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.PinStorage
@@ -107,9 +113,9 @@ fun SettingsScreen(
 
     val versionName = remember {
         try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.0.22"
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "3.0.0"
         } catch (_: Exception) {
-            "2.0.22"
+            "3.0.0"
         }
     }
 
@@ -122,10 +128,11 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "More",
+                title = "Settings",
                 subtitle = "Tools, privacy, and preferences"
             )
         }
@@ -156,6 +163,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.BrightnessMedium,
                     title = "Dark Mode",
                     summary = if (isDarkMode) "Enabled" else "Disabled",
+                    iconTint = PulseViolet,
                     onClick = { mainViewModel.toggleDarkMode(!isDarkMode) }
                 ) {
                     Switch(
@@ -192,6 +200,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Notifications,
                     title = "Notifications",
                     summary = summary,
+                    iconTint = PulseRose,
                     onClick = { activeDialog = SettingsDialog.Notifications }
                 )
             }
@@ -214,6 +223,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Lock,
                     title = if (isPinSet) "Change PIN" else "Set PIN",
                     summary = if (isPinSet) "PIN protection is active" else "Secure the app with a PIN",
+                    iconTint = PulseEmerald,
                     onClick = {
                         currentPinChangeStep =
                             if (isPinSet) PinChangeStep.VERIFY_OLD else PinChangeStep.SET_NEW
@@ -227,6 +237,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Lock,
                     title = "Automatic lock",
                     summary = delay.displayName,
+                    iconTint = PulseAmber,
                     onClick = {
                         val choices = AutoLockDelay.entries
                         mainViewModel.setAutoLockDelay(choices[(choices.indexOf(delay) + 1) % choices.size])
@@ -240,6 +251,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.PrivacyTip,
                     title = "Hide widget amounts",
                     summary = "Require opening the app to see spending totals",
+                    iconTint = PulseViolet,
                     onClick = { mainViewModel.setWidgetAmountHidden(!hidden) }
                 ) {
                     Switch(checked = hidden, onCheckedChange = mainViewModel::setWidgetAmountHidden)
@@ -264,6 +276,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Storage,
                     title = "Data & Sync",
                     summary = "Manage rules, sync, backup, and export",
+                    iconTint = PulseCyan,
                     onClick = onNavigateToDataManagement
                 )
             }
@@ -286,6 +299,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.PrivacyTip,
                     title = "Privacy & Permissions",
                     summary = "How your SMS data is used",
+                    iconTint = PulseRose,
                     onClick = { activeDialog = SettingsDialog.Privacy }
                 )
             }
@@ -295,6 +309,7 @@ fun SettingsScreen(
                     icon = Icons.AutoMirrored.Filled.HelpOutline,
                     title = "About App",
                     summary = "Version $versionName",
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { activeDialog = SettingsDialog.About }
                 )
             }
@@ -465,9 +480,10 @@ fun SettingItemRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        shape = ExpressiveTokens.corners.small,
+        shape = ExpressiveTokens.corners.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card,
@@ -483,12 +499,21 @@ fun SettingItemRow(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = iconTint,
-                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium)
-            )
+            Surface(
+                modifier = Modifier.size(36.dp),
+                shape = ExpressiveTokens.corners.small,
+                color = iconTint.copy(alpha = 0.12f),
+                contentColor = iconTint
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = iconTint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
 

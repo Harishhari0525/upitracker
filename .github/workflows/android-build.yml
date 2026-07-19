@@ -11,59 +11,49 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Keep this synchronized with appVersionName in app/build.gradle.kts.
+      APP_VERSION: "3.0.0"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ✨ START: DYNAMIC INCREMENTAL VERSIONING ENGINE ✨
-      - name: Compute Dynamic Version Name
-        id: compute_version
-        run: |
-          BASE_VERSION="2.0"
-          # Combines the base version with the sequential GitHub Run Number
-          FULL_VERSION="${BASE_VERSION}.${{ github.run_number }}"
-          echo "Computed incremental version: $FULL_VERSION"
-          echo "APP_VERSION=$FULL_VERSION" >> $GITHUB_OUTPUT
-      # ✨ END: DYNAMIC INCREMENTAL VERSIONING ENGINE ✨
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
           cache: gradle
 
-      - name: Decode and Install Release Keystore
+      - name: Decode and install release keystore
         run: |
-          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > ${{ github.workspace }}/release.jks
-      
-      - name: Build Signed Release APK
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > "${{ github.workspace }}/release.jks"
+
+      - name: Build signed release APK
         run: |
           chmod +x gradlew
-          # Pass the dynamic version name into the Gradle runtime execution path dynamically
           ./gradlew assembleRelease \
-            -PversionName=${{ steps.compute_version.outputs.APP_VERSION }} \
-            -Pandroid.injected.signing.store.file=${{ github.workspace }}/release.jks \
-            -Pandroid.injected.signing.store.password=${{ secrets.RELEASE_KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.RELEASE_KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.RELEASE_KEY_PASSWORD }}
+            -Pandroid.injected.signing.store.file="${{ github.workspace }}/release.jks" \
+            -Pandroid.injected.signing.store.password="${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.RELEASE_KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.RELEASE_KEY_PASSWORD }}"
 
-      - name: Prepare Release APK
+      - name: Prepare release APK
         run: |
           mkdir -p releases
-          cp app/build/outputs/apk/release/app-release.apk "releases/UPIExpenseTracker.apk"
+          cp app/build/outputs/apk/release/app-release.apk releases/UPIExpenseTracker.apk
 
-      - name: Create GitHub Release and Upload APK
+      - name: Create GitHub release and upload APK
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.compute_version.outputs.APP_VERSION }}
-          name: Release v${{ steps.compute_version.outputs.APP_VERSION }}
+          tag_name: v${{ env.APP_VERSION }}
+          name: Release v${{ env.APP_VERSION }}
           body: |
             Automated continuous delivery release.
-            Build Sequence Track ID: #${{ github.run_number }}
-          files: "releases/UPIExpenseTracker.apk"
+            App version: ${{ env.APP_VERSION }}
+          files: releases/UPIExpenseTracker.apk
           draft: false
           prerelease: false

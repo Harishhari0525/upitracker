@@ -1,5 +1,6 @@
 package com.example.upitracker.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,10 +57,10 @@ fun BudgetCard(
 
     var showMenu by remember { mutableStateOf(false) }
 
-    val (badgeText, badgeContainerColor, badgeContentColor) = when {
-        status.progress >= 1.0f -> Triple("Exceeded", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-        status.progress > 0.85f -> Triple("Warning", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
-        else -> Triple("On track", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+    val (badgeContainerColor, badgeContentColor) = when {
+        status.progress >= 1.0f -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
+        status.progress > 0.85f -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
     }
 
     val progressColor = when {
@@ -88,12 +89,13 @@ fun BudgetCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveTokens.corners.large,
+        shape = ExpressiveTokens.corners.extraLarge,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
         ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
         )
     ) {
         Column(
@@ -109,16 +111,16 @@ fun BudgetCard(
                 Surface(
                     modifier = Modifier.size(ExpressiveTokens.compact.avatar),
                     shape = ExpressiveTokens.corners.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = progressColor.copy(alpha = 0.12f),
+                    contentColor = progressColor
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         CategoryIconView(
                             categoryIcon = categoryIcon,
                             size = ExpressiveTokens.compact.iconMedium,
-                            iconTint = MaterialTheme.colorScheme.primary,
+                            iconTint = progressColor,
                             containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.primary
+                            contentColor = progressColor
                         )
                     }
                 }
@@ -149,7 +151,7 @@ fun BudgetCard(
                     modifier = Modifier.padding(end = 4.dp)
                 ) {
                     Text(
-                        text = badgeText,
+                        text = "${(status.progress * 100).toInt()}%",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = badgeContentColor,

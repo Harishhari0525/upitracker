@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,12 +75,8 @@ fun TransactionCard(
         transaction.displayTitle()
     }
 
-    val cachedTypeLabel = remember(transaction.type) {
-        transaction.type.uppercase(Locale.getDefault())
-    }
-
     val cachedDescription = remember(transaction.description) {
-        transaction.description.trim().ifBlank { "No description" }
+        transaction.description.trim()
     }
 
     // Using standard MaterialTheme surface outline colors to avoid missing token references
@@ -87,7 +84,7 @@ fun TransactionCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = ExpressiveTokens.corners.small,
+        shape = ExpressiveTokens.corners.large,
         border = BorderStroke(
             width = 1.dp,
             color = if (isSelected) MaterialTheme.colorScheme.primary else currentBorderColor
@@ -96,7 +93,7 @@ fun TransactionCard(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLowest
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Kills shadow layout recalculations on scroll
@@ -104,9 +101,27 @@ fun TransactionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.lg), // Corrected lowercase token mapping
+                .padding(ExpressiveTokens.spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val category = transaction.category
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(categoryColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = category?.trim()?.firstOrNull()?.uppercase() ?: "•",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = categoryColor
+                )
+            }
+
+            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
@@ -116,23 +131,15 @@ fun TransactionCard(
                     horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm),
                     verticalAlignment = Alignment.Top
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = cachedDisplayTitle,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Text(
-                            text = cachedTypeLabel,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (isCredit) creditColor else MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = cachedDisplayTitle,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
                     Text(
                         text = signedAmount,
@@ -143,13 +150,15 @@ fun TransactionCard(
                     )
                 }
 
-                Text(
-                    text = cachedDescription,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (cachedDescription.isNotBlank() && cachedDescription != cachedDisplayTitle) {
+                    Text(
+                        text = cachedDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -170,11 +179,14 @@ fun TransactionCard(
                             Text(
                                 text = displayDate,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
                             )
                         }
 
-                        if (transaction.senderOrReceiver != "Manual Entry" && transaction.senderOrReceiver.isNotBlank()) {
+                        if (transaction.senderOrReceiver != "Manual Entry" &&
+                            transaction.senderOrReceiver.isNotBlank() &&
+                            transaction.senderOrReceiver != cachedDisplayTitle
+                        ) {
                             Text(
                                 text = transaction.senderOrReceiver,
                                 style = MaterialTheme.typography.bodySmall,
@@ -187,10 +199,9 @@ fun TransactionCard(
 
                     Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
 
-                    val category = transaction.category
                     if (!category.isNullOrBlank()) {
                         Text(
-                            text = category.uppercase(),
+                            text = category,
                             modifier = Modifier
                                 .clip(ExpressiveTokens.corners.small)
                                 .background(categoryColor.copy(alpha = 0.10f))

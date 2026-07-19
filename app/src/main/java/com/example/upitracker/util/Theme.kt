@@ -17,11 +17,11 @@ import androidx.compose.ui.unit.dp
 import com.example.upitracker.viewmodel.MainViewModel
 
 val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 // UPI Tracker's blue identity is deliberately stable across devices. Financial hierarchy and
@@ -29,8 +29,8 @@ val AppShapes = Shapes(
 private val PaymentPulseLightColorScheme = lightColorScheme(
     primary = Color(0xFF4F46E5),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = Color(0xFF1E3A8A),
+    primaryContainer = Color(0xFFE8E7FF),
+    onPrimaryContainer = Color(0xFF312E81),
     secondary = Color(0xFF059669),
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFD1FAE5),
@@ -47,21 +47,21 @@ private val PaymentPulseLightColorScheme = lightColorScheme(
     onBackground = Color(0xFF0F172A),
     surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF0F172A),
-    surfaceVariant = Color(0xFFEFF2F7),
+    surfaceVariant = Color(0xFFF4F6FB),
     onSurfaceVariant = Color(0xFF475569),
-    outline = Color(0xFFE2E8F0),
-    outlineVariant = Color(0xFFCBD5E1),
+    outline = Color(0x1A0F172A),
+    outlineVariant = Color(0x0F0F172A),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF8FAFD),
-    surfaceContainer = Color(0xFFEFF2F7),
-    surfaceContainerHigh = Color(0xFFE2E8F0),
-    surfaceContainerHighest = Color(0xFFCBD5E1)
+    surfaceContainerLow = Color(0xFFF9FAFD),
+    surfaceContainer = Color(0xFFF2F4F9),
+    surfaceContainerHigh = Color(0xFFE9ECF4),
+    surfaceContainerHighest = Color(0xFFDDE2ED)
 )
 
 private val PaymentPulseDarkColorScheme = darkColorScheme(
     primary = Color(0xFF818CF8),
-    onPrimary = Color(0xFF0F172A),
-    primaryContainer = Color(0xFF1E2A4A),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF20204A),
     onPrimaryContainer = Color(0xFFF1F5F9),
     secondary = Color(0xFF34D399),
     onSecondary = Color(0xFF064E3B),
@@ -80,14 +80,14 @@ private val PaymentPulseDarkColorScheme = darkColorScheme(
     surface = Color(0xFF000000),
     onSurface = Color(0xFFF1F5F9),
     surfaceVariant = Color(0xFF0A0A0F),
-    onSurfaceVariant = Color(0xFF98A2B3),
-    outline = Color(0xFF1F2937),
-    outlineVariant = Color(0xFF111827),
+    onSurfaceVariant = Color(0x9996A0B2),
+    outline = Color(0x1FFFFFFF),
+    outlineVariant = Color(0x14FFFFFF),
     surfaceContainerLowest = Color.Black,
     surfaceContainerLow = Color(0xFF0A0A0F),
-    surfaceContainer = Color(0xFF0D1220),
-    surfaceContainerHigh = Color(0xFF151922),
-    surfaceContainerHighest = Color(0xFF1D222C)
+    surfaceContainer = Color(0xFF0D0D14),
+    surfaceContainerHigh = Color(0xFF14141E),
+    surfaceContainerHighest = Color(0xFF1B1B27)
 )
 
 @Composable

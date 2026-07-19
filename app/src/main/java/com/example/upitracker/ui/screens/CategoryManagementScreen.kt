@@ -72,6 +72,7 @@ fun CategoryManagementScreen(
     val isScrollingUp = listState.isScrollingUp()
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(

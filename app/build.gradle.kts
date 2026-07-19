@@ -9,12 +9,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.10"
 }
 
-val resolvedVersionName = (project.findProperty("versionName") as? String) ?: "2.0.32"
-val semanticParts = resolvedVersionName.split('.').map { it.toIntOrNull() ?: 0 }
-val calculatedVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull()
-    ?: ((semanticParts.getOrElse(0) { 0 } * 1_000_000) +
-        (semanticParts.getOrElse(1) { 0 } * 1_000) +
-        semanticParts.getOrElse(2) { 0 })
+// App release version is intentionally manual. Update these values for each release.
+val appVersionName = "3.0.0"
+val appVersionCode = 3_000_000
 
 fun releaseSecret(name: String): String? =
     providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
@@ -58,8 +55,8 @@ android {
         applicationId = "com.example.upitracker"
         minSdk = 33
         targetSdk = 37
-        versionCode = calculatedVersionCode
-        versionName = resolvedVersionName
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

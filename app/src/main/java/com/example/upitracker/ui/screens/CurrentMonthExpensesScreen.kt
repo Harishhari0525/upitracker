@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,16 +27,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -172,13 +174,20 @@ fun CurrentMonthExpensesScreen(
     ) {
         Scaffold(
             modifier = modifier,
+            containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0),
             topBar = {
                 ExpressiveTopBar(
                     title = "Today",
                     subtitle = "Your money, as it moves",
                     actions = {
-                        TextButton(onClick = onViewInsightsClick) {
+                        TextButton(
+                            onClick = onViewInsightsClick,
+                            shape = ExpressiveTokens.corners.extraLarge,
+                            colors = ButtonDefaults.textButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
+                            )
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                 contentDescription = "Insights",
@@ -275,8 +284,6 @@ fun CurrentMonthExpensesScreen(
                                 totalSpent = currentMonthExpensesTotal
                             )
                             
-                            BankBalancesSection(balances = latestBankBalances)
-
                             if (velocityState.totalBudget > 0) {
                                 SpendingVelocityCard(
                                     totalBudget = velocityState.totalBudget,
@@ -284,6 +291,8 @@ fun CurrentMonthExpensesScreen(
                                     daysRemaining = velocityState.daysRemaining
                                 )
                             }
+
+                            BankBalancesSection(balances = latestBankBalances)
 
                             UpcomingPaymentsSection(rules = recurringRules)
 
@@ -633,8 +642,9 @@ private fun MonthlyStatCard(
     Card(
         modifier = modifier,
         shape = ExpressiveTokens.corners.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
@@ -646,12 +656,20 @@ private fun MonthlyStatCard(
                 vertical = ExpressiveTokens.spacing.md
             )
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(ExpressiveTokens.corners.small)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
 
@@ -1011,86 +1029,81 @@ private fun BankBalancesSection(balances: List<com.example.upitracker.data.Trans
                     }
                 }
             } else {
-                val totalBalance = remember(balances) { balances.sumOf { it.latestBalance } }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveTokens.corners.large,
+                    shape = ExpressiveTokens.corners.extraLarge,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
                     )
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.md),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.AccountBalanceWallet,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        balances.forEachIndexed { index, balance ->
+                            if (index > 0) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(ExpressiveTokens.corners.medium)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = balance.bankName.firstOrNull()?.uppercase() ?: "B",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+                                    Text(
+                                        text = balance.bankName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = currencyFormatter.format(balance.latestBalance),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        val totalBalance = remember(balances) { balances.sumOf { it.latestBalance } }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "Total Balance",
+                                text = "Total balance",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = currencyFormatter.format(totalBalance),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        
-                        Text(
-                            text = currencyFormatter.format(totalBalance),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-            balances.forEach { balance ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveTokens.corners.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = ExpressiveTokens.spacing.lg, vertical = ExpressiveTokens.spacing.md),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.AccountBalanceWallet,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
-                            Text(
-                                text = balance.bankName,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        
-                        Text(
-                            text = currencyFormatter.format(balance.latestBalance),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
                 }
             }
-        }
         }
     }
 }

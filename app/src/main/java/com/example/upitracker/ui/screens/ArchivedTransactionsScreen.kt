@@ -52,6 +52,7 @@ fun ArchivedTransactionsScreen(
     val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(

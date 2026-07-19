@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.example.upitracker.util.ExpressiveTokens
 
 @Composable
@@ -34,7 +35,7 @@ fun ExpressiveTopBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.background,
+        color = Color.Transparent,
         tonalElevation = 0.dp
     ) {
         Column {
@@ -43,9 +44,9 @@ fun ExpressiveTopBar(
                   .fillMaxWidth()
                   .padding(
                       start = ExpressiveTokens.compact.screenHorizontal,
-                      top = ExpressiveTokens.spacing.md,
+                      top = ExpressiveTokens.spacing.sm,
                       end = ExpressiveTokens.compact.screenHorizontal,
-                      bottom = ExpressiveTokens.spacing.md
+                      bottom = ExpressiveTokens.spacing.sm
                   ),
               verticalAlignment = Alignment.CenterVertically
           ) {
@@ -54,6 +55,7 @@ fun ExpressiveTopBar(
                     onClick = onBackClick,
                     modifier = Modifier.size(48.dp),
                     colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.86f),
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
@@ -72,8 +74,8 @@ fun ExpressiveTopBar(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 

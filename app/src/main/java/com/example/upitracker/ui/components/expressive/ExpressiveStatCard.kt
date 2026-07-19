@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,15 +29,9 @@ fun ExpressiveStatCard(
     subtitle: String? = null,
     icon: ImageVector = Icons.AutoMirrored.Rounded.TrendingUp
 ) {
-    Card(
+    PulseGlassCard(
         modifier = modifier,
-        shape = ExpressiveTokens.corners.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card
-        )
+        shape = ExpressiveTokens.corners.large
     ) {
         Row(
             modifier = Modifier.padding(

@@ -3,6 +3,7 @@
 package com.example.upitracker.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
@@ -29,6 +31,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -43,6 +46,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.data.RecurringRule
@@ -53,6 +58,7 @@ import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.RecurringRuleCard
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.CurrencyUtils
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.viewmodel.BudgetStatus
 import com.example.upitracker.viewmodel.MainViewModel
@@ -197,10 +203,11 @@ fun BudgetScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Plan",
+                title = "Budgets",
                 subtitle = if (pagerState.currentPage == 0) {
                     "Control category-wise spending limits"
                 } else {
@@ -352,6 +359,10 @@ private fun BudgetList(
             ),
             verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
         ) {
+            item {
+                BudgetOverviewCard(budgetStatuses)
+            }
+
             items(
                 items = budgetStatuses,
                 key = { it.budgetId }
@@ -371,6 +382,62 @@ private fun BudgetList(
                     categoryIcon = categoryIcon
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BudgetOverviewCard(statuses: List<BudgetStatus>) {
+    val formatter = remember { CurrencyUtils.getRupeeFormatter() }
+    val totalBudget = remember(statuses) { statuses.sumOf { it.effectiveBudget } }
+    val totalSpent = remember(statuses) { statuses.sumOf { it.spentAmount } }
+    val progress = remember(totalBudget, totalSpent) {
+        if (totalBudget > 0.0) (totalSpent / totalBudget).toFloat() else 0f
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.extraLarge,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Total budget used",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = formatter.format(totalSpent),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "of ${formatter.format(totalBudget)} across ${statuses.size} budgets",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LinearProgressIndicator(
+                progress = { progress.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape),
+                color = when {
+                    progress >= 1f -> MaterialTheme.colorScheme.error
+                    progress > 0.85f -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.primary
+                },
+                trackColor = MaterialTheme.colorScheme.outlineVariant
+            )
         }
     }
 }

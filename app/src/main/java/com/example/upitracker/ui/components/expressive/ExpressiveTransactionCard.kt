@@ -1,5 +1,8 @@
 package com.example.upitracker.ui.components.expressive
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,16 +14,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.creditColor
 import com.example.upitracker.util.debitColor
@@ -41,17 +44,11 @@ fun ExpressiveTransactionCard(
     val amountColor = if (isCredit) creditColor() else debitColor()
     val icon = if (isCredit) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        onClick = onClick,
-        shape = ExpressiveTokens.corners.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card,
-            pressedElevation = ExpressiveTokens.elevation.cardPressed
-        )
+    PulseGlassCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = ExpressiveTokens.corners.large
     ) {
         Row(
             modifier = Modifier
@@ -62,12 +59,20 @@ fun ExpressiveTransactionCard(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
-                tint = amountColor
-            )
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(ExpressiveTokens.corners.medium)
+                    .background(amountColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(ExpressiveTokens.compact.iconMedium),
+                    tint = amountColor
+                )
+            }
 
             Spacer(modifier = Modifier.width(ExpressiveTokens.compact.itemGap))
 

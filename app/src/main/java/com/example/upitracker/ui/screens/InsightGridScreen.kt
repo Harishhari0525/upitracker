@@ -108,6 +108,7 @@ fun InsightGridScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(

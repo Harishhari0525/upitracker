@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -17,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -29,6 +32,7 @@ import com.example.upitracker.util.expressivePopEnter
 import com.example.upitracker.util.expressivePopExit
 import com.example.upitracker.util.expressiveSlideIn
 import com.example.upitracker.util.expressiveSlideOut
+import com.example.upitracker.ui.components.expressive.PulseAmbientBackground
 import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,16 +58,23 @@ fun MainNavHost(
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = bottomNavItems.any { it.route == currentRoute }
 
+    PulseAmbientBackground(modifier = modifier) {
     Scaffold(
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(26.dp)),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    tonalElevation = 8.dp
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant,
+                            RoundedCornerShape(28.dp)
+                        )
+                        .clip(RoundedCornerShape(28.dp)),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.96f),
+                    tonalElevation = 0.dp
                 ) {
                     bottomNavItems.forEach { screen ->
                         val isSelected = currentRoute == screen.route
@@ -80,15 +91,14 @@ fun MainNavHost(
                                     rootNavController.navigate(screen.route) {
                                         popUpTo(rootNavController.graph.findStartDestination().id) { saveState = true }
                                         launchSingleTop = true
-                                        restoreState = true
                                         restoreState = screen.route != BottomNavItem.History.route
                                     }
                                 }
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
                                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -99,8 +109,12 @@ fun MainNavHost(
         },
         floatingActionButton = {
             if (currentRoute == BottomNavItem.History.route) {
-                FloatingActionButton(onClick = onShowAddTransactionDialog,
-                    shape = RoundedCornerShape(16.dp) ) {
+                FloatingActionButton(
+                    onClick = onShowAddTransactionDialog,
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                ) {
                     Icon(Icons.Filled.Add, "Add new transaction")
                 }
             }
@@ -245,5 +259,6 @@ fun MainNavHost(
                 )
             }
         }
+    }
     }
 }

@@ -95,6 +95,7 @@ fun TransactionHistoryScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             AnimatedContent(
@@ -113,8 +114,8 @@ fun TransactionHistoryScreen(
                     )
                 } else {
                     ExpressiveTopBar(
-                        title = "Activity",
-                        subtitle = "Every payment in one place"
+                        title = "History",
+                        subtitle = "All transactions"
                     )
                 }
             }
@@ -229,10 +230,10 @@ fun TransactionHistoryScreen(
                                 bottom = ExpressiveTokens.spacing.sm
                             ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     )
 
@@ -452,7 +453,15 @@ private fun UpiTransactionsList(
                             selected = selectedUpiFilterType == filterType,
                             onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
                             label = { Text(filterLabelText) },
-                            leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null
+                            leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null,
+                            shape = ExpressiveTokens.corners.extraLarge,
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White
+                            )
                         )
                     }
                 }
