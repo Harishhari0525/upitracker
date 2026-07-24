@@ -2,6 +2,7 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Category
@@ -22,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,6 +42,7 @@ import com.example.upitracker.ui.components.expressive.ExpressiveHeroCard
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveStatCard
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.ui.components.expressive.PulseGlassCard
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.TransactionHistoryItem
@@ -216,16 +220,13 @@ private fun MonthChangeCard(
     monthChangePercent: Int,
     currencyFormatter: NumberFormat
 ) {
-    Card(
-        shape = ExpressiveTokens.corners.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
+    PulseGlassCard(
+        shape = ExpressiveTokens.corners.extraLarge,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -234,7 +235,7 @@ private fun MonthChangeCard(
             ) {
                 Column {
                     Text(
-                        text = "Last month",
+                        text = "Last month total",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -246,19 +247,28 @@ private fun MonthChangeCard(
                 }
 
                 val isIncrease = monthChangePercent > 0
-                val changeColor = if (isIncrease) MaterialTheme.colorScheme.error else Color(0xFF16A34A)
-                Text(
-                    text = if (previousMonthTotal <= 0) {
-                        "New"
-                    } else if (isIncrease) {
-                        "+$monthChangePercent%"
-                    } else {
-                        "$monthChangePercent%"
-                    },
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = changeColor
-                )
+                val changeColor = if (isIncrease) Color(0xFFFB7185) else Color(0xFF34D399)
+                val badgeBg = changeColor.copy(alpha = 0.16f)
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = badgeBg,
+                    border = BorderStroke(1.dp, changeColor.copy(alpha = 0.40f))
+                ) {
+                    Text(
+                        text = if (previousMonthTotal <= 0) {
+                            "Baseline"
+                        } else if (isIncrease) {
+                            "+$monthChangePercent%"
+                        } else {
+                            "$monthChangePercent%"
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = changeColor
+                    )
+                }
             }
 
             Text(

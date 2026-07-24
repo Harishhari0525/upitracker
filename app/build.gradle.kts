@@ -17,16 +17,16 @@ fun releaseSecret(name: String): String? =
     providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
         ?: providers.environmentVariable(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
 
-val releaseStorePath = releaseSecret("UPITRACKER_STORE_FILE")
+val releaseStorePath: String? = releaseSecret("UPITRACKER_STORE_FILE")
     ?: (project.findProperty("android.injected.signing.store.file") as? String)
     ?: System.getProperty("android.injected.signing.store.file")
-val releaseStorePassword = releaseSecret("UPITRACKER_STORE_PASSWORD")
+val releaseStorePassword: String? = releaseSecret("UPITRACKER_STORE_PASSWORD")
     ?: (project.findProperty("android.injected.signing.store.password") as? String)
     ?: System.getProperty("android.injected.signing.store.password")
-val releaseKeyAlias = releaseSecret("UPITRACKER_KEY_ALIAS")
+val releaseKeyAlias: String? = releaseSecret("UPITRACKER_KEY_ALIAS")
     ?: (project.findProperty("android.injected.signing.key.alias") as? String)
     ?: System.getProperty("android.injected.signing.key.alias")
-val releaseKeyPassword = releaseSecret("UPITRACKER_KEY_PASSWORD")
+val releaseKeyPassword: String? = releaseSecret("UPITRACKER_KEY_PASSWORD")
     ?: (project.findProperty("android.injected.signing.key.password") as? String)
     ?: System.getProperty("android.injected.signing.key.password")
 val releaseStoreFile = releaseStorePath?.let { file(it) }

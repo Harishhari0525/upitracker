@@ -58,21 +58,21 @@ fun BudgetCard(
     var showMenu by remember { mutableStateOf(false) }
 
     val (badgeContainerColor, badgeContentColor) = when {
-        status.progress >= 1.0f -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
-        status.progress > 0.85f -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
+        status.progress >= 1.0f -> Color(0xFFFB7185).copy(alpha = 0.20f) to Color(0xFFFB7185)
+        status.progress > 0.80f -> Color(0xFFFBBF24).copy(alpha = 0.20f) to Color(0xFFFBBF24)
+        else -> Color(0xFF34D399).copy(alpha = 0.20f) to Color(0xFF34D399)
     }
 
     val progressColor = when {
-        status.progress >= 1.0f -> MaterialTheme.colorScheme.error
-        status.progress > 0.85f -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.secondary
+        status.progress >= 1.0f -> Color(0xFFFB7185)
+        status.progress > 0.80f -> Color(0xFFFBBF24)
+        else -> Color(0xFF34D399)
     }
 
     val rolloverColor = if (status.rolloverAmount >= 0) {
-        MaterialTheme.colorScheme.tertiary
+        Color(0xFF34D399)
     } else {
-        MaterialTheme.colorScheme.error
+        Color(0xFFFB7185)
     }
 
     val remainingText = if (status.remainingAmount >= 0) {
@@ -90,7 +90,10 @@ fun BudgetCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ExpressiveTokens.corners.extraLarge,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(
+            1.dp,
+            if (status.progress >= 1.0f) Color(0xFFFB7185).copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = ExpressiveTokens.elevation.card
         ),

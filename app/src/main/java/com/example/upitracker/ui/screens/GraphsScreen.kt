@@ -3,43 +3,85 @@
 
 package com.example.upitracker.ui.screens
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Paint
-import androidx.compose.animation.ExperimentalAnimationApi
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
-import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
-import com.example.upitracker.util.ExpressiveTokens
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.runtime.*
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect as ComposeRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -48,7 +90,9 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -60,25 +104,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.app.Activity
-import android.content.pm.ActivityInfo
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Functions
-import androidx.compose.material.icons.filled.Summarize
-import androidx.compose.material.icons.filled.UnfoldMore
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.upitracker.R
@@ -86,13 +111,14 @@ import com.example.upitracker.ui.components.CategoryLegend
 import com.example.upitracker.ui.components.CategorySpendingPieChart
 import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.viewmodel.CategoryExpense
+import com.example.upitracker.viewmodel.DailyExpensePoint
+import com.example.upitracker.viewmodel.GraphPeriod
+import com.example.upitracker.viewmodel.IncomeExpensePoint
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.MonthlyExpense
-import com.example.upitracker.viewmodel.GraphPeriod
-import com.example.upitracker.viewmodel.DailyExpensePoint
-import com.example.upitracker.viewmodel.CategoryExpense
-import com.example.upitracker.viewmodel.IncomeExpensePoint
-import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.floor
@@ -100,6 +126,7 @@ import kotlin.math.hypot
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import androidx.compose.ui.geometry.Rect as ComposeRect
 
 // Helper extension functions
 fun TextUnit.toPx(density: Density): Float = with(density) { this@toPx.toPx() }
@@ -119,9 +146,6 @@ fun GraphsScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedGraph by remember { mutableStateOf(GraphType.DAILY_TREND) }
-    val sheetState = rememberModalBottomSheetState()
-    var showSheet by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier,
@@ -134,52 +158,53 @@ fun GraphsScreen(
                     subtitle = "Patterns behind your payments"
                 )
 
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(
-                            start = ExpressiveTokens.spacing.lg,
-                            end = ExpressiveTokens.spacing.lg,
-                            top = ExpressiveTokens.spacing.xs,
-                            bottom = ExpressiveTokens.spacing.md
-                        ),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        onClick = { showSheet = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(
-                                start = ExpressiveTokens.spacing.lg,
-                                end = ExpressiveTokens.spacing.md,
-                                top = ExpressiveTokens.spacing.sm,
-                                bottom = ExpressiveTokens.spacing.sm
-                            ),
-                            verticalAlignment = Alignment.CenterVertically
+                    GraphType.entries.forEach { graphType ->
+                        val isSelected = graphType == selectedGraph
+                        val chipBgColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f)
+                        }
+                        val chipContentColor = if (isSelected) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        Surface(
+                            onClick = { selectedGraph = graphType },
+                            shape = RoundedCornerShape(16.dp),
+                            color = chipBgColor,
+                            contentColor = chipContentColor,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.60f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
                         ) {
-                            Icon(
-                                imageVector = selectedGraph.icon,
-                                contentDescription = null
-                            )
-
-                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
-
-                            Text(
-                                text = stringResource(selectedGraph.titleRes),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
-
-                            Icon(
-                                imageVector = Icons.Default.UnfoldMore,
-                                contentDescription = "Select Graph"
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = graphType.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = stringResource(graphType.titleRes),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -203,70 +228,6 @@ fun GraphsScreen(
                 pageIndex = targetGraph.ordinal,
                 mainViewModel = mainViewModel
             )
-        }
-    }
-
-    if (showSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
-            sheetState = sheetState
-        ) {
-            Column(
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = ExpressiveTokens.spacing.md)
-            ) {
-                Text(
-                    text = "Select a Graph",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(
-                        horizontal = ExpressiveTokens.spacing.lg,
-                        vertical = ExpressiveTokens.spacing.md
-                    )
-                )
-
-                HorizontalDivider()
-
-                GraphType.entries.forEach { graphType ->
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                text = stringResource(graphType.titleRes),
-                                fontWeight = if (graphType == selectedGraph) {
-                                    FontWeight.Bold
-                                } else {
-                                    FontWeight.Normal
-                                }
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                imageVector = graphType.icon,
-                                contentDescription = null
-                            )
-                        },
-                        trailingContent = {
-                            if (graphType == selectedGraph) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Selected"
-                                )
-                            }
-                        },
-                        modifier = Modifier.clickable {
-                            selectedGraph = graphType
-                            coroutineScope.launch {
-                                sheetState.hide()
-                            }.invokeOnCompletion {
-                                if (!sheetState.isVisible) {
-                                    showSheet = false
-                                }
-                            }
-                        }
-                    )
-                }
-            }
         }
     }
 }
