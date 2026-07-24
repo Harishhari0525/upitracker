@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Category
@@ -20,6 +19,7 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.data.Transaction
 import com.example.upitracker.ui.components.expressive.ExpressiveEmptyState
@@ -38,7 +39,6 @@ import com.example.upitracker.ui.components.expressive.ExpressiveHeroCard
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveStatCard
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
-import com.example.upitracker.ui.components.expressive.ExpressiveTransactionCard
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.MainViewModel
 import com.example.upitracker.viewmodel.TransactionHistoryItem
@@ -105,6 +105,10 @@ fun InsightGridScreen(
         } else {
             0
         }
+    }
+
+    val spendingPattern = remember(debitTransactions) {
+        calculateSpendingPattern(debitTransactions)
     }
 
     Scaffold(
@@ -181,37 +185,24 @@ fun InsightGridScreen(
 
             item {
                 ExpressiveSectionHeader(
-                    title = "Recent activity",
-                    subtitle = if (transactions.isEmpty()) "No recent entries recorded" else "Latest transactions",
-                    actionText = if (transactions.isNotEmpty()) "View all" else null,
-                    onActionClick = if (transactions.isNotEmpty()) onNavigateToHistory else null
+                    title = "Spending pattern",
+                    subtitle = "Useful signals from this month's debits"
                 )
             }
 
-            if (transactions.isEmpty()) {
+            if (debitTransactions.isEmpty()) {
                 item {
                     ExpressiveEmptyState(
-                        title = "No transactions found",
-                        message = "Sync SMS or add transactions manually to generate insights.",
+                        title = "No expense pattern yet",
+                        message = "Debit transactions will reveal your largest payment, average and peak day.",
                         icon = Icons.AutoMirrored.Rounded.ReceiptLong
                     )
                 }
             } else {
-                items(
-                    items = transactions.take(3),
-                    key = { "simple-insight-txn-${it.id}" }
-                ) { transaction ->
-                    ExpressiveTransactionCard(
-                        title = transaction.displayTitle(),
-                        amount = transaction.formattedAmount(currencyFormatter),
-                        type = transaction.type,
-                        dateText = transaction.formattedDate(),
-                        category = transaction.category ?: "Uncategorized",
-                        bankName = transaction.bankName,
-                        note = transaction.note.takeIf { it.isNotBlank() },
-                        onClick = {
-                            mainViewModel.selectTransaction(transaction.id)
-                        }
+                item {
+                    SpendingPatternCard(
+                        pattern = spendingPattern,
+                        currencyFormatter = currencyFormatter
                     )
                 }
             }
@@ -364,6 +355,129 @@ private fun AttentionSignals(
     }
 }
 
+private data class SpendingPattern(
+    val largestPayment: Transaction?,
+    val averagePayment: Double,
+    val debitCount: Int,
+    val peakDayTimestamp: Long?,
+    val peakDayTotal: Double
+)
+
+private fun calculateSpendingPattern(debits: List<Transaction>): SpendingPattern {
+    if (debits.isEmpty()) return SpendingPattern(null, 0.0, 0, null, 0.0)
+
+    val spendingByDay = debits.groupBy { transaction ->
+        Calendar.getInstance().apply {
+            timeInMillis = transaction.date
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val peakDay = spendingByDay.maxByOrNull { (_, transactions) ->
+        transactions.sumOf { it.amount }
+    }
+
+    return SpendingPattern(
+        largestPayment = debits.maxByOrNull { it.amount },
+        averagePayment = debits.sumOf { it.amount } / debits.size,
+        debitCount = debits.size,
+        peakDayTimestamp = peakDay?.key,
+        peakDayTotal = peakDay?.value?.sumOf { it.amount } ?: 0.0
+    )
+}
+
+@Composable
+private fun SpendingPatternCard(
+    pattern: SpendingPattern,
+    currencyFormatter: NumberFormat
+) {
+    val dayFormatter = remember {
+        SimpleDateFormat("EEEE, dd MMM", Locale.getDefault())
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            pattern.largestPayment?.let { largest ->
+                PatternMetricRow(
+                    label = "Largest payment",
+                    value = currencyFormatter.format(largest.amount),
+                    supportingText = largest.displayTitle()
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            PatternMetricRow(
+                label = "Average payment",
+                value = currencyFormatter.format(pattern.averagePayment),
+                supportingText = "Across ${pattern.debitCount} debit ${
+                    if (pattern.debitCount == 1) "transaction" else "transactions"
+                }"
+            )
+
+            pattern.peakDayTimestamp?.let { timestamp ->
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                PatternMetricRow(
+                    label = "Highest-spend day",
+                    value = currencyFormatter.format(pattern.peakDayTotal),
+                    supportingText = dayFormatter.format(Date(timestamp))
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatternMetricRow(
+    label: String,
+    value: String,
+    supportingText: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = value,
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
 private data class InsightDiagnostics(
     val paceStatusTitle: String,
     val paceStatusSubtitle: String,
@@ -431,13 +545,4 @@ private fun String.isDisplayablePartyName(): Boolean {
             lower.contains(" has been ") ||
             lower.contains(" available ")
     )
-}
-
-private fun Transaction.formattedAmount(formatter: NumberFormat): String {
-    val prefix = if (type.equals("CREDIT", ignoreCase = true)) "+" else "-"
-    return "$prefix${formatter.format(amount)}"
-}
-
-private fun Transaction.formattedDate(): String {
-    return SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(date))
 }

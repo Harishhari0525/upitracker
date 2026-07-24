@@ -31,6 +31,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -78,6 +80,8 @@ fun TransactionHistoryScreen(
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showCategorizeDialog by remember { mutableStateOf(false) }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
 
     val filters by mainViewModel.filters.collectAsState()
     val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
@@ -85,6 +89,10 @@ fun TransactionHistoryScreen(
 
     // ✨ Streams real-time progress calculations directly into the layout tree
     val syncProgress by mainViewModel.smsSyncProgress.collectAsState()
+
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) searchFocusRequester.requestFocus()
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -115,7 +123,36 @@ fun TransactionHistoryScreen(
                 } else {
                     ExpressiveTopBar(
                         title = "History",
-                        subtitle = "All transactions"
+                        subtitle = "All transactions",
+                        actions = {
+                            if (pagerState.currentPage == 0) {
+                                IconButton(
+                                    onClick = {
+                                        if (isSearchExpanded) {
+                                            mainViewModel.setSearchQuery("")
+                                        }
+                                        isSearchExpanded = !isSearchExpanded
+                                    },
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        containerColor = if (isSearchExpanded) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.86f)
+                                        },
+                                        contentColor = if (isSearchExpanded) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        }
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                                        contentDescription = if (isSearchExpanded) "Close search" else "Search transactions"
+                                    )
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -196,46 +233,53 @@ fun TransactionHistoryScreen(
                 exit = shrinkVertically() + fadeOut()
             ) {
                 Column {
-                    OutlinedTextField(
-                        value = filters.searchQuery,
-                        onValueChange = { mainViewModel.setSearchQuery(it) },
-                        placeholder = {
-                            Text(text = stringResource(R.string.search_hint))
-                        },
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search"
-                            )
-                        },
-                        trailingIcon = {
-                            if (filters.searchQuery.isNotBlank()) {
-                                IconButton(
-                                    onClick = { mainViewModel.setSearchQuery("") }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear search"
-                                    )
+                    AnimatedVisibility(
+                        visible = isSearchExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        OutlinedTextField(
+                            value = filters.searchQuery,
+                            onValueChange = { mainViewModel.setSearchQuery(it) },
+                            placeholder = {
+                                Text(text = stringResource(R.string.search_hint))
+                            },
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null
+                                )
+                            },
+                            trailingIcon = {
+                                if (filters.searchQuery.isNotBlank()) {
+                                    IconButton(
+                                        onClick = { mainViewModel.setSearchQuery("") }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear search"
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        shape = RoundedCornerShape(ExpressiveTokens.corners.extraLarge.topStart),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = ExpressiveTokens.spacing.lg,
-                                end = ExpressiveTokens.spacing.lg,
-                                bottom = ExpressiveTokens.spacing.sm
-                            ),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            },
+                            shape = ExpressiveTokens.corners.extraLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(searchFocusRequester)
+                                .padding(
+                                    start = ExpressiveTokens.spacing.lg,
+                                    end = ExpressiveTokens.spacing.lg,
+                                    bottom = ExpressiveTokens.spacing.sm
+                                ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            )
                         )
-                    )
+                    }
 
                     ActiveFiltersRow(
                         filters = filters,
@@ -439,8 +483,8 @@ private fun UpiTransactionsList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpiTransactionTypeFilter.entries.forEach { filterType ->
@@ -452,8 +496,13 @@ private fun UpiTransactionsList(
                             modifier = Modifier.weight(1f),
                             selected = selectedUpiFilterType == filterType,
                             onClick = { mainViewModel.setUpiTransactionTypeFilter(filterType) },
-                            label = { Text(filterLabelText) },
-                            leadingIcon = if (selectedUpiFilterType == filterType) { { Icon(Icons.Filled.Check, null) } } else null,
+                            label = {
+                                Text(
+                                    text = filterLabelText,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1
+                                )
+                            },
                             shape = ExpressiveTokens.corners.extraLarge,
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
@@ -464,19 +513,41 @@ private fun UpiTransactionsList(
                             )
                         )
                     }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { mainViewModel.enterSelectionMode() }) {
-                        Icon(Icons.Default.Checklist, contentDescription = "Enter Selection Mode")
+                    IconButton(
+                        onClick = { mainViewModel.enterSelectionMode() },
+                        modifier = Modifier.size(44.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Checklist,
+                            contentDescription = "Select multiple transactions",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-                    IconButton(onClick = { mainViewModel.onFilterClick() }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Show Filters")
+                    IconButton(
+                        onClick = { mainViewModel.onFilterClick() },
+                        modifier = Modifier.size(44.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = if (hasDetailedFilters) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f)
+                            },
+                            contentColor = if (hasDetailedFilters) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.DateRange,
+                            contentDescription = "Date range and filters",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
                 SortControls(
@@ -497,7 +568,12 @@ private fun UpiTransactionsList(
             )
         }
 
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
             val refreshError = pagedTransactions.loadState.refresh as? LoadState.Error
             if (refreshError != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {

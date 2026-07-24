@@ -7,7 +7,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -105,20 +104,11 @@ fun TransactionCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val category = transaction.category
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(ExpressiveTokens.corners.medium)
-                    .background(categoryColor.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = category?.trim()?.firstOrNull()?.uppercase() ?: "•",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = categoryColor
-                )
-            }
+            BankIcon(
+                bankName = transaction.bankName,
+                fallbackLabel = category,
+                fallbackColor = categoryColor
+            )
 
             Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
 
