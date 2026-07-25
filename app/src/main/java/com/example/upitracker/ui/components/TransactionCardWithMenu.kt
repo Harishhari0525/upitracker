@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -83,6 +84,26 @@ fun TransactionCardWithMenu(
                 y = (-48).dp
             )
         ) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Link / Details",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onShowDetails()
+                    showMenu = false
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "Link Transaction"
+                    )
+                }
+            )
+
             DropdownMenuItem(
                 text = {
                     Text(

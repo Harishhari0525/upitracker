@@ -2,9 +2,13 @@
 
 package com.example.upitracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,10 +17,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -95,8 +110,8 @@ fun DataManagementScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             ExpressiveTopBar(
-                title = "Backup & data",
-                subtitle = "Import, protect, and export your ledger",
+                title = "Data & Sync",
+                subtitle = "Import, backup, protect, and sync your financial ledger",
                 showBackButton = true,
                 onBackClick = onBack
             )
@@ -117,8 +132,79 @@ fun DataManagementScreen(
             item {
                 ExpressiveSectionHeader(
                     title = "Manage",
-                    subtitle = "Control categories, rules, archive, and refund behavior"
+                    subtitle = "Control categories, rules, theme, and refund behavior"
                 )
+            }
+
+            item {
+                val currentPalette by mainViewModel.themePalette.collectAsState()
+                val isDarkMode by mainViewModel.isDarkMode.collectAsState()
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.94f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Accent Theme Palette",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Active: ${currentPalette.displayName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Dark Mode", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 6.dp))
+                                Switch(
+                                    checked = isDarkMode,
+                                    onCheckedChange = { mainViewModel.toggleDarkMode(it) }
+                                )
+                            }
+                        }
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            items(com.example.upitracker.util.AppThemePalette.values()) { palette ->
+                                val isSelected = palette == currentPalette
+                                val chipColor = com.example.upitracker.util.parseColor(palette.primaryHex)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { mainViewModel.setThemePalette(palette) },
+                                    label = { Text(palette.displayName) },
+                                    leadingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .background(chipColor, CircleShape)
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             item {

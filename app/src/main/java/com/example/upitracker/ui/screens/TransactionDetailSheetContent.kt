@@ -36,10 +36,14 @@ import com.example.upitracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.upitracker.util.ExpressiveTokens
+import com.example.upitracker.util.CurrencyUtils
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -282,14 +286,11 @@ fun TransactionDetailSheetContent(
 
             var showLinkDialog by remember { mutableStateOf(false) }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveTokens.corners.large,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = ExpressiveTokens.spacing.sm)
             ) {
-                Column(modifier = Modifier.padding(vertical = ExpressiveTokens.spacing.sm)) {
                     DetailRow(label = stringResource(R.string.detail_label_description), value = transaction!!.description)
                     DetailRow(label = stringResource(R.string.detail_label_category), value = transaction!!.category ?: "Uncategorized")
                     DetailRow(label = stringResource(R.string.detail_label_party), value = transaction!!.senderOrReceiver)
@@ -323,7 +324,7 @@ fun TransactionDetailSheetContent(
                                             text = "+₹${"%.2f".format(linkedRefund.amount)} on ${formatFullDateTime(linkedRefund.date)}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFF16A34A)
+                                            color = MaterialTheme.colorScheme.secondary
                                         )
                                         Text(
                                             text = linkedRefund.description,
@@ -415,7 +416,6 @@ fun TransactionDetailSheetContent(
                             }
                         }
                     }
-                }
             }
 
             if (showLinkDialog) {
@@ -594,26 +594,16 @@ private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction:
         MaterialTheme.colorScheme.error
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveTokens.corners.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = ExpressiveTokens.elevation.card
-        )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(ExpressiveTokens.spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
             Text(
                 text = transaction.type.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Text(
@@ -633,7 +623,7 @@ private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction:
                 }
                 
                 Surface(
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                    color = Color.Transparent,
                     shape = ExpressiveTokens.corners.medium,
                     modifier = Modifier.padding(top = 4.dp)
                 ) {
@@ -646,7 +636,7 @@ private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction:
                             text = if (isDebit) "Net Spent:" else "Net Expense:",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "₹${"%.2f".format(netAmount)}",
@@ -667,9 +657,8 @@ private fun TransactionDetailHeader(transaction: Transaction, linkedTransaction:
             Text(
                 text = transaction.senderOrReceiver,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
     }
 }
 
@@ -907,34 +896,52 @@ private fun LinkTransactionDialog(
     onDismiss: () -> Unit,
     onLinkSelected: (Int) -> Unit
 ) {
-    var showAllMerchants by remember { mutableStateOf(false) }
-    
-    val filteredCandidates = remember(candidates, currentTransaction, showAllMerchants) {
+    var showAllMerchants by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCandidates = remember(candidates, currentTransaction, showAllMerchants, searchQuery) {
         candidates.filter { txn ->
             txn.id != currentTransaction.id &&
-            txn.type != currentTransaction.type &&
-            txn.linkedTransactionId == null &&
+            (searchQuery.isBlank() ||
+                txn.description.contains(searchQuery, ignoreCase = true) ||
+                txn.senderOrReceiver.contains(searchQuery, ignoreCase = true) ||
+                txn.amount.toString().contains(searchQuery) ||
+                txn.category?.contains(searchQuery, ignoreCase = true) == true) &&
             (showAllMerchants || txn.senderOrReceiver.equals(currentTransaction.senderOrReceiver, ignoreCase = true))
         }.sortedByDescending { it.date }
     }
 
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
-        .setLanguage("en")
-        .setRegion("IN")
-        .build()) }
+    val currencyFormatter = remember { CurrencyUtils.getRupeeFormatter() }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "Link Transaction") },
+        title = { Text(text = "Link Original Expense / Refund") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search merchant, amount, description") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Filter by same merchant", style = MaterialTheme.typography.bodyMedium)
+                    Text("Filter by same party/merchant", style = MaterialTheme.typography.bodyMedium)
                     Switch(
                         checked = !showAllMerchants,
                         onCheckedChange = { showAllMerchants = !it }
@@ -943,14 +950,18 @@ private fun LinkTransactionDialog(
 
                 if (filteredCandidates.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text("No matching transactions found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredCandidates, key = { it.id }) { txn ->
@@ -959,7 +970,7 @@ private fun LinkTransactionDialog(
                                     .fillMaxWidth()
                                     .clickable { onLinkSelected(txn.id) },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                                 )
                             ) {
                                 Row(
@@ -969,7 +980,7 @@ private fun LinkTransactionDialog(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = txn.description,
+                                            text = txn.description.ifBlank { txn.senderOrReceiver },
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -979,11 +990,12 @@ private fun LinkTransactionDialog(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+
                                     Text(
-                                        text = (if (txn.type == "CREDIT") "+" else "-") + currencyFormatter.format(txn.amount),
+                                        text = (if (txn.type.contains("CREDIT", ignoreCase = true)) "+" else "-") + currencyFormatter.format(txn.amount),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (txn.type == "CREDIT") Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                                        color = if (txn.type.contains("CREDIT", ignoreCase = true)) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
                                     )
                                 }
                             }
@@ -994,7 +1006,7 @@ private fun LinkTransactionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Close")
             }
         }
     )

@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -29,25 +31,29 @@ fun BankIcon(
     bankName: String?,
     fallbackLabel: String?,
     fallbackColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier.size(36.dp)
 ) {
     val logoResource = remember(bankName) { bankLogoResource(bankName) }
     val shape = ExpressiveTokens.corners.medium
+    val readableFallbackColor = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+        lerp(fallbackColor, Color.White, 0.38f)
+    } else {
+        fallbackColor
+    }
 
     Box(
         modifier = modifier
-            .size(42.dp)
             .clip(shape)
             .background(
-                if (logoResource != null) Color.White
-                else fallbackColor.copy(alpha = 0.14f)
+                if (logoResource != null) Color(0xFFF8FAFC)
+                else readableFallbackColor.copy(alpha = 0.18f)
             )
             .border(
                 width = 1.dp,
                 color = if (logoResource != null) {
-                    Color.Black.copy(alpha = 0.07f)
+                    Color.Black.copy(alpha = 0.12f)
                 } else {
-                    fallbackColor.copy(alpha = 0.12f)
+                    readableFallbackColor.copy(alpha = 0.42f)
                 },
                 shape = shape
             ),
@@ -57,7 +63,7 @@ fun BankIcon(
             Image(
                 painter = painterResource(logoResource),
                 contentDescription = null,
-                modifier = Modifier.padding(7.dp),
+                modifier = Modifier.padding(6.dp),
                 contentScale = ContentScale.Fit
             )
         } else {
@@ -69,7 +75,7 @@ fun BankIcon(
                     ?: "•",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = fallbackColor
+                color = readableFallbackColor
             )
         }
     }

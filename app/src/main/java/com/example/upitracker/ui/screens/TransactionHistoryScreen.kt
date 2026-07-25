@@ -7,60 +7,141 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.res.stringResource
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
+import androidx.paging.compose.itemKey
 import com.example.upitracker.R
-import com.example.upitracker.ui.components.TransactionCardWithMenu
-import com.example.upitracker.ui.components.UpiLiteSummaryCard
-import com.example.upitracker.viewmodel.*
-import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
-import com.example.upitracker.util.ExpressiveTokens
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
-import androidx.compose.ui.text.font.FontWeight
 import com.example.upitracker.data.Category
 import com.example.upitracker.ui.components.CategoryIconView
 import com.example.upitracker.ui.components.FilteredTotalsBar
 import com.example.upitracker.ui.components.LottieEmptyState
+import com.example.upitracker.ui.components.TransactionCardWithMenu
+import com.example.upitracker.ui.components.UpiLiteSummaryCard
+import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.CurrencyUtils
 import com.example.upitracker.util.DecimalInputVisualTransformation
+import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.util.parseColor
-import kotlinx.coroutines.flow.drop
-import java.text.NumberFormat
-import androidx.paging.LoadState
-import androidx.paging.compose.collectAsLazyPagingItems
+import com.example.upitracker.util.toMajorUnits
+import com.example.upitracker.viewmodel.AmountFilterType
+import com.example.upitracker.viewmodel.MainViewModel
+import com.example.upitracker.viewmodel.SortOrder
+import com.example.upitracker.viewmodel.SortableTransactionField
+import com.example.upitracker.viewmodel.SortableUpiLiteSummaryField
+import com.example.upitracker.viewmodel.TransactionFilters
+import com.example.upitracker.viewmodel.UpiTransactionTypeFilter
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +152,9 @@ fun TransactionHistoryScreen(
     val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
     val pageCount = if (isUpiLiteEnabled) { 2 } else { 1 }
     val pagerState = rememberPagerState { pageCount }
+    val currentPage by remember(pagerState) {
+        derivedStateOf { pagerState.currentPage }
+    }
     val coroutineScope = rememberCoroutineScope()
 
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -125,7 +209,7 @@ fun TransactionHistoryScreen(
                         title = "History",
                         subtitle = "All transactions",
                         actions = {
-                            if (pagerState.currentPage == 0) {
+                            if (currentPage == 0) {
                                 IconButton(
                                     onClick = {
                                         if (isSearchExpanded) {
@@ -228,7 +312,7 @@ fun TransactionHistoryScreen(
             }
 
             AnimatedVisibility(
-                visible = pagerState.currentPage == 0,
+                visible = currentPage == 0,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -328,13 +412,13 @@ fun TransactionHistoryScreen(
 
             if (isUpiLiteEnabled) {
                 SecondaryTabRow(
-                    selectedTabIndex = pagerState.currentPage,
+                    selectedTabIndex = currentPage,
                     containerColor = MaterialTheme.colorScheme.background,
                     contentColor = MaterialTheme.colorScheme.primary
                 ) {
                     tabTitles.forEachIndexed { index, title ->
                         Tab(
-                            selected = pagerState.currentPage == index,
+                            selected = currentPage == index,
                             onClick = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(index)
@@ -442,6 +526,16 @@ private fun UpiTransactionsList(
     val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
     val pagedTransactions = mainViewModel.pagedUpiTransactions.collectAsLazyPagingItems()
     val allCategories by mainViewModel.allCategories.collectAsState()
+    val monthlyTotals by mainViewModel.filteredMonthlyTotals.collectAsState()
+    val monthlyTotalsByKey = remember(monthlyTotals) {
+        monthlyTotals.associateBy { it.monthKey }
+    }
+    val monthTitleFormatter = remember {
+        SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    }
+    val monthKeyFormatter = remember {
+        SimpleDateFormat("yyyy-MM", Locale.US)
+    }
 
     val totals by mainViewModel.filteredTotals.collectAsState()
     val isLoading = pagedTransactions.loadState.refresh is LoadState.Loading
@@ -459,17 +553,20 @@ private fun UpiTransactionsList(
                 filters.bankNameFilter != null
     }
 
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(listState) {
-        snapshotFlow { Triple(filters, upiSortField, upiSortOrder) }
-            .drop(1)
-            .collect {
-                listState.animateScrollToItem(0)
-            }
+    val listState = remember(filters, upiSortField, upiSortOrder) {
+        LazyListState()
+    }
+    val firstVisibleItemIndex by remember(listState) {
+        derivedStateOf { listState.firstVisibleItemIndex }
+    }
+    val hasScrolled by remember(listState) {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 ||
+                listState.firstVisibleItemScrollOffset > 0
+        }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(listState) {
         mainViewModel.uiEvents.collect { event ->
             if (event is MainViewModel.UiEvent.ScrollToTop) {
                 listState.animateScrollToItem(index = 0)
@@ -488,7 +585,6 @@ private fun UpiTransactionsList(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpiTransactionTypeFilter.entries.forEach { filterType ->
-                        // ✨ FIX 2: Safely formatting the text title string configuration map cleanly
                         val filterLabelText = remember(filterType) {
                             filterType.name.lowercase().replaceFirstChar { it.uppercase() }
                         }
@@ -572,7 +668,7 @@ private fun UpiTransactionsList(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.TopCenter
         ) {
             val refreshError = pagedTransactions.loadState.refresh as? LoadState.Error
             if (refreshError != null) {
@@ -588,42 +684,56 @@ private fun UpiTransactionsList(
                     lottieResourceId = R.raw.empty_box_animation
                 )
             } else {
+                val currentVisibleMonth = remember(
+                    firstVisibleItemIndex,
+                    pagedTransactions.itemCount,
+                    filters
+                ) {
+                    if (pagedTransactions.itemCount > 0) {
+                        val idx = firstVisibleItemIndex.coerceIn(
+                            0,
+                            (pagedTransactions.itemCount - 1).coerceAtLeast(0)
+                        )
+                        pagedTransactions.peek(idx)?.let {
+                            val date = Date(it.date)
+                            monthTitleFormatter.format(date) to monthKeyFormatter.format(date)
+                        }
+                    } else null
+                }
+                val visibleMonthTotal = currentVisibleMonth
+                    ?.second
+                    ?.let { monthKey -> monthlyTotalsByKey[monthKey] }
+                val showStickyMonthlyHeader =
+                    hasScrolled &&
+                        !currentVisibleMonth?.first.isNullOrBlank() &&
+                        upiSortField == SortableTransactionField.DATE
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(
                         count = pagedTransactions.itemCount,
-                        key = { index -> pagedTransactions.peek(index)?.let { "txn-${it.id}" } ?: "placeholder-$index" },
-                        contentType = { "TransactionItem" }
+                        key = pagedTransactions.itemKey { "txn-${it.id}" },
+                        contentType = pagedTransactions.itemContentType { "TransactionItem" }
                     ) { index ->
                         val transaction = pagedTransactions[index] ?: return@items
-                        val monthFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
-                        val monthYear = monthFormatter.format(Date(transaction.date))
+                        val transactionDate = Date(transaction.date)
+                        val monthYear = monthTitleFormatter.format(transactionDate)
+                        val monthKey = monthKeyFormatter.format(transactionDate)
                         val previousMonth = if (index > 0) pagedTransactions.peek(index - 1)?.let {
-                            monthFormatter.format(Date(it.date))
+                            monthTitleFormatter.format(Date(it.date))
                         } else null
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             if (upiSortField == SortableTransactionField.DATE && monthYear != previousMonth) {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                        tonalElevation = 3.dp
-                                    ) {
-                                        Text(
-                                            text = monthYear,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            modifier = Modifier.padding(vertical = 9.dp, horizontal = 48.dp),
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                                        )
-                                    }
-                                }
+                                val monthTotal = monthlyTotalsByKey[monthKey]
+                                MonthlyHeader(
+                                    title = monthYear,
+                                    total = monthTotal?.totalAmountPaise?.toMajorUnits() ?: 0.0,
+                                    count = monthTotal?.transactionCount ?: 0
+                                )
                             }
                             val isSelected = selectedIds.contains(transaction.id)
                             val categoryDetails = allCategories.find { c ->
@@ -675,8 +785,44 @@ private fun UpiTransactionsList(
                         }
                     }
                 }
+
+                // Pinned floating sticky month-year pill anchored at top center when scrolling down
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 16.dp)
+                        .zIndex(10f)
+                ) {
+                    StickyMonthlyHeader(
+                        monthYear = currentVisibleMonth?.first,
+                        total = visibleMonthTotal?.totalAmountPaise?.toMajorUnits() ?: 0.0,
+                        count = visibleMonthTotal?.transactionCount ?: 0,
+                        visible = showStickyMonthlyHeader
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun StickyMonthlyHeader(
+    monthYear: String?,
+    total: Double,
+    count: Int,
+    visible: Boolean
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically { -it },
+        exit = fadeOut() + slideOutVertically { -it }
+    ) {
+        MonthlyHeader(
+            title = monthYear.orEmpty(),
+            total = total,
+            count = count
+        )
     }
 }
 
@@ -709,19 +855,21 @@ private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(all = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.Top
             ) {
                 groupedSummaries.forEach { group ->
                     stickyHeader(key = group.monthYear) {
                         MonthlyHeader(
                             title = group.monthYear,
                             total = group.monthlyTotal,
-                            count = group.summaries.size
+                            count = group.count
                         )
                     }
                     items(group.summaries, key = { "lite-${it.id}" }) { summary ->
-                        UpiLiteSummaryCard(summary = summary)
+                        Box(modifier = Modifier.padding(bottom = 16.dp)) {
+                            UpiLiteSummaryCard(summary = summary)
+                        }
                     }
                 }
             }
@@ -1350,39 +1498,59 @@ private fun SelectionModeTopAppBar(selectionCount: Int, onCancelClick: () -> Uni
 
 @Composable
 private fun MonthlyHeader(title: String, total: Double, count: Int) {
-    val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.Builder()
-        .setLanguage("en")
-        .setRegion("IN")
-        .build()) }
+    val currencyFormatter = remember { CurrencyUtils.getRupeeFormatter() }
+    val transactionCountLabel = if (count == 1) "1 transaction" else "$count transactions"
 
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .zIndex(1f),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f)),
+            tonalElevation = 3.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = transactionCountLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = currencyFormatter.format(total),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "$count items",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f))
+                ) {
+                    Text(
+                        text = currencyFormatter.format(total),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }

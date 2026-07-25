@@ -78,7 +78,10 @@ data class MonthlyExpense(
 data class VelocityState(
     val totalBudget: Double = 0.0,
     val totalSpent: Double = 0.0,
-    val daysRemaining: Int = 0
+    val daysRemaining: Int = 0,
+    val upcomingBillsTotal: Double = 0.0,
+    val currentDayOfMonth: Int = 1,
+    val totalDaysInMonth: Int = 30
 )
 
 data class DailyExpensePoint(
@@ -304,6 +307,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isDarkMode: StateFlow<Boolean> = ThemePreference.isDarkModeFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val themePalette: StateFlow<com.example.upitracker.util.AppThemePalette> = ThemePreference.getThemePaletteFlow(application)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.upitracker.util.AppThemePalette.SAPPHIRE_BLUE)
+
+    fun setThemePalette(palette: com.example.upitracker.util.AppThemePalette) {
+        viewModelScope.launch {
+            ThemePreference.setThemePalette(getApplication(), palette)
+        }
+    }
 
     val recurringRules: StateFlow<List<RecurringRule>> = recurringRuleDao.getAllRules()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -886,10 +898,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (filters.showUncategorized) where.append(" AND (category IS NULL OR category = '')")
         if (filters.showOnlyLinked) where.append(" AND linkedTransactionId IS NOT NULL")
         if (filters.selectedCategories.isNotEmpty()) {
-            where.append(" AND category IN (${filters.selectedCategories.joinToString { "?" }})")
+            where.append(" AND LOWER(TRIM(category)) IN (${filters.selectedCategories.joinToString { "LOWER(TRIM(?))" }})")
             args.addAll(filters.selectedCategories)
         }
-        filters.bankNameFilter?.let { where.append(" AND bankName = ?"); args += it }
+        filters.bankNameFilter?.let { where.append(" AND LOWER(TRIM(bankName)) = LOWER(TRIM(?))"); args += it }
         when (filters.amountType) {
             AmountFilterType.GREATER_THAN -> filters.amountValue1?.let { where.append(" AND amount > ?"); args += it.toPaise() }
             AmountFilterType.LESS_THAN -> filters.amountValue1?.let { where.append(" AND amount < ?"); args += it.toPaise() }
@@ -911,11 +923,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val filteredUpiLiteSummaries: StateFlow<List<UpiLiteSummary>> =
         combine(
             _upiLiteSummaries,
-            _selectedDateRangeStart,
-            _selectedDateRangeEnd,
-            _upiLiteSummarySortField,
-            _upiLiteSummarySortOrder
-        ) { summaries, startDate, endDate, sortField, sortOrder ->
+            filters,
+            combine(_upiLiteSummarySortField, _upiLiteSummarySortOrder) { f, o -> f to o }
+        ) { summaries: List<UpiLiteSummary>, currentFilters: TransactionFilters, sortInfo: Pair<SortableUpiLiteSummaryField, SortOrder> ->
+            val startDate = currentFilters.startDate
+            val endDate = currentFilters.endDate
+            val categories = currentFilters.selectedCategories
+            val searchQuery = currentFilters.searchQuery
+            val (sortField, sortOrder) = sortInfo
+
             val dateFilteredSummaries = if (startDate != null && endDate != null) {
                 summaries.filter { it.date in startDate..endDate }
             } else if (startDate != null) {
@@ -930,20 +946,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 summaries
             }
+
+            val searchFiltered = if (searchQuery.isNotBlank()) {
+                dateFilteredSummaries.filter { summary ->
+                    summary.bank.contains(searchQuery, ignoreCase = true) ||
+                            "UPI Lite".contains(searchQuery, ignoreCase = true)
+                }
+            } else {
+                dateFilteredSummaries
+            }
+
+            val categoryFiltered = if (categories.isNotEmpty()) {
+                if (categories.any { it.equals("UPI Lite", ignoreCase = true) }) {
+                    searchFiltered
+                } else {
+                    searchFiltered.filter { summary ->
+                        categories.any { cat -> summary.bank.contains(cat, ignoreCase = true) }
+                    }
+                }
+            } else {
+                searchFiltered
+            }
+
             when (sortField) {
                 SortableUpiLiteSummaryField.DATE -> {
-                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.date }
-                    else dateFilteredSummaries.sortedByDescending { it.date }
+                    if (sortOrder == SortOrder.ASCENDING) categoryFiltered.sortedBy { it.date }
+                    else categoryFiltered.sortedByDescending { it.date }
                 }
 
                 SortableUpiLiteSummaryField.TOTAL_AMOUNT -> {
-                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.totalAmount }
-                    else dateFilteredSummaries.sortedByDescending { it.totalAmount }
+                    if (sortOrder == SortOrder.ASCENDING) categoryFiltered.sortedBy { it.totalAmount }
+                    else categoryFiltered.sortedByDescending { it.totalAmount }
                 }
 
                 SortableUpiLiteSummaryField.TRANSACTION_COUNT -> {
-                    if (sortOrder == SortOrder.ASCENDING) dateFilteredSummaries.sortedBy { it.transactionCount }
-                    else dateFilteredSummaries.sortedByDescending { it.transactionCount }
+                    if (sortOrder == SortOrder.ASCENDING) categoryFiltered.sortedBy { it.transactionCount }
+                    else categoryFiltered.sortedByDescending { it.transactionCount }
                 }
             }
         }
@@ -1031,16 +1069,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val spendingVelocityState: StateFlow<VelocityState> = combine(
         _budgets,
-        currentMonthTotalExpenses // This flow already exists in your ViewModel
-    ) { budgets, spent ->
+        currentMonthTotalExpenses,
+        recurringRules
+    ) { budgets, spent, rulesList ->
         val totalBudget = budgets.sumOf { it.budgetAmountPaise }.toMajorUnits()
 
         val calendar = Calendar.getInstance()
         val lastDayOfMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
-        val daysRemaining = (lastDayOfMonth - currentDay).coerceAtLeast(1) // Avoid divide by zero
+        val daysRemaining = (lastDayOfMonth - currentDay).coerceAtLeast(1)
 
-        VelocityState(totalBudget, spent, daysRemaining)
+        val upcomingBillsTotal = rulesList
+            .filter { rule ->
+                val dueCal = Calendar.getInstance().apply { timeInMillis = rule.nextDueDate }
+                dueCal.get(Calendar.MONTH) == calendar.get(Calendar.MONTH) &&
+                        dueCal.get(Calendar.YEAR) == calendar.get(Calendar.YEAR) &&
+                        dueCal.get(Calendar.DAY_OF_MONTH) >= currentDay
+            }
+            .sumOf { it.amountPaise }.toMajorUnits()
+
+        VelocityState(
+            totalBudget = totalBudget,
+            totalSpent = spent,
+            daysRemaining = daysRemaining,
+            upcomingBillsTotal = upcomingBillsTotal,
+            currentDayOfMonth = currentDay,
+            totalDaysInMonth = lastDayOfMonth
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), VelocityState())
 
     val lastNMonthsExpenses: StateFlow<List<MonthlyExpense>> =
@@ -2511,6 +2566,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, FilteredTotals())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val filteredMonthlyTotals: StateFlow<List<TransactionDao.MonthlyTransactionTotal>> = filters
+        .flatMapLatest { currentFilters ->
+            val (whereClause, args) = buildTransactionWhereClause(currentFilters)
+            val totalExpression = if (currentFilters.type == UpiTransactionTypeFilter.ALL) {
+                "SUM(CASE WHEN UPPER(TRIM(type)) = 'DEBIT' THEN amount ELSE 0 END)"
+            } else {
+                "SUM(amount)"
+            }
+            val countExpression = if (currentFilters.type == UpiTransactionTypeFilter.ALL) {
+                "SUM(CASE WHEN UPPER(TRIM(type)) = 'DEBIT' THEN 1 ELSE 0 END)"
+            } else {
+                "COUNT(*)"
+            }
+            transactionDao.getFilteredMonthlyTotals(
+                SimpleSQLiteQuery(
+                    "SELECT " +
+                        "strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') AS monthKey, " +
+                        "COALESCE($totalExpression, 0) AS totalAmountPaise, " +
+                        "$countExpression AS transactionCount " +
+                        "FROM transactions$whereClause " +
+                        "GROUP BY monthKey ORDER BY monthKey DESC",
+                    args.toTypedArray()
+                )
+            )
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
 
     val latestTransactionTimestamp: StateFlow<Long> = _transactions
         .map { transactions -> transactions.maxOfOrNull { it.date } ?: 0L }

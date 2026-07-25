@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -80,15 +81,15 @@ fun MainNavHost(
 
                     NavigationBar(
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .fillMaxWidth()
                             .border(
                                 width = 1.dp,
                                 color = navBorderColor,
-                                shape = RoundedCornerShape(28.dp)
+                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
                             )
-                            .clip(RoundedCornerShape(28.dp)),
+                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
                         containerColor = navContainerColor,
-                        tonalElevation = 0.dp
+                        tonalElevation = 8.dp
                     ) {
                         bottomNavItems.forEach { screen ->
                             val isSelected = currentRoute == screen.route

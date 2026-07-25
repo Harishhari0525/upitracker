@@ -488,7 +488,7 @@ private fun OnScreenSummaryCard(
                         text = formatter.format(summary.totalCredit),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF16A34A) // Handled dynamically via text color tokens
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
 
@@ -520,7 +520,7 @@ private fun OnScreenSummaryCard(
                     text = "${if (summary.netBalance >= 0) "+" else ""}${formatter.format(summary.netBalance)}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = if (summary.netBalance >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
+                    color = if (summary.netBalance >= 0) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
                 )
             }
         }

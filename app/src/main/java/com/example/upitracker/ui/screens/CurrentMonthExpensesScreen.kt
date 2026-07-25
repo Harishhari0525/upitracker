@@ -117,7 +117,6 @@ fun CurrentMonthExpensesScreen(
     val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState()
     val allCategories by mainViewModel.allCategories.collectAsState()
     val isDashboardLoading by mainViewModel.isDashboardLoading.collectAsState()
-    val latestBankBalances by mainViewModel.latestBankBalances.collectAsState()
 
     val smsSyncState by mainViewModel.smsSyncProgress.collectAsState()
     val isSyncingAllSms = smsSyncState.isSyncing
@@ -272,11 +271,12 @@ fun CurrentMonthExpensesScreen(
                                 SpendingVelocityCard(
                                     totalBudget = velocityState.totalBudget,
                                     totalSpent = velocityState.totalSpent,
-                                    daysRemaining = velocityState.daysRemaining
+                                    daysRemaining = velocityState.daysRemaining,
+                                    upcomingBillsTotal = velocityState.upcomingBillsTotal,
+                                    currentDayOfMonth = velocityState.currentDayOfMonth,
+                                    totalDaysInMonth = velocityState.totalDaysInMonth
                                 )
                             }
-
-                            BankBalancesSection(balances = latestBankBalances)
 
                             UpcomingPaymentsSection(rules = recurringRules)
 
@@ -652,7 +652,7 @@ private fun RecentTransactionsSection(
             }
         } else {
             Column(
-                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 recentTransactions.take(3).forEachIndexed { index, item ->
                     if (item is TransactionHistoryItem) {
@@ -740,128 +740,6 @@ private fun RecentTransactionsHeader(
                 contentDescription = "View All Transactions",
                 modifier = Modifier.size(18.dp)
             )
-        }
-    }
-}
-
-@Composable
-private fun BankBalancesSection(balances: List<com.example.upitracker.data.TransactionDao.BankBalance>) {
-    val currencyFormatter = remember {
-        CurrencyUtils.getRupeeFormatter()
-    }
-    
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ExpressiveSectionHeader(
-            title = "Bank Balances",
-            subtitle = "Latest known balances from SMS"
-        )
-        
-        Spacer(modifier = Modifier.height(ExpressiveTokens.spacing.sm))
-        
-        Column(verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm)) {
-            if (balances.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveTokens.corners.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(ExpressiveTokens.spacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
-                    ) {
-                        Text(
-                            text = "No Bank Balances Detected",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Bank balances are automatically updated when you receive transaction SMS messages containing your available balance.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveTokens.corners.extraLarge,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        balances.forEachIndexed { index, balance ->
-                            if (index > 0) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(ExpressiveTokens.corners.medium)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = balance.bankName.firstOrNull()?.uppercase() ?: "B",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
-                                    Text(
-                                        text = balance.bankName,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Text(
-                                    text = currencyFormatter.format(balance.latestBalance),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        val totalBalance = remember(balances) { balances.sumOf { it.latestBalance } }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Total balance",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = currencyFormatter.format(totalBalance),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 }

@@ -57,20 +57,21 @@ fun BudgetCard(
 
     var showMenu by remember { mutableStateOf(false) }
 
+    val safeColor = MaterialTheme.colorScheme.secondary
     val (badgeContainerColor, badgeContentColor) = when {
         status.progress >= 1.0f -> Color(0xFFFB7185).copy(alpha = 0.20f) to Color(0xFFFB7185)
         status.progress > 0.80f -> Color(0xFFFBBF24).copy(alpha = 0.20f) to Color(0xFFFBBF24)
-        else -> Color(0xFF34D399).copy(alpha = 0.20f) to Color(0xFF34D399)
+        else -> safeColor.copy(alpha = 0.20f) to safeColor
     }
 
     val progressColor = when {
         status.progress >= 1.0f -> Color(0xFFFB7185)
         status.progress > 0.80f -> Color(0xFFFBBF24)
-        else -> Color(0xFF34D399)
+        else -> safeColor
     }
 
     val rolloverColor = if (status.rolloverAmount >= 0) {
-        Color(0xFF34D399)
+        safeColor
     } else {
         Color(0xFFFB7185)
     }

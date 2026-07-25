@@ -27,8 +27,17 @@ enum class AutoLockDelay(val displayName: String, val milliseconds: Long) {
     FIVE_MINUTES("After 5 minutes", 300_000L)
 }
 
+enum class AppThemePalette(val displayName: String, val primaryHex: String) {
+    SAPPHIRE_BLUE("Sapphire Blue", "#4F46E5"),
+    OBSIDIAN_CYAN("Obsidian Cyan", "#06B6D4"),
+    VELVET_VIOLET("Velvet Violet", "#8B5CF6"),
+    SUNSET_AMBER("Sunset Amber", "#F59E0B"),
+    EMERALD_MINT("Emerald Mint", "#10B981")
+}
+
 object ThemePreference {
-    private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled") // Slightly more descriptive key name
+    private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode_enabled")
+    private val THEME_PALETTE_KEY = stringPreferencesKey("theme_palette_name")
     private val UPI_LITE_ENABLED_KEY = booleanPreferencesKey("upi_lite_enabled")
     private val REFUND_KEYWORD_KEY = stringPreferencesKey("refund_keyword")
 
@@ -41,6 +50,19 @@ object ThemePreference {
     private val NOTIFICATION_CONTENT_REDACTED_KEY = booleanPreferencesKey("notification_content_redacted")
     private val WIDGET_AMOUNTS_HIDDEN_KEY = booleanPreferencesKey("widget_amounts_hidden")
     private val AUTO_LOCK_DELAY_KEY = stringPreferencesKey("auto_lock_delay")
+
+    fun getThemePaletteFlow(context: Context): Flow<AppThemePalette> =
+        context.settingsDataStore.data.map { prefs ->
+            val savedValue = prefs[THEME_PALETTE_KEY] ?: AppThemePalette.SAPPHIRE_BLUE.name
+            runCatching { AppThemePalette.valueOf(savedValue) }
+                .getOrDefault(AppThemePalette.SAPPHIRE_BLUE)
+        }
+
+    suspend fun setThemePalette(context: Context, palette: AppThemePalette) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[THEME_PALETTE_KEY] = palette.name
+        }
+    }
 
     /**
      * Retrieves the Flow for the dark mode preference.

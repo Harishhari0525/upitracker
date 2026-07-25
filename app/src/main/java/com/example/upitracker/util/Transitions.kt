@@ -2,35 +2,33 @@ package com.example.upitracker.util
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.ui.unit.IntOffset
 
-// A more expressive, gentle spring for spatial transitions
-private val gentleSpring = AppMotion.slowSpatial<IntOffset>()
+private const val TRANSITION_DURATION = 240
 
 /**
- * An expressive enter transition that slides and fades in from the right.
- * Uses a spring animation for a more natural feel.
+ * An expressive, fast enter transition that slides and fades in from the right.
  */
 fun expressiveSlideIn(): EnterTransition {
     return slideInHorizontally(
-        initialOffsetX = { 300 },
-        animationSpec = gentleSpring
-    ) + fadeIn(animationSpec = AppMotion.defaultEffects())
+        initialOffsetX = { (it * 0.15f).toInt() },
+        animationSpec = tween(durationMillis = TRANSITION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(durationMillis = TRANSITION_DURATION))
 }
 
 /**
  * An expressive exit transition that slides and fades out to the left.
- * Uses a spring animation for a more natural feel.
  */
 fun expressiveSlideOut(): ExitTransition {
     return slideOutHorizontally(
-        targetOffsetX = { -300 },
-        animationSpec = gentleSpring
-    ) + fadeOut(animationSpec = AppMotion.fastEffects())
+        targetOffsetX = { (-it * 0.15f).toInt() },
+        animationSpec = tween(durationMillis = TRANSITION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(durationMillis = TRANSITION_DURATION))
 }
 
 /**
@@ -39,9 +37,9 @@ fun expressiveSlideOut(): ExitTransition {
  */
 fun expressivePopEnter(): EnterTransition {
     return slideInHorizontally(
-        initialOffsetX = { -300 },
-        animationSpec = gentleSpring
-    ) + fadeIn(animationSpec = AppMotion.defaultEffects())
+        initialOffsetX = { (-it * 0.15f).toInt() },
+        animationSpec = tween(durationMillis = TRANSITION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(durationMillis = TRANSITION_DURATION))
 }
 
 /**
@@ -50,7 +48,7 @@ fun expressivePopEnter(): EnterTransition {
  */
 fun expressivePopExit(): ExitTransition {
     return slideOutHorizontally(
-        targetOffsetX = { 300 },
-        animationSpec = gentleSpring
-    ) + fadeOut(animationSpec = AppMotion.fastEffects())
+        targetOffsetX = { (it * 0.15f).toInt() },
+        animationSpec = tween(durationMillis = TRANSITION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(durationMillis = TRANSITION_DURATION))
 }

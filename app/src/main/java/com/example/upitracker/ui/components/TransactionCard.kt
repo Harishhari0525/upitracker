@@ -92,7 +92,7 @@ fun TransactionCard(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f)
+                MaterialTheme.colorScheme.surfaceContainerLow
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Kills shadow layout recalculations on scroll
@@ -100,32 +100,33 @@ fun TransactionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(ExpressiveTokens.spacing.md),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val category = transaction.category
             BankIcon(
                 bankName = transaction.bankName,
                 fallbackLabel = category,
-                fallbackColor = categoryColor
+                fallbackColor = categoryColor,
+                modifier = Modifier.size(36.dp)
             )
 
-            Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.md))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.xs)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.sm),
-                    verticalAlignment = Alignment.Top
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = cachedDisplayTitle,
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurface
@@ -133,9 +134,9 @@ fun TransactionCard(
 
                     Text(
                         text = signedAmount,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = amountColor,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
                 }
@@ -143,7 +144,7 @@ fun TransactionCard(
                 if (cachedDescription.isNotBlank() && cachedDescription != cachedDisplayTitle) {
                     Text(
                         text = cachedDescription,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -152,53 +153,41 @@ fun TransactionCard(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (transaction.linkedTransactionId != null) {
-                                Icon(
-                                    imageVector = Icons.Filled.Link,
-                                    contentDescription = "Linked Transaction",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-
-                            Text(
-                                text = displayDate,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (transaction.linkedTransactionId != null) {
+                            Icon(
+                                imageVector = Icons.Filled.Link,
+                                contentDescription = "Linked Transaction",
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
 
-                        if (transaction.senderOrReceiver != "Manual Entry" &&
-                            transaction.senderOrReceiver.isNotBlank() &&
-                            transaction.senderOrReceiver != cachedDisplayTitle
-                        ) {
-                            Text(
-                                text = transaction.senderOrReceiver,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = displayDate,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(ExpressiveTokens.spacing.sm))
-
                     if (!category.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = category,
                             modifier = Modifier
-                                .clip(ExpressiveTokens.corners.small)
-                                .background(categoryColor.copy(alpha = 0.10f))
+                                .clip(ExpressiveTokens.corners.medium)
+                                .background(categoryColor.copy(alpha = 0.12f))
                                 .clickable { onCategoryClick(category) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
                             color = categoryColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis

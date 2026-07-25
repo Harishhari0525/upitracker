@@ -10,8 +10,8 @@ plugins {
 }
 
 // App release version is intentionally manual. Update these values for each release.
-val appVersionName = "3.0.0"
-val appVersionCode = 3_000_000
+val appVersionName = "3.0.3"
+val appVersionCode = 3_000_003
 
 fun releaseSecret(name: String): String? =
     providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }

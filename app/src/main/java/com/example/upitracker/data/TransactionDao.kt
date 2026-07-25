@@ -11,7 +11,6 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 import com.example.upitracker.util.toMajorUnits
 import androidx.paging.PagingSource
-import androidx.room.Ignore
 
 @Dao
 interface TransactionDao {
@@ -86,6 +85,22 @@ interface TransactionDao {
     @RawQuery(observedEntities = [Transaction::class])
     fun getFilteredTransactionsPaged(query: SupportSQLiteQuery): PagingSource<Int, Transaction>
 
+    data class BankBalance(
+        val bankName: String,
+        val balancePaise: Long
+    ) {
+        val latestBalance: Double get() = balancePaise.toMajorUnits()
+    }
+
+    @Query("""
+        SELECT bankName, balanceAfterTransaction AS balancePaise
+        FROM transactions
+        WHERE balanceAfterTransaction IS NOT NULL AND bankName IS NOT NULL AND isArchived = 0
+        GROUP BY bankName
+        ORDER BY date DESC
+    """)
+    fun getLatestBankBalances(): Flow<List<BankBalance>>
+
     data class TransactionTotals(
         val totalDebitPaise: Long,
         val totalCreditPaise: Long,
@@ -95,6 +110,17 @@ interface TransactionDao {
 
     @RawQuery(observedEntities = [Transaction::class])
     fun getFilteredTotals(query: SupportSQLiteQuery): Flow<TransactionTotals>
+
+    data class MonthlyTransactionTotal(
+        val monthKey: String,
+        val totalAmountPaise: Long,
+        val transactionCount: Int
+    )
+
+    @RawQuery(observedEntities = [Transaction::class])
+    fun getFilteredMonthlyTotals(
+        query: SupportSQLiteQuery
+    ): Flow<List<MonthlyTransactionTotal>>
 
     @Query("SELECT * FROM transactions WHERE amount = :amount AND date = :date AND description = :desc LIMIT 1")
     suspend fun getTransactionByDetails(amount: Long, date: Long, desc: String): Transaction?
@@ -365,60 +391,6 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE senderOrReceiver = :sender AND isArchived = 0 ORDER BY date DESC")
     suspend fun getHistoryForMerchant(sender: String): List<Transaction>
-
-    data class BankBalance(val bankName: String, val latestBalancePaise: Long, val lastUpdated: Long) {
-        @get:Ignore
-        val latestBalance: Double get() = latestBalancePaise.toMajorUnits()
-    }
-
-    data class BalanceDrift(
-        val bankName: String,
-        val transactionId: Int,
-        val date: Long,
-        val expectedBalancePaise: Long,
-        val actualBalancePaise: Long,
-        val differencePaise: Long
-    )
-
-    @Query("""
-        WITH ordered AS (
-            SELECT id, bankName, date, amount, type, balanceAfterTransaction,
-                   LAG(balanceAfterTransaction) OVER (PARTITION BY bankName ORDER BY date, id) AS previousBalance
-            FROM transactions
-            WHERE bankName IS NOT NULL AND balanceAfterTransaction IS NOT NULL
-              AND isArchived = 0 AND pendingDeletionTimestamp IS NULL
-        )
-        SELECT bankName, id AS transactionId, date,
-               previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END AS expectedBalancePaise,
-               balanceAfterTransaction AS actualBalancePaise,
-               balanceAfterTransaction - (previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END) AS differencePaise
-        FROM ordered
-        WHERE previousBalance IS NOT NULL
-          AND ABS(balanceAfterTransaction - (previousBalance + CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END)) > 1
-        ORDER BY date DESC
-        LIMIT 100
-    """)
-    fun getBalanceDrifts(): Flow<List<BalanceDrift>>
-
-    @Query("""
-        SELECT t.bankName, t.balanceAfterTransaction AS latestBalancePaise, t.date AS lastUpdated
-        FROM transactions t
-        WHERE t.bankName IS NOT NULL 
-          AND t.bankName != 'Other Bank'
-          AND t.balanceAfterTransaction IS NOT NULL
-          AND t.isArchived = 0 
-          AND t.pendingDeletionTimestamp IS NULL
-          AND t.id = (
-              SELECT id FROM transactions t2
-              WHERE t2.bankName = t.bankName 
-                AND t2.balanceAfterTransaction IS NOT NULL 
-                AND t2.isArchived = 0 
-                AND t2.pendingDeletionTimestamp IS NULL
-              ORDER BY t2.date DESC, t2.id DESC
-              LIMIT 1
-          )
-    """)
-    fun getLatestBankBalances(): Flow<List<BankBalance>>
 
     @Query(
         """
