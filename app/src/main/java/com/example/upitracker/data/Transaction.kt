@@ -18,6 +18,9 @@ import com.example.upitracker.util.toPaise
             value = ["isArchived", "pendingDeletionTimestamp", "date"]
         ),
         Index(
+            value = ["isArchived", "pendingDeletionTimestamp", "type", "date"]
+        ),
+        Index(
             value = ["category"]
         ),
         Index(

@@ -38,15 +38,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.upitracker.R
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_CATEGORY
 import com.example.upitracker.util.DecimalInputVisualTransformation
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.BudgetStatus
+
+private enum class BudgetScope {
+    OVERALL,
+    CATEGORY
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditBudgetDialog(
     userCategories: List<com.example.upitracker.data.Category>,
     budgetStatus: BudgetStatus?,
+    initialOverall: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (
         category: String,
@@ -55,17 +62,35 @@ fun AddEditBudgetDialog(
         allowRollover: Boolean
     ) -> Unit
 ) {
-    var category by remember { mutableStateOf(budgetStatus?.categoryName ?: "") }
+    val isEditing = budgetStatus != null
+    var selectedScope by remember {
+        mutableStateOf(
+            if (budgetStatus?.isOverall == true || (!isEditing && initialOverall)) {
+                BudgetScope.OVERALL
+            } else {
+                BudgetScope.CATEGORY
+            }
+        )
+    }
+    var category by remember {
+        mutableStateOf(if (budgetStatus?.isOverall == true) "" else budgetStatus?.categoryName.orEmpty())
+    }
     var amount by remember { mutableStateOf(budgetStatus?.budgetAmount?.toString() ?: "") }
-    var selectedPeriod by remember { mutableStateOf(budgetStatus?.periodType ?: BudgetPeriod.MONTHLY) }
+    var selectedPeriod by remember {
+        mutableStateOf(
+            if (budgetStatus?.isOverall == true) BudgetPeriod.MONTHLY
+            else budgetStatus?.periodType ?: BudgetPeriod.MONTHLY
+        )
+    }
     var allowRollover by remember { mutableStateOf(budgetStatus?.allowRollover == true) }
 
     var isCategoryError by remember { mutableStateOf(false) }
     var isAmountError by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    var isScopeDropdownExpanded by remember { mutableStateOf(false) }
     var isPeriodDropdownExpanded by remember { mutableStateOf(false) }
 
-    val isEditing = budgetStatus != null
+    val isOverall = selectedScope == BudgetScope.OVERALL
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -97,9 +122,65 @@ fun AddEditBudgetDialog(
                 verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
             ) {
                 ExposedDropdownMenuBox(
+                    expanded = isScopeDropdownExpanded,
+                    onExpandedChange = {
+                        if (!isEditing) isScopeDropdownExpanded = it
+                    }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        readOnly = true,
+                        value = if (isOverall) "All categories" else "Single category",
+                        onValueChange = {},
+                        label = { Text("Budget scope") },
+                        supportingText = {
+                            Text(
+                                if (isOverall) {
+                                    "One monthly spending limit across the entire app."
+                                } else {
+                                    "Track a limit for one spending category."
+                                }
+                            )
+                        },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = isScopeDropdownExpanded
+                            )
+                        },
+                        enabled = !isEditing,
+                        shape = ExpressiveTokens.corners.medium,
+                        singleLine = true
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isScopeDropdownExpanded,
+                        onDismissRequest = { isScopeDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("All categories (monthly)") },
+                            onClick = {
+                                selectedScope = BudgetScope.OVERALL
+                                selectedPeriod = BudgetPeriod.MONTHLY
+                                isCategoryError = false
+                                isScopeDropdownExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Single category") },
+                            onClick = {
+                                selectedScope = BudgetScope.CATEGORY
+                                isScopeDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+
+                ExposedDropdownMenuBox(
                     expanded = isPeriodDropdownExpanded,
                     onExpandedChange = {
-                        if (!isEditing) {
+                        if (!isEditing && !isOverall) {
                             isPeriodDropdownExpanded = it
                         }
                     }
@@ -118,7 +199,7 @@ fun AddEditBudgetDialog(
                             )
                         },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        enabled = !isEditing,
+                        enabled = !isEditing && !isOverall,
                         shape = ExpressiveTokens.corners.medium,
                         singleLine = true
                     )
@@ -141,75 +222,77 @@ fun AddEditBudgetDialog(
                     }
                 }
 
-                var isCategoryExpanded by remember { mutableStateOf(false) }
+                if (!isOverall) {
+                    var isCategoryExpanded by remember { mutableStateOf(false) }
 
-                ExposedDropdownMenuBox(
-                    expanded = isCategoryExpanded,
-                    onExpandedChange = { isCategoryExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
-                            .fillMaxWidth(),
-                        value = category,
-                        onValueChange = {
-                            category = it
-                            isCategoryExpanded = true
-                            isCategoryError = false
-                        },
-                        label = { Text(stringResource(R.string.budget_category_label)) },
-                        placeholder = { Text("e.g., Groceries, Utilities") },
-                        singleLine = true,
-                        isError = isCategoryError,
-                        supportingText = {
-                            if (isCategoryError) {
-                                Text("Category cannot be empty")
-                            }
-                        },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        shape = ExpressiveTokens.corners.medium
-                    )
-
-                    val filteredCategories = userCategories
-                        .filter { it.name.contains(category, ignoreCase = true) }
-                        .sortedWith(
-                            compareBy<com.example.upitracker.data.Category> {
-                                if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
-                            }.thenBy { it.name.lowercase() }
+                    ExposedDropdownMenuBox(
+                        expanded = isCategoryExpanded,
+                        onExpandedChange = { isCategoryExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                                .fillMaxWidth(),
+                            value = category,
+                            onValueChange = {
+                                category = it
+                                isCategoryExpanded = true
+                                isCategoryError = false
+                            },
+                            label = { Text(stringResource(R.string.budget_category_label)) },
+                            placeholder = { Text("e.g., Groceries, Utilities") },
+                            singleLine = true,
+                            isError = isCategoryError,
+                            supportingText = {
+                                if (isCategoryError) {
+                                    Text("Category cannot be empty")
+                                }
+                            },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            shape = ExpressiveTokens.corners.medium
                         )
 
-                    ExposedDropdownMenu(
-                        expanded = isCategoryExpanded,
-                        onDismissRequest = { isCategoryExpanded = false }
-                    ) {
-                        if (filteredCategories.isNotEmpty()) {
-                            filteredCategories.forEach { cat ->
+                        val filteredCategories = userCategories
+                            .filter { it.name.contains(category, ignoreCase = true) }
+                            .sortedWith(
+                                compareBy<com.example.upitracker.data.Category> {
+                                    if (it.name.startsWith(category, ignoreCase = true)) 0 else 1
+                                }.thenBy { it.name.lowercase() }
+                            )
+
+                        ExposedDropdownMenu(
+                            expanded = isCategoryExpanded,
+                            onDismissRequest = { isCategoryExpanded = false }
+                        ) {
+                            if (filteredCategories.isNotEmpty()) {
+                                filteredCategories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat.name) },
+                                        onClick = {
+                                            category = cat.name
+                                            isCategoryExpanded = false
+                                            isCategoryError = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            } else {
                                 DropdownMenuItem(
-                                    text = { Text(cat.name) },
-                                    onClick = {
-                                        category = cat.name
-                                        isCategoryExpanded = false
-                                        isCategoryError = false
+                                    text = {
+                                        Text(
+                                            if (category.isBlank()) {
+                                                "No categories yet"
+                                            } else {
+                                                "No match. Save to create \"$category\""
+                                            }
+                                        )
                                     },
+                                    onClick = {},
+                                    enabled = false,
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                 )
                             }
-                        } else {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        if (category.isBlank()) {
-                                            "No categories yet"
-                                        } else {
-                                            "No match. Save to create \"$category\""
-                                        }
-                                    )
-                                },
-                                onClick = {},
-                                enabled = false,
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
                         }
                     }
                 }
@@ -285,14 +368,14 @@ fun AddEditBudgetDialog(
                 onClick = {
                     val amountDouble = amount.toDoubleOrNull()
 
-                    isCategoryError = category.isBlank()
+                    isCategoryError = !isOverall && category.isBlank()
                     isAmountError = amountDouble == null || amountDouble <= 0
 
                     if (!isCategoryError && !isAmountError) {
                         onConfirm(
-                            category,
+                            if (isOverall) OVERALL_MONTHLY_BUDGET_CATEGORY else category,
                             amountDouble!!,
-                            selectedPeriod,
+                            if (isOverall) BudgetPeriod.MONTHLY else selectedPeriod,
                             allowRollover
                         )
                     }

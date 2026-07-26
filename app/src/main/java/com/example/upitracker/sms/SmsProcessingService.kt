@@ -6,6 +6,7 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.ArchivedSmsMessage
 import com.example.upitracker.data.Budget
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_CATEGORY
 import com.example.upitracker.data.CategorySuggestionRule
 import com.example.upitracker.data.RuleField
 import com.example.upitracker.data.RuleLogic
@@ -49,9 +50,13 @@ object SmsProcessingService {
         val storedPatterns = RegexPreference.getRegexPatterns(appContext).firstOrNull().orEmpty()
         val customRegexPatterns = storedPatterns.mapNotNull { pattern ->
             try {
+                RegexPreference.validationError(pattern)?.let {
+                    Log.w("SmsProcessingService", "Unsafe custom regex skipped")
+                    return@mapNotNull null
+                }
                 Regex(pattern, RegexOption.IGNORE_CASE)
             } catch (e: Exception) {
-                Log.w("SmsProcessingService", "Invalid custom regex skipped: $pattern", e)
+                Log.w("SmsProcessingService", "Invalid custom regex skipped", e)
                 null
             }
         }
@@ -188,10 +193,7 @@ object SmsProcessingService {
                     updateWidgets(appContext)
                 }
             } else {
-                Log.d(
-                    "DuplicateTxnFix",
-                    "Skipped duplicate SMS transaction. sender=$sender, timestamp=$smsDate"
-                )
+                Log.d("DuplicateTxnFix", "Skipped duplicate SMS transaction")
             }
         }
 
@@ -369,35 +371,45 @@ object SmsProcessingService {
             return
         }
 
-        val relevantBudget = budgets.find {
-            it.categoryName.equals(transaction.category, ignoreCase = true)
-        } ?: return
-
-        val (periodStart, periodEnd) = DateUtils.getRangeForPeriod(relevantBudget.periodType)
-
-        if (relevantBudget.lastNotificationTimestamp >= periodStart) {
-            return
+        val relevantBudgets = budgets.filter { budget ->
+            budget.categoryName == OVERALL_MONTHLY_BUDGET_CATEGORY ||
+                budget.categoryName.equals(transaction.category, ignoreCase = true)
         }
 
-        val spentInCurrentPeriod = transactionDao.getTransactionsForBudgetCheck(
-            categoryName = relevantBudget.categoryName,
-            startDate = periodStart,
-            endDate = periodEnd,
-            refundCategory = refundCategory
-        ).sumOf { it.amount }
+        relevantBudgets.forEach { budget ->
+            val (periodStart, periodEnd) = DateUtils.getRangeForPeriod(budget.periodType)
 
-        if (spentInCurrentPeriod > relevantBudget.budgetAmount) {
-            NotificationHelper.showBudgetExceededNotification(
-                context = context,
-                budget = relevantBudget,
-                spentAmount = spentInCurrentPeriod
-            )
+            if (budget.lastNotificationTimestamp < periodStart) {
+                val spentInCurrentPeriod =
+                    if (budget.categoryName == OVERALL_MONTHLY_BUDGET_CATEGORY) {
+                        transactionDao.getSpentAmountInRangeSync(
+                            startDate = periodStart,
+                            endDate = periodEnd,
+                            refundCategory = refundCategory
+                        ) ?: 0.0
+                    } else {
+                        transactionDao.getTransactionsForBudgetCheck(
+                            categoryName = budget.categoryName,
+                            startDate = periodStart,
+                            endDate = periodEnd,
+                            refundCategory = refundCategory
+                        ).sumOf { it.amount }
+                    }
 
-            budgetDao.update(
-                relevantBudget.copy(
-                    lastNotificationTimestamp = System.currentTimeMillis()
-                )
-            )
+                if (spentInCurrentPeriod >= budget.budgetAmount) {
+                    NotificationHelper.showBudgetExceededNotification(
+                        context = context,
+                        budget = budget,
+                        spentAmount = spentInCurrentPeriod
+                    )
+
+                    budgetDao.update(
+                        budget.copy(
+                            lastNotificationTimestamp = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
         }
     }
 }

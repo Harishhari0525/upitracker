@@ -27,20 +27,29 @@ class PermanentDeleteWorker(
             val oneDayInMillis = TimeUnit.DAYS.toMillis(1)
             val cutoffTimestamp = System.currentTimeMillis() - oneDayInMillis
 
-            val receiptPaths = transactionDao.getReceiptPathsPendingDeletion(cutoffTimestamp)
-            transactionDao.permanentlyDeletePending(cutoffTimestamp)
+            val receiptPaths =
+                transactionDao.permanentlyDeletePendingWithLinkCleanup(cutoffTimestamp)
             receiptPaths.forEach { path ->
                 val file = File(path)
-                if (file.parentFile == applicationContext.filesDir) {
+                if (
+                    file.parentFile == applicationContext.filesDir &&
+                    file.name.startsWith("receipt_")
+                ) {
                     file.delete()
                 }
             }
+
+            val referencedReceipts = transactionDao.getAllReceiptPaths().toHashSet()
+            applicationContext.filesDir.listFiles { file ->
+                file.isFile && file.name.startsWith("receipt_")
+            }?.filterNot { it.absolutePath in referencedReceipts }
+                ?.forEach { it.delete() }
 
             Log.i(WORK_NAME, "Permanent deletion worker completed successfully.")
             Result.success()
         } catch (e: Exception) {
             Log.e(WORK_NAME, "Error during permanent deletion of transactions.", e)
-            Result.failure()
+            Result.retry()
         }
     }
 }

@@ -94,7 +94,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -149,7 +149,7 @@ fun TransactionHistoryScreen(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsState()
+    val isUpiLiteEnabled by mainViewModel.isUpiLiteEnabled.collectAsStateWithLifecycle()
     val pageCount = if (isUpiLiteEnabled) { 2 } else { 1 }
     val pagerState = rememberPagerState { pageCount }
     val currentPage by remember(pagerState) {
@@ -160,19 +160,19 @@ fun TransactionHistoryScreen(
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDetailSheet by remember { mutableStateOf(false) }
 
-    val showFilterSheet by mainViewModel.showHistoryFilterSheet.collectAsState()
+    val showFilterSheet by mainViewModel.showHistoryFilterSheet.collectAsStateWithLifecycle()
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showCategorizeDialog by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
 
-    val filters by mainViewModel.filters.collectAsState()
-    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
-    val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
+    val filters by mainViewModel.filters.collectAsStateWithLifecycle()
+    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsStateWithLifecycle()
+    val selectedIds by mainViewModel.selectedTransactionIds.collectAsStateWithLifecycle()
 
     // ✨ Streams real-time progress calculations directly into the layout tree
-    val syncProgress by mainViewModel.smsSyncProgress.collectAsState()
+    val syncProgress by mainViewModel.smsSyncProgress.collectAsStateWithLifecycle()
 
     LaunchedEffect(isSearchExpanded) {
         if (isSearchExpanded) searchFocusRequester.requestFocus()
@@ -502,7 +502,7 @@ fun TransactionHistoryScreen(
     }
 
     if (showCategorizeDialog) {
-        val allCategories by mainViewModel.allCategories.collectAsState()
+        val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
 
         BulkCategorizeDialog(
             categories = allCategories,
@@ -522,11 +522,11 @@ private fun UpiTransactionsList(
     isSelectionMode: Boolean,
     selectedIds: Set<Int>
 ) {
-    val upiSortField by mainViewModel.upiTransactionSortField.collectAsState()
-    val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsState()
+    val upiSortField by mainViewModel.upiTransactionSortField.collectAsStateWithLifecycle()
+    val upiSortOrder by mainViewModel.upiTransactionSortOrder.collectAsStateWithLifecycle()
     val pagedTransactions = mainViewModel.pagedUpiTransactions.collectAsLazyPagingItems()
-    val allCategories by mainViewModel.allCategories.collectAsState()
-    val monthlyTotals by mainViewModel.filteredMonthlyTotals.collectAsState()
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
+    val monthlyTotals by mainViewModel.filteredMonthlyTotals.collectAsStateWithLifecycle()
     val monthlyTotalsByKey = remember(monthlyTotals) {
         monthlyTotals.associateBy { it.monthKey }
     }
@@ -537,10 +537,10 @@ private fun UpiTransactionsList(
         SimpleDateFormat("yyyy-MM", Locale.US)
     }
 
-    val totals by mainViewModel.filteredTotals.collectAsState()
+    val totals by mainViewModel.filteredTotals.collectAsStateWithLifecycle()
     val isLoading = pagedTransactions.loadState.refresh is LoadState.Loading
 
-    val filters by mainViewModel.filters.collectAsState()
+    val filters by mainViewModel.filters.collectAsStateWithLifecycle()
     val selectedUpiFilterType = filters.type
     val hasDetailedFilters = remember(filters) {
         filters.searchQuery.isNotBlank() ||
@@ -828,11 +828,11 @@ private fun StickyMonthlyHeader(
 
 @Composable
 private fun UpiLiteSummariesList(mainViewModel: MainViewModel) {
-    val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsState()
-    val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsState()
-    val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsState()
-    val groupedSummaries by mainViewModel.groupedUpiLiteSummaries.collectAsState()
-    val filters by mainViewModel.filters.collectAsState()
+    val filteredUpiLiteSummaries by mainViewModel.filteredUpiLiteSummaries.collectAsStateWithLifecycle()
+    val upiLiteSortField by mainViewModel.upiLiteSummarySortField.collectAsStateWithLifecycle()
+    val upiLiteSortOrder by mainViewModel.upiLiteSummarySortOrder.collectAsStateWithLifecycle()
+    val groupedSummaries by mainViewModel.groupedUpiLiteSummaries.collectAsStateWithLifecycle()
+    val filters by mainViewModel.filters.collectAsStateWithLifecycle()
 
     // ✨ FIX 1: Explicitly allocate and instantiate the state within the remember block so it doesn't return Unit
     val listState = remember(filters, upiLiteSortField, upiLiteSortOrder) {

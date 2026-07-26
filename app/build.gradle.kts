@@ -9,9 +9,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.10"
 }
 
-// App release version is intentionally manual. Update these values for each release.
-val appVersionName = "3.0.3"
-val appVersionCode = 3_000_003
+// Single source of truth for Android and GitHub releases. Update only this value.
+val appVersionName = "3.0.5"
+val versionNumbers = appVersionName.substringBefore('-').split('.').map { part ->
+    part.toIntOrNull() ?: throw GradleException(
+        "appVersionName must use semantic versioning, for example 3.1.0"
+    )
+}
+require(versionNumbers.size == 3 && versionNumbers.all { it in 0..999 }) {
+    "appVersionName must contain major, minor, and patch values between 0 and 999"
+}
+val appVersionCode =
+    versionNumbers[0] * 1_000_000 + versionNumbers[1] * 1_000 + versionNumbers[2]
 
 fun releaseSecret(name: String): String? =
     providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
@@ -134,6 +143,7 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)

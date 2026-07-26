@@ -1,10 +1,12 @@
 package com.example.upitracker
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +14,8 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -59,6 +64,13 @@ import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : FragmentActivity() {
+
+    private sealed interface PinReadState {
+        data object Loading : PinReadState
+        data object Set : PinReadState
+        data object NotSet : PinReadState
+        data object Error : PinReadState
+    }
 
     private val mainViewModel: MainViewModel by viewModels()
     private var pendingBackupPassword = ""
@@ -115,19 +127,35 @@ class MainActivity : FragmentActivity() {
 
     private val backupDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            val password = pendingBackupPassword
+            pendingBackupPassword = ""
             uri?.let {
-                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                mainViewModel.backupDatabase(it, contentResolver, pendingBackupPassword)
-                pendingBackupPassword = ""
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        it,
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                }.onFailure { error ->
+                    Log.w("BackupRestore", "Provider did not persist backup write access", error)
+                }
+                mainViewModel.backupDatabase(it, contentResolver, password)
             }
         }
 
     private val restoreDatabaseLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            val password = pendingRestorePassword
+            pendingRestorePassword = ""
             uri?.let {
-                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                mainViewModel.restoreDatabase(it, contentResolver, pendingRestorePassword)
-                pendingRestorePassword = ""
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        it,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }.onFailure { error ->
+                    Log.w("BackupRestore", "Provider did not persist restore read access", error)
+                }
+                mainViewModel.restoreDatabase(it, contentResolver, password)
             }
         }
 
@@ -153,6 +181,7 @@ class MainActivity : FragmentActivity() {
         }
         super.onCreate(savedInstanceState)
         installSplashScreen().setKeepOnScreenCondition { !mainViewModel.isDataReady.value }
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         CryptoManager.initialize(this)
         NotificationHelper.createNotificationChannels(this)
@@ -190,22 +219,30 @@ class MainActivity : FragmentActivity() {
 
     @Composable
     private fun MainAppRouter() {
-        val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsState()
-        val pinUnlocked by mainViewModel.pinUnlocked.collectAsState()
+        val onboardingCompleted by mainViewModel.isOnboardingCompleted.collectAsStateWithLifecycle()
+        val pinUnlocked by mainViewModel.pinUnlocked.collectAsStateWithLifecycle()
 
-        val pinIsActuallySet by produceState<Boolean?>(initialValue = null) {
+        var pinReadAttempt by remember { mutableIntStateOf(0) }
+        val pinReadState by produceState<PinReadState>(
+            initialValue = PinReadState.Loading,
+            key1 = pinReadAttempt
+        ) {
             try {
-                value = PinStorage.isPinSet(this@MainActivity)
+                value = if (PinStorage.isPinSet(this@MainActivity)) {
+                    PinReadState.Set
+                } else {
+                    PinReadState.NotSet
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error reading PIN state", e)
-                value = false
+                value = PinReadState.Error
             }
         }
 
-        val isDataReady by mainViewModel.isDataReady.collectAsState()
+        val isDataReady by mainViewModel.isDataReady.collectAsStateWithLifecycle()
 
-        LaunchedEffect(pinIsActuallySet) {
-            if (pinIsActuallySet == false) {
+        LaunchedEffect(pinReadState) {
+            if (pinReadState == PinReadState.NotSet) {
                 mainViewModel.setPinUnlocked(true)
             }
         }
@@ -217,6 +254,42 @@ class MainActivity : FragmentActivity() {
                 }
             } else {
                 when {
+                    pinReadState == PinReadState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SyncProblem,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "Unable to verify your app PIN",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                                Text(
+                                    text = "Your financial data remains locked. Retry after unlocking the device, or restart the app.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Button(onClick = { pinReadAttempt++ }) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                    }
+                    pinReadState == PinReadState.Loading -> {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            CircularProgressIndicator()
+                        }
+                    }
                     !onboardingCompleted -> {
                         OnboardingScreen(
                             modifier = Modifier.fillMaxSize(),
@@ -245,13 +318,7 @@ class MainActivity : FragmentActivity() {
                         )
                     }
 
-                    pinIsActuallySet == null -> {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            CircularProgressIndicator()
-                        }
-                    }
-
-                    !pinUnlocked && pinIsActuallySet == true -> {
+                    !pinUnlocked && pinReadState == PinReadState.Set -> {
                         PinLockScreen(
                             modifier = Modifier.fillMaxSize(),
                             onUnlock = { mainViewModel.setPinUnlocked(true) },
@@ -381,8 +448,8 @@ class MainActivity : FragmentActivity() {
         }
 
         if (showAddTransactionDialog) {
-            val allCategories by mainViewModel.allCategories.collectAsState()
-            val frequentCategories by mainViewModel.userCategories.collectAsState()
+            val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
+            val frequentCategories by mainViewModel.userCategories.collectAsStateWithLifecycle()
             AddTransactionDialog(
                 userCategories = allCategories,
                 initialCategory = frequentCategories.firstOrNull()?.name.orEmpty(),
@@ -470,22 +537,22 @@ class MainActivity : FragmentActivity() {
         BudgetCheckerWorker.enqueue(applicationContext)
 
         val deleteRequest = PeriodicWorkRequestBuilder<PermanentDeleteWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, deleteRequest)
+        workManager.enqueueUniquePeriodicWork(PermanentDeleteWorker.WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, deleteRequest)
 
         val recurringRequest = PeriodicWorkRequestBuilder<RecurringTransactionWorker>(12, TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, recurringRequest)
+        workManager.enqueueUniquePeriodicWork(RecurringTransactionWorker.WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, recurringRequest)
 
         val cleanupRequest = PeriodicWorkRequestBuilder<CleanupArchivedSmsWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, cleanupRequest)
+        workManager.enqueueUniquePeriodicWork(CleanupArchivedSmsWorker.WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, cleanupRequest)
 
         val updateCheckRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS)
             .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
             .build()
-        workManager.enqueueUniquePeriodicWork(UpdateCheckWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, updateCheckRequest)
+        workManager.enqueueUniquePeriodicWork(UpdateCheckWorker.WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, updateCheckRequest)
         
         // ✨ Schedule Monthly Statement Worker
         val statementRequest = PeriodicWorkRequestBuilder<MonthlyStatementWorker>(1, TimeUnit.DAYS).build()
-        workManager.enqueueUniquePeriodicWork(MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, statementRequest)
+        workManager.enqueueUniquePeriodicWork(MonthlyStatementWorker.WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, statementRequest)
     }
 
     private data class SmsPage(

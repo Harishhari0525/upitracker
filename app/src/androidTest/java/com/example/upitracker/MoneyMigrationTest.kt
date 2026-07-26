@@ -6,9 +6,61 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import com.example.upitracker.data.AppDatabase
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MoneyMigrationTest {
+    @Test fun migration28To29AddsRecurringNotificationStateAndHistoryIndex() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-recurring-notification-test.db"
+        context.deleteDatabase(name)
+        helper(name, 28, object : SupportSQLiteOpenHelper.Callback(28) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE recurring_rules (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, amount INTEGER NOT NULL, " +
+                        "description TEXT NOT NULL, categoryName TEXT NOT NULL, periodType TEXT NOT NULL, " +
+                        "dayOfPeriod INTEGER NOT NULL, nextDueDate INTEGER NOT NULL, " +
+                        "createTransactionOnDueDate INTEGER NOT NULL DEFAULT 1, creationDate INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE transactions (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, amount INTEGER NOT NULL, " +
+                        "type TEXT NOT NULL, date INTEGER NOT NULL, description TEXT NOT NULL, " +
+                        "senderOrReceiver TEXT NOT NULL, note TEXT NOT NULL, category TEXT, " +
+                        "isArchived INTEGER NOT NULL, pendingDeletionTimestamp INTEGER, " +
+                        "linkedTransactionId INTEGER, bankName TEXT, balanceAfterTransaction INTEGER, " +
+                        "receiptImagePath TEXT, tags TEXT NOT NULL)"
+                )
+            }
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        }).use { it.writableDatabase }
+
+        helper(name, 29, object : SupportSQLiteOpenHelper.Callback(29) {
+            override fun onCreate(db: SupportSQLiteDatabase) = Unit
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                AppDatabase.MIGRATION_28_29.migrate(db)
+            }
+        }).use { open ->
+            val db = open.writableDatabase
+            db.query("PRAGMA table_info(recurring_rules)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                val columns = buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(nameIndex))
+                }
+                assertTrue(columns.contains("lastUpcomingNotificationDueDate"))
+            }
+            db.query("PRAGMA index_list(transactions)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                val indexes = buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(nameIndex))
+                }
+                assertTrue(indexes.contains("index_transactions_isArchived_pendingDeletionTimestamp_type_date"))
+            }
+        }
+        context.deleteDatabase(name)
+    }
+
     @Test fun migration24To27PreservesAndRoundsMoney() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val name = "migration-money-test.db"

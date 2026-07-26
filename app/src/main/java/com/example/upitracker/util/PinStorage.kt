@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.first
 import androidx.datastore.core.DataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.google.protobuf.ByteString
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 private val Context.pinDataStore: DataStore<UserPreferences> by dataStore(
     fileName = "secure_user_prefs.pb",
@@ -23,28 +28,35 @@ object PinStorage {
 
     private const val MAX_FAILED_ATTEMPTS = 5
     private const val LOCKOUT_DURATION_MILLIS = 30_000L
+    private const val PIN_HASH_ITERATIONS = 120_000
+    private const val PIN_HASH_BITS = 256
+    private const val PIN_SALT_BYTES = 16
 
     /**
      * Saves the user's PIN securely. This is a suspend function.
      */
     suspend fun savePin(context: Context, pin: String) {
-        context.pinDataStore.updateData { preferences ->
-            preferences.toBuilder()
-                .setPin(pin)
-                .setFailedPinAttempts(0)
-                .setPinLockoutUntil(0)
-                .build()
+        val salt = ByteArray(PIN_SALT_BYTES).also(SecureRandom()::nextBytes)
+        val hash = hashPin(pin, salt)
+        try {
+            context.pinDataStore.updateData { preferences ->
+                preferences.toBuilder()
+                    .clearPin()
+                    .setPinSalt(ByteString.copyFrom(salt))
+                    .setPinHash(ByteString.copyFrom(hash))
+                    .setFailedPinAttempts(0)
+                    .setPinLockoutUntil(0)
+                    .build()
+            }
+        } finally {
+            salt.fill(0)
+            hash.fill(0)
         }
     }
 
     /**
      * Retrieves the saved PIN. Returns null if no PIN is set.
      */
-    suspend fun getPin(context: Context): String? {
-        val preferences = context.pinDataStore.data.first()
-        return preferences.pin.ifEmpty { null }
-    }
-
     /**
      * Verifies if the provided PIN matches the stored PIN.
      */
@@ -56,12 +68,38 @@ object PinStorage {
                 return@updateData preferences
             }
 
-            if (preferences.pin.isNotEmpty() && preferences.pin == providedPin) {
+            val storedHash = preferences.pinHash.toByteArray()
+            val storedSalt = preferences.pinSalt.toByteArray()
+            val verifiedByHash = if (storedHash.isNotEmpty() && storedSalt.isNotEmpty()) {
+                val candidate = hashPin(providedPin, storedSalt)
+                try {
+                    MessageDigest.isEqual(storedHash, candidate)
+                } finally {
+                    candidate.fill(0)
+                    storedHash.fill(0)
+                    storedSalt.fill(0)
+                }
+            } else {
+                false
+            }
+            val verifiedLegacyPin =
+                storedHash.isEmpty() && preferences.pin.isNotEmpty() && preferences.pin == providedPin
+
+            if (verifiedByHash || verifiedLegacyPin) {
                 verified = true
-                preferences.toBuilder()
+                val builder = preferences.toBuilder()
                     .setFailedPinAttempts(0)
                     .setPinLockoutUntil(0)
-                    .build()
+                if (verifiedLegacyPin) {
+                    val salt = ByteArray(PIN_SALT_BYTES).also(SecureRandom()::nextBytes)
+                    val hash = hashPin(providedPin, salt)
+                    builder.clearPin()
+                        .setPinSalt(ByteString.copyFrom(salt))
+                        .setPinHash(ByteString.copyFrom(hash))
+                    salt.fill(0)
+                    hash.fill(0)
+                }
+                builder.build()
             } else {
                 val failedAttempts = preferences.failedPinAttempts + 1
                 preferences.toBuilder()
@@ -79,7 +117,8 @@ object PinStorage {
      * Helper to verify if a PIN exists. Safely handles reading errors.
      */
     suspend fun isPinSet(context: Context): Boolean {
-        return getPin(context) != null
+        val preferences = context.pinDataStore.data.first()
+        return preferences.pinHash.size() > 0 || preferences.pin.isNotEmpty()
     }
 
     /**
@@ -90,6 +129,19 @@ object PinStorage {
             context.pinDataStore.data.first().pinLockoutUntil
         } catch (_: Exception) {
             0L
+        }
+    }
+
+    private fun hashPin(pin: String, salt: ByteArray): ByteArray {
+        val pinChars = pin.toCharArray()
+        val spec = PBEKeySpec(pinChars, salt, PIN_HASH_ITERATIONS, PIN_HASH_BITS)
+        return try {
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                .generateSecret(spec)
+                .encoded
+        } finally {
+            pinChars.fill('\u0000')
+            spec.clearPassword()
         }
     }
 }

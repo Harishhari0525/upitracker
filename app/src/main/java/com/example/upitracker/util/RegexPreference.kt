@@ -36,8 +36,28 @@ object RegexPreference {
      * Replaces any existing set.
      */
     suspend fun setRegexPatterns(context: Context, patterns: Set<String>) {
+        require(patterns.all { validationError(it) == null }) {
+            "One or more custom patterns are unsafe or invalid"
+        }
         context.regexDataStore.edit { prefs ->
             prefs[REGEX_SET_KEY] = patterns
         }
+    }
+
+    fun validationError(pattern: String): String? {
+        if (pattern.length > 500) return "Pattern must be 500 characters or fewer"
+        if (pattern.isBlank()) return "Pattern cannot be blank"
+        val nestedQuantifier =
+            Regex("""\((?:[^()\\]|\\.)*[+*](?:[^()\\]|\\.)*\)\s*(?:[+*]|\{\d+,\d*\})""")
+        if (nestedQuantifier.containsMatchIn(pattern)) {
+            return "Nested repeating groups are not allowed because they can freeze SMS processing"
+        }
+        val oversizedRepeat = Regex("""\{\s*(\d{5,})(?:\s*,[^}]*)?}""")
+        if (oversizedRepeat.containsMatchIn(pattern)) {
+            return "Repeat counts must be below 10,000"
+        }
+        return runCatching { Regex(pattern, RegexOption.IGNORE_CASE) }
+            .exceptionOrNull()
+            ?.message
     }
 }

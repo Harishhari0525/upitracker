@@ -25,13 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -48,30 +41,37 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.upitracker.ui.components.expressive.ExpressiveQuickActionCard
 import com.example.upitracker.ui.components.expressive.ExpressiveSectionHeader
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
+import com.example.upitracker.util.AppThemePalette
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.viewmodel.MainViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private sealed interface DataDialog {
     data object None : DataDialog
@@ -96,13 +96,13 @@ fun DataManagementScreen(
     onNavigateToPassbook: () -> Unit,
     onExportToCsv: () -> Unit
 ) {
-    val isImportingSms by mainViewModel.isImportingSms.collectAsState()
-    val isExportingCsv by mainViewModel.isExportingCsv.collectAsState()
-    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsState()
-    val isBackingUp by mainViewModel.isBackingUp.collectAsState()
-    val isRestoring by mainViewModel.isRestoring.collectAsState()
-    val refundKeyword by mainViewModel.refundKeyword.collectAsState()
-    val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsState()
+    val isImportingSms by mainViewModel.isImportingSms.collectAsStateWithLifecycle()
+    val isExportingCsv by mainViewModel.isExportingCsv.collectAsStateWithLifecycle()
+    val isRefreshingSmsArchive by mainViewModel.isRefreshingSmsArchive.collectAsStateWithLifecycle()
+    val isBackingUp by mainViewModel.isBackingUp.collectAsStateWithLifecycle()
+    val isRestoring by mainViewModel.isRestoring.collectAsStateWithLifecycle()
+    val refundKeyword by mainViewModel.refundKeyword.collectAsStateWithLifecycle()
+    val refundKeywordUpdateInfo by mainViewModel.refundKeywordUpdateInfo.collectAsStateWithLifecycle()
     var activeDialog by remember { mutableStateOf<DataDialog>(DataDialog.None) }
 
     Scaffold(
@@ -137,8 +137,8 @@ fun DataManagementScreen(
             }
 
             item {
-                val currentPalette by mainViewModel.themePalette.collectAsState()
-                val isDarkMode by mainViewModel.isDarkMode.collectAsState()
+                val currentPalette by mainViewModel.themePalette.collectAsStateWithLifecycle()
+                val isDarkMode by mainViewModel.isDarkMode.collectAsStateWithLifecycle()
 
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -182,7 +182,7 @@ fun DataManagementScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(com.example.upitracker.util.AppThemePalette.values()) { palette ->
+                            items(AppThemePalette.entries.toTypedArray()) { palette ->
                                 val isSelected = palette == currentPalette
                                 val chipColor = com.example.upitracker.util.parseColor(palette.primaryHex)
                                 FilterChip(
@@ -271,8 +271,8 @@ fun DataManagementScreen(
             }
 
             item {
-                val latestTimestamp by mainViewModel.latestTransactionTimestamp.collectAsState()
-                val lastSyncTime by mainViewModel.lastSyncExecutionTimestamp.collectAsState()
+                val latestTimestamp by mainViewModel.latestTransactionTimestamp.collectAsStateWithLifecycle()
+                val lastSyncTime by mainViewModel.lastSyncExecutionTimestamp.collectAsStateWithLifecycle()
                 val latestSyncText = remember(lastSyncTime, latestTimestamp) {
                     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
                     val syncStr = if (lastSyncTime > 0) sdf.format(Date(lastSyncTime)) else "Never"

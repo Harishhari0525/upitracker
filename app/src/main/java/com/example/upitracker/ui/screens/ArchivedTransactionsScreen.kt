@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,11 +45,11 @@ fun ArchivedTransactionsScreen(
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
 
     val archivedList = mainViewModel.archivedUpiTransactions.collectAsLazyPagingItems()
-    val archivedCount by mainViewModel.archivedTransactionCount.collectAsState()
+    val archivedCount by mainViewModel.archivedTransactionCount.collectAsStateWithLifecycle()
 
-    val allCategories by mainViewModel.allCategories.collectAsState()
-    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsState()
-    val selectedIds by mainViewModel.selectedTransactionIds.collectAsState()
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
+    val isSelectionMode by mainViewModel.isSelectionModeActive.collectAsStateWithLifecycle()
+    val selectedIds by mainViewModel.selectedTransactionIds.collectAsStateWithLifecycle()
 
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,

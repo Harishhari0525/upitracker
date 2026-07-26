@@ -21,7 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,9 +97,9 @@ private fun CategorizationRulesContent(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    val allCategories by mainViewModel.allCategories.collectAsState(initial = emptyList())
-    val rules by mainViewModel.categorySuggestionRules.collectAsState()
-    val lastApplication by mainViewModel.lastRuleApplication.collectAsState()
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
+    val rules by mainViewModel.categorySuggestionRules.collectAsStateWithLifecycle()
+    val lastApplication by mainViewModel.lastRuleApplication.collectAsStateWithLifecycle()
 
     var ruleToEdit by remember { mutableStateOf<CategorySuggestionRule?>(null) }
     var showAddEditDialog by remember { mutableStateOf(false) }

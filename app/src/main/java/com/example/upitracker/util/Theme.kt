@@ -10,7 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -269,8 +269,8 @@ fun Theme(
     mainViewModel: MainViewModel,
     content: @Composable () -> Unit
 ) {
-    val userDarkMode by mainViewModel.isDarkMode.collectAsState()
-    val palette by mainViewModel.themePalette.collectAsState()
+    val userDarkMode by mainViewModel.isDarkMode.collectAsStateWithLifecycle()
+    val palette by mainViewModel.themePalette.collectAsStateWithLifecycle()
     val isDarkMode = userDarkMode
     val colorScheme = getThemeColorScheme(palette, isDarkMode)
     val context = LocalContext.current

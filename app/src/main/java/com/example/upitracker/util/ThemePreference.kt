@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -50,6 +51,10 @@ object ThemePreference {
     private val NOTIFICATION_CONTENT_REDACTED_KEY = booleanPreferencesKey("notification_content_redacted")
     private val WIDGET_AMOUNTS_HIDDEN_KEY = booleanPreferencesKey("widget_amounts_hidden")
     private val AUTO_LOCK_DELAY_KEY = stringPreferencesKey("auto_lock_delay")
+    private val DISMISSED_SUBSCRIPTION_KEYS =
+        stringSetPreferencesKey("dismissed_subscription_keys")
+    private val LAST_MONTHLY_STATEMENT_PERIOD_KEY =
+        stringPreferencesKey("last_monthly_statement_period")
 
     fun getThemePaletteFlow(context: Context): Flow<AppThemePalette> =
         context.settingsDataStore.data.map { prefs ->
@@ -211,5 +216,49 @@ object ThemePreference {
     suspend fun setAutoLockDelay(context: Context, delay: AutoLockDelay) {
         context.settingsDataStore.edit { it[AUTO_LOCK_DELAY_KEY] = delay.name }
     }
+
+    suspend fun resetSmsSyncTimestamps(context: Context) {
+        context.settingsDataStore.edit { prefs ->
+            prefs.remove(LAST_PROCESSED_SMS_TIMESTAMP_KEY)
+            prefs.remove(LAST_SYNC_EXECUTION_TIMESTAMP_KEY)
+        }
+    }
+
+    fun getDismissedSubscriptionKeysFlow(context: Context): Flow<Set<String>> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[DISMISSED_SUBSCRIPTION_KEYS]?.toSet().orEmpty()
+        }
+
+    suspend fun addDismissedSubscriptionKey(context: Context, key: String) {
+        context.settingsDataStore.edit { prefs ->
+            val dismissedKeys = prefs[DISMISSED_SUBSCRIPTION_KEYS].orEmpty()
+            prefs[DISMISSED_SUBSCRIPTION_KEYS] =
+                buildList {
+                    addAll(dismissedKeys)
+                    remove(key)
+                    add(key)
+                }.takeLast(MAX_DISMISSED_SUBSCRIPTIONS).toSet()
+        }
+    }
+
+    fun getLastMonthlyStatementPeriodFlow(context: Context): Flow<String> =
+        context.settingsDataStore.data.map { prefs ->
+            prefs[LAST_MONTHLY_STATEMENT_PERIOD_KEY].orEmpty()
+        }
+
+    suspend fun setLastMonthlyStatementPeriod(context: Context, periodKey: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[LAST_MONTHLY_STATEMENT_PERIOD_KEY] = periodKey
+        }
+    }
+
+    suspend fun clearDataDerivedPreferences(context: Context) {
+        context.settingsDataStore.edit { prefs ->
+            prefs.remove(DISMISSED_SUBSCRIPTION_KEYS)
+            prefs.remove(LAST_MONTHLY_STATEMENT_PERIOD_KEY)
+        }
+    }
+
+    private const val MAX_DISMISSED_SUBSCRIPTIONS = 200
 
 }

@@ -42,7 +42,7 @@ fun LottieSplashScreen(
     // 2. Clear the splash gate cleanly when the animation reaches completion
     LaunchedEffect(progress) {
         if (progress == 1f) {
-            delay(200.milliseconds) // Tiny cushion to prevent visual thread stutters
+            delay(150.milliseconds) // Tiny cushion to prevent visual thread stutters
             onAnimationFinished()
         }
     }

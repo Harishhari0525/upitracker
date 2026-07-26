@@ -59,7 +59,7 @@
         </activity>
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".util.UpiFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">

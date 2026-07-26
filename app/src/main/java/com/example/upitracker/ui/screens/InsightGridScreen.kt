@@ -27,7 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,10 +59,10 @@ fun InsightGridScreen(
     onNavigateToHistory: () -> Unit,
     onBackClick: () -> Unit
 ) {
-    val velocityState by mainViewModel.spendingVelocityState.collectAsState()
-    val currentMonthTotal by mainViewModel.currentMonthTotalExpenses.collectAsState()
-    val previousMonthTotal by mainViewModel.previousMonthTotalExpenses.collectAsState()
-    val allHistoryListItems by mainViewModel.currentMonthExpenseItems.collectAsState()
+    val velocityState by mainViewModel.spendingVelocityState.collectAsStateWithLifecycle()
+    val currentMonthTotal by mainViewModel.currentMonthTotalExpenses.collectAsStateWithLifecycle()
+    val previousMonthTotal by mainViewModel.previousMonthTotalExpenses.collectAsStateWithLifecycle()
+    val allHistoryListItems by mainViewModel.currentMonthExpenseItems.collectAsStateWithLifecycle()
 
     val currencyFormatter = remember {
         NumberFormat.getCurrencyInstance(

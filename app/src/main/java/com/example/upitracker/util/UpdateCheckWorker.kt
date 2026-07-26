@@ -50,7 +50,7 @@ class UpdateCheckWorker(
             return Result.success()
         } catch (e: Exception) {
             Log.e(WORK_NAME, "Error during update check.", e)
-            return Result.failure()
+            return Result.retry()
         }
     }
 

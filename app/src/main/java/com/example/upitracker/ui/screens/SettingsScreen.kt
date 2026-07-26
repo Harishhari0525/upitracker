@@ -45,7 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -157,7 +157,7 @@ fun SettingsScreen(
             }
 
             item {
-                val isDarkMode by mainViewModel.isDarkMode.collectAsState()
+                val isDarkMode by mainViewModel.isDarkMode.collectAsStateWithLifecycle()
 
                 SettingItemRow(
                     icon = Icons.Filled.BrightnessMedium,
@@ -187,9 +187,9 @@ fun SettingsScreen(
             }
 
             item {
-                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
-                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
-                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
+                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsStateWithLifecycle()
+                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsStateWithLifecycle()
+                val redacted by mainViewModel.isNotificationContentRedacted.collectAsStateWithLifecycle()
                 val summary = buildList {
                     add(if (alertsEnabled) "Alerts on" else "Alerts off")
                     if (alertsEnabled) add(if (actionsEnabled) "Quick actions on" else "Quick actions off")
@@ -232,7 +232,7 @@ fun SettingsScreen(
             }
 
             item {
-                val delay by mainViewModel.autoLockDelay.collectAsState()
+                val delay by mainViewModel.autoLockDelay.collectAsStateWithLifecycle()
                 SettingItemRow(
                     icon = Icons.Filled.Lock,
                     title = "Automatic lock",
@@ -246,7 +246,7 @@ fun SettingsScreen(
             }
 
             item {
-                val hidden by mainViewModel.isWidgetAmountHidden.collectAsState()
+                val hidden by mainViewModel.isWidgetAmountHidden.collectAsStateWithLifecycle()
                 SettingItemRow(
                     icon = Icons.Filled.PrivacyTip,
                     title = "Hide widget amounts",
@@ -342,9 +342,9 @@ fun SettingsScreen(
         when (activeDialog) {
 
             is SettingsDialog.Notifications -> {
-                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsState()
-                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsState()
-                val redacted by mainViewModel.isNotificationContentRedacted.collectAsState()
+                val alertsEnabled by mainViewModel.isTransactionAlertsEnabled.collectAsStateWithLifecycle()
+                val actionsEnabled by mainViewModel.isNotificationActionsEnabled.collectAsStateWithLifecycle()
+                val redacted by mainViewModel.isNotificationContentRedacted.collectAsStateWithLifecycle()
 
                 NotificationSettingsDialog(
                     alertsEnabled = alertsEnabled,

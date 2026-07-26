@@ -7,4 +7,6 @@ message UserPreferences {
   string pin = 1;
   int32 failed_pin_attempts = 2;
   int64 pin_lockout_until = 3;
+  bytes pin_hash = 4;
+  bytes pin_salt = 5;
 }

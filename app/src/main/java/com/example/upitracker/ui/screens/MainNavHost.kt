@@ -160,6 +160,26 @@ fun MainNavHost(
                                 restoreState = true
                             }
                         },
+                        onViewBudgetsClick = {
+                            rootNavController.navigate(BottomNavItem.Budget.route) {
+                                popUpTo(rootNavController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onViewUncategorizedClick = {
+                            mainViewModel.clearAllHistoryFilters()
+                            mainViewModel.toggleUncategorizedFilter(true)
+                            rootNavController.navigate(BottomNavItem.History.route) {
+                                popUpTo(rootNavController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
                         onViewInsightsClick = {
                             rootNavController.navigate("insights_screen")
                         },

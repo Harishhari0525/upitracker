@@ -45,7 +45,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_LABEL
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.ui.components.AddEditBudgetDialog
 import com.example.upitracker.ui.components.AddEditRecurringRuleDialog
@@ -67,6 +68,7 @@ import com.example.upitracker.ui.components.LottieEmptyState
 import com.example.upitracker.ui.components.RecurringRuleCard
 import com.example.upitracker.ui.components.expressive.ExpressiveTopBar
 import com.example.upitracker.util.CurrencyUtils
+import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.getCategoryIcon
 import com.example.upitracker.viewmodel.BudgetStatus
@@ -81,12 +83,13 @@ import java.util.Locale
 fun BudgetScreen(
     mainViewModel: MainViewModel
 ) {
-    val allCategories by mainViewModel.allCategories.collectAsState(initial = emptyList())
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val tabTitles = listOf("Spending Budgets", "Recurring Payments")
 
     var showAddBudgetDialog by remember { mutableStateOf(false) }
+    var addOverallByDefault by remember { mutableStateOf(false) }
     var budgetToEdit by remember { mutableStateOf<BudgetStatus?>(null) }
 
     var showAddRecurringDialog by remember { mutableStateOf(false) }
@@ -99,7 +102,11 @@ fun BudgetScreen(
         AddEditBudgetDialog(
             userCategories = allCategories,
             budgetStatus = null,
-            onDismiss = { showAddBudgetDialog = false },
+            initialOverall = addOverallByDefault,
+            onDismiss = {
+                showAddBudgetDialog = false
+                addOverallByDefault = false
+            },
             onConfirm = { category, amount, period, allowRollover ->
                 mainViewModel.addOrUpdateBudget(
                     category,
@@ -108,6 +115,7 @@ fun BudgetScreen(
                     allowRollover
                 )
                 showAddBudgetDialog = false
+                addOverallByDefault = false
             }
         )
     }
@@ -210,7 +218,7 @@ fun BudgetScreen(
             ExpressiveTopBar(
                 title = "Budgets",
                 subtitle = if (pagerState.currentPage == 0) {
-                    "Control category-wise spending limits"
+                    "Control overall and category spending limits"
                 } else {
                     "Track subscriptions, rent, EMIs, and fixed bills"
                 }
@@ -221,6 +229,7 @@ fun BudgetScreen(
                 modifier = Modifier.navigationBarsPadding(),
                 onClick = {
                     if (pagerState.currentPage == 0) {
+                        addOverallByDefault = false
                         showAddBudgetDialog = true
                     } else {
                         showAddRecurringDialog = true
@@ -319,7 +328,11 @@ fun BudgetScreen(
                     0 -> {
                         BudgetList(
                             mainViewModel = mainViewModel,
-                            onEditBudget = { budgetToEdit = it }
+                            onEditBudget = { budgetToEdit = it },
+                            onSetupOverall = {
+                                addOverallByDefault = true
+                                showAddBudgetDialog = true
+                            }
                         )
                     }
 
@@ -339,52 +352,112 @@ fun BudgetScreen(
 @Composable
 private fun BudgetList(
     mainViewModel: MainViewModel,
-    onEditBudget: (BudgetStatus) -> Unit
+    onEditBudget: (BudgetStatus) -> Unit,
+    onSetupOverall: () -> Unit
 ) {
-    val budgetStatuses by mainViewModel.budgetStatuses.collectAsState()
-    val allCategories by mainViewModel.allCategories.collectAsState()
+    val budgetStatuses by mainViewModel.budgetStatuses.collectAsStateWithLifecycle()
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
 
-    if (budgetStatuses.isEmpty()) {
-        LottieEmptyState(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(ExpressiveTokens.spacing.lg),
-            message = "You haven't set any budgets yet.\nTap 'Add Budget' to create one.",
-            lottieResourceId = R.raw.empty_box_animation
-        )
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = ExpressiveTokens.spacing.lg,
-                top = ExpressiveTokens.spacing.lg,
-                end = ExpressiveTokens.spacing.lg,
-                bottom = 120.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
-        ) {
+    val overallBudget = budgetStatuses.firstOrNull { it.isOverall }
+    val categoryBudgets = budgetStatuses.filterNot { it.isOverall }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = ExpressiveTokens.spacing.lg,
+            top = ExpressiveTokens.spacing.lg,
+            end = ExpressiveTokens.spacing.lg,
+            bottom = 120.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(ExpressiveTokens.spacing.md)
+    ) {
+        if (overallBudget == null) {
             item {
-                BudgetOverviewCard(budgetStatuses)
+                OverallBudgetSetupCard(onClick = onSetupOverall)
+            }
+        }
+
+        if (categoryBudgets.isNotEmpty()) {
+            item {
+                BudgetOverviewCard(categoryBudgets)
+            }
+        }
+
+        if (budgetStatuses.isEmpty()) {
+            item {
+                LottieEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    message = "Set an overall monthly limit or add category budgets.",
+                    lottieResourceId = R.raw.empty_box_animation
+                )
+            }
+        }
+
+        val sortedStatuses = budgetStatuses.sortedByDescending { it.isOverall }
+        items(
+            items = sortedStatuses,
+            key = { it.budgetId }
+        ) { status ->
+            val categoryDetails = remember(status.categoryName, allCategories) {
+                allCategories.find { category ->
+                    category.name.equals(status.categoryName, ignoreCase = true)
+                }
             }
 
-            items(
-                items = budgetStatuses,
-                key = { it.budgetId }
-            ) { status ->
-                val categoryDetails = remember(status.categoryName, allCategories) {
-                    allCategories.find { category ->
-                        category.name.equals(status.categoryName, ignoreCase = true)
-                    }
-                }
+            val categoryIcon = if (status.isOverall) {
+                CategoryIcon.VectorIcon(Icons.Filled.Savings)
+            } else {
+                getCategoryIcon(categoryDetails)
+            }
 
-                val categoryIcon = getCategoryIcon(categoryDetails)
+            BudgetCard(
+                status = status,
+                onEdit = { onEditBudget(status) },
+                onDelete = { mainViewModel.deleteBudget(status.budgetId) },
+                categoryIcon = categoryIcon
+            )
+        }
+    }
+}
 
-                BudgetCard(
-                    status = status,
-                    onEdit = { onEditBudget(status) },
-                    onDelete = { mainViewModel.deleteBudget(status.budgetId) },
-                    categoryIcon = categoryIcon
-                )
+@Composable
+private fun OverallBudgetSetupCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveTokens.corners.extraLarge,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Savings,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp)
+            )
+            Text(
+                text = OVERALL_MONTHLY_BUDGET_LABEL,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "This is the only limit used for Home’s safe daily allowance. Category budgets remain independent.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = onClick,
+                shape = ExpressiveTokens.corners.medium
+            ) {
+                Text("Set monthly limit")
             }
         }
     }
@@ -452,9 +525,9 @@ private fun RecurringList(
     onEditRule: (RecurringRule) -> Unit,
     onViewForecast: (RecurringRule) -> Unit
 ) {
-    val recurringRules by mainViewModel.recurringRules.collectAsState()
-    val detectedSubscriptions by mainViewModel.detectedSubscriptions.collectAsState()
-    val priceChanges by mainViewModel.subscriptionPriceChanges.collectAsState()
+    val recurringRules by mainViewModel.recurringRules.collectAsStateWithLifecycle()
+    val detectedSubscriptions by mainViewModel.detectedSubscriptions.collectAsStateWithLifecycle()
+    val priceChanges by mainViewModel.subscriptionPriceChanges.collectAsStateWithLifecycle()
 
     if (recurringRules.isEmpty() && detectedSubscriptions.isEmpty()) {
         LottieEmptyState(

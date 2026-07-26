@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.upitracker.R
 import com.example.upitracker.ui.components.LottieEmptyState
@@ -44,18 +45,18 @@ fun PassbookScreen(
     onBack: () -> Unit,
     passbookViewModel: PassbookViewModel = viewModel()
 ) {
-    val transactionType by passbookViewModel.transactionType.collectAsState()
+    val transactionType by passbookViewModel.transactionType.collectAsStateWithLifecycle()
     val transactions = passbookViewModel.filteredTransactions.collectAsLazyPagingItems()
-    val transactionCount by passbookViewModel.passbookTransactionCount.collectAsState()
-    val allCategories by passbookViewModel.allCategories.collectAsState()
-    val startDate by passbookViewModel.startDate.collectAsState()
-    val endDate by passbookViewModel.endDate.collectAsState()
+    val transactionCount by passbookViewModel.passbookTransactionCount.collectAsStateWithLifecycle()
+    val allCategories by passbookViewModel.allCategories.collectAsStateWithLifecycle()
+    val startDate by passbookViewModel.startDate.collectAsStateWithLifecycle()
+    val endDate by passbookViewModel.endDate.collectAsStateWithLifecycle()
 
     // ✨ NEW OBSERVER: Connect directly to the calculated on-screen ledger sums
-    val accountingSummary by passbookViewModel.passbookSummary.collectAsState()
+    val accountingSummary by passbookViewModel.passbookSummary.collectAsStateWithLifecycle()
 
-    val showBankName by passbookViewModel.showBankName.collectAsState()
-    val includeCategoryBreakdown by passbookViewModel.includeCategoryBreakdown.collectAsState()
+    val showBankName by passbookViewModel.showBankName.collectAsStateWithLifecycle()
+    val includeCategoryBreakdown by passbookViewModel.includeCategoryBreakdown.collectAsStateWithLifecycle()
 
     var isPeriodMenuExpanded by remember { mutableStateOf(false) }
     var selectedPeriodLabel by remember { mutableStateOf("This Month") }

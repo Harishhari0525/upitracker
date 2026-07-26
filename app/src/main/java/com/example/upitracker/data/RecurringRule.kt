@@ -18,6 +18,7 @@ data class RecurringRule(
     val dayOfPeriod: Int, // For MONTHLY: 1-31, for WEEKLY: 1-7 (Monday-Sunday)
     val nextDueDate: Long, // The timestamp for the next time this transaction is due. This is crucial.
     @ColumnInfo(defaultValue = "1") val createTransactionOnDueDate: Boolean = true,
+    @ColumnInfo(defaultValue = "0") val lastUpcomingNotificationDueDate: Long = 0L,
     val creationDate: Long = System.currentTimeMillis()
 ) {
     @get:Ignore
@@ -33,6 +34,18 @@ data class RecurringRule(
         dayOfPeriod: Int,
         nextDueDate: Long,
         createTransactionOnDueDate: Boolean = true,
+        lastUpcomingNotificationDueDate: Long = 0L,
         creationDate: Long = System.currentTimeMillis()
-    ) : this(id, amount.toPaise(), description, categoryName, periodType, dayOfPeriod, nextDueDate, createTransactionOnDueDate, creationDate)
+    ) : this(
+        id,
+        amount.toPaise(),
+        description,
+        categoryName,
+        periodType,
+        dayOfPeriod,
+        nextDueDate,
+        createTransactionOnDueDate,
+        lastUpcomingNotificationDueDate,
+        creationDate
+    )
 }

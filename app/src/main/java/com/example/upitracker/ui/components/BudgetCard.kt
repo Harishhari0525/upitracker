@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.upitracker.R
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_LABEL
 import com.example.upitracker.util.CategoryIcon
 import com.example.upitracker.util.ExpressiveTokens
 import com.example.upitracker.util.CurrencyUtils
@@ -136,14 +137,22 @@ fun BudgetCard(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        text = status.categoryName,
+                        text = if (status.isOverall) {
+                            OVERALL_MONTHLY_BUDGET_LABEL
+                        } else {
+                            status.categoryName
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Text(
-                        text = status.periodType.name.lowercase().replaceFirstChar { it.titlecase() },
+                        text = if (status.isOverall) {
+                            "All categories • Resets monthly"
+                        } else {
+                            status.periodType.name.lowercase().replaceFirstChar { it.titlecase() }
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

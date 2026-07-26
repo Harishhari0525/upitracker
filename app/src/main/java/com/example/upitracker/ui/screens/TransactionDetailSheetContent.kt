@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -57,8 +58,8 @@ fun TransactionDetailSheetContent(
     mainViewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
-    val transaction by mainViewModel.selectedTransaction.collectAsState()
-    val allCategories by mainViewModel.allCategories.collectAsState()
+    val transaction by mainViewModel.selectedTransaction.collectAsStateWithLifecycle()
+    val allCategories by mainViewModel.allCategories.collectAsStateWithLifecycle()
 
     // --- STATE MANAGEMENT ---
     var isEditMode by remember { mutableStateOf(false) }
@@ -68,6 +69,7 @@ fun TransactionDetailSheetContent(
     var noteText by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var receiptPath by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
 
     var showFullScreenImage by remember { mutableStateOf(false) }
     var showRuleCreatorDialog by remember { mutableStateOf(false) }
@@ -257,29 +259,48 @@ fun TransactionDetailSheetContent(
                 Button(
                     onClick = {
                         val newAmount = amountText.toDoubleOrNull()
-                        val newReceiptPath = imageUri?.let { mainViewModel.saveReceiptImage(it) }
                         if (newAmount != null) {
-                            mainViewModel.updateTransactionDetails(
-                                transactionId = transaction!!.id,
-                                newDescription = descriptionText,
-                                newAmount = newAmount,
-                                newCategory = categoryText,
-                                newNote = noteText,
-                                newReceiptPath = newReceiptPath
-                            )
-                            onDismiss()
+                            val pendingImageUri = imageUri
+                            val applyUpdate: (String?) -> Unit = { newReceiptPath ->
+                                if (pendingImageUri == null || newReceiptPath != null) {
+                                    mainViewModel.updateTransactionDetails(
+                                        transactionId = transaction!!.id,
+                                        newDescription = descriptionText,
+                                        newAmount = newAmount,
+                                        newCategory = categoryText,
+                                        newNote = noteText,
+                                        newReceiptPath = newReceiptPath
+                                    )
+                                    onDismiss()
+                                }
+                                isSaving = false
+                            }
+                            if (pendingImageUri != null) {
+                                isSaving = true
+                                mainViewModel.saveReceiptImage(pendingImageUri, applyUpdate)
+                            } else {
+                                applyUpdate(null)
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f).height(50.dp),
-                    shape = ExpressiveTokens.corners.large
+                    shape = ExpressiveTokens.corners.large,
+                    enabled = !isSaving
                 ) {
-                    Text("Save")
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Save")
+                    }
                 }
             }
         } else {
             // --- VIEW MODE UI ---
-            val allTransactions by mainViewModel.transactions.collectAsState()
-            val linkedTxn by mainViewModel.linkedSelectedTransaction.collectAsState()
+            val allTransactions by mainViewModel.transactions.collectAsStateWithLifecycle()
+            val linkedTxn by mainViewModel.linkedSelectedTransaction.collectAsStateWithLifecycle()
             val isDebit = transaction!!.type == "DEBIT"
 
             TransactionDetailHeader(transaction = transaction!!, linkedTransaction = linkedTxn)

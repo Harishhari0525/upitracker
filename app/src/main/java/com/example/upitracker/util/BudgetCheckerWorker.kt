@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.upitracker.data.AppDatabase
 import com.example.upitracker.data.BudgetPeriod
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_CATEGORY
 import kotlinx.coroutines.flow.first
 import java.util.Calendar
 import androidx.core.content.edit
@@ -33,7 +34,7 @@ class BudgetCheckerWorker(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
         }
@@ -48,18 +49,38 @@ class BudgetCheckerWorker(
 
             val activeBudgets = budgetDao.getAllActiveBudgets().first()
             if (activeBudgets.isEmpty()) return Result.success()
+            val includeUpiLite = ThemePreference.isUpiLiteEnabledFlow(applicationContext).first()
+            val refundCategory = ThemePreference.getRefundKeywordFlow(applicationContext).first()
+            val upiLiteSummaries = if (includeUpiLite) {
+                db.upiLiteSummaryDao().getAllSummaries().first()
+            } else {
+                emptyList()
+            }
 
             activeBudgets.forEach { budget ->
                 val (periodStart, periodEnd) = getCurrentPeriodRange(budget.periodType)
 
                 // Only check if we haven't already notified for the current period
                 if (budget.lastNotificationTimestamp < periodStart) {
-                    val spentInCurrentPeriod = transactionDao.getSpentAmountForCategoryInRangeSync(
-                        startDate = periodStart,
-                        endDate = periodEnd,
-                        categoryName = budget.categoryName,
-                        refundCategory = "Refund"
-                    ) ?: 0.0
+                    val spentInCurrentPeriod =
+                        if (budget.categoryName == OVERALL_MONTHLY_BUDGET_CATEGORY) {
+                            val transactionSpend = transactionDao.getSpentAmountInRangeSync(
+                                startDate = periodStart,
+                                endDate = periodEnd,
+                                refundCategory = refundCategory
+                            ) ?: 0.0
+                            val upiLiteSpend = upiLiteSummaries
+                                .filter { it.date in periodStart..periodEnd }
+                                .sumOf { it.totalAmount }
+                            transactionSpend + upiLiteSpend
+                        } else {
+                            transactionDao.getSpentAmountForCategoryInRangeSync(
+                                startDate = periodStart,
+                                endDate = periodEnd,
+                                categoryName = budget.categoryName,
+                                refundCategory = refundCategory
+                            ) ?: 0.0
+                        }
 
                     if (spentInCurrentPeriod >= budget.budgetAmount) {
                         Log.d(WORK_NAME, "A budget was exceeded; notifying user")
@@ -70,12 +91,12 @@ class BudgetCheckerWorker(
                         budgetDao.update(updatedBudget)
                     } else if (spentInCurrentPeriod >= budget.budgetAmount * 0.85) {
                         val sharedPrefs = applicationContext.getSharedPreferences("budget_notifications_prefs", Context.MODE_PRIVATE)
-                        val warningKey = "budget_warned_${budget.id}_${periodStart}"
-                        val hasWarned = sharedPrefs.getBoolean(warningKey, false)
+                        val warningKey = "budget_warned_period_${budget.id}"
+                        val hasWarned = sharedPrefs.getLong(warningKey, Long.MIN_VALUE) == periodStart
                         if (!hasWarned) {
                             Log.d(WORK_NAME, "A budget warning threshold was reached")
                             NotificationHelper.showBudgetWarningNotification(applicationContext, budget, spentInCurrentPeriod)
-                            sharedPrefs.edit { putBoolean(warningKey, true) }
+                            sharedPrefs.edit { putLong(warningKey, periodStart) }
                         }
                     }
                 }
@@ -84,7 +105,7 @@ class BudgetCheckerWorker(
             return Result.success()
         } catch (e: Exception) {
             Log.e(WORK_NAME, "Error checking budgets.", e)
-            return Result.failure()
+            return Result.retry()
         }
     }
 

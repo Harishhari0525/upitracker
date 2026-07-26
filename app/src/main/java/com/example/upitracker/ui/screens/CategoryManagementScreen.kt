@@ -33,7 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -62,7 +62,7 @@ fun CategoryManagementScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit
 ) {
-    val categories by mainViewModel.allCategories.collectAsState()
+    val categories by mainViewModel.allCategories.collectAsStateWithLifecycle()
 
     var showDialog by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<Category?>(null) }

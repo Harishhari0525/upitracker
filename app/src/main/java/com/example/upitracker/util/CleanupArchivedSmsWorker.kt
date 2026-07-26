@@ -46,7 +46,7 @@ class CleanupArchivedSmsWorker(
             Result.success()
         } catch (e: Exception) {
             Log.e(WORK_NAME, "Error during cleanup of archived SMS messages.", e)
-            Result.failure()
+            Result.retry()
         }
     }
 }

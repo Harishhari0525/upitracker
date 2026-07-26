@@ -21,6 +21,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL ORDER BY date DESC LIMIT :limit")
     fun getRecentTransactions(limit: Int): Flow<List<Transaction>>
 
+    @Query(
+        "SELECT * FROM transactions " +
+            "WHERE isArchived = 0 AND pendingDeletionTimestamp IS NULL AND date >= :startDate " +
+            "ORDER BY date DESC"
+    )
+    fun getTransactionsSince(startDate: Long): Flow<List<Transaction>>
+
     @Query("""
         SELECT * FROM transactions
         WHERE isArchived = 0
@@ -84,22 +91,6 @@ interface TransactionDao {
 
     @RawQuery(observedEntities = [Transaction::class])
     fun getFilteredTransactionsPaged(query: SupportSQLiteQuery): PagingSource<Int, Transaction>
-
-    data class BankBalance(
-        val bankName: String,
-        val balancePaise: Long
-    ) {
-        val latestBalance: Double get() = balancePaise.toMajorUnits()
-    }
-
-    @Query("""
-        SELECT bankName, balanceAfterTransaction AS balancePaise
-        FROM transactions
-        WHERE balanceAfterTransaction IS NOT NULL AND bankName IS NOT NULL AND isArchived = 0
-        GROUP BY bankName
-        ORDER BY date DESC
-    """)
-    fun getLatestBankBalances(): Flow<List<BankBalance>>
 
     data class TransactionTotals(
         val totalDebitPaise: Long,
@@ -293,6 +284,16 @@ interface TransactionDao {
     @Delete
     suspend fun delete(transaction: Transaction)
 
+    @Query("UPDATE transactions SET linkedTransactionId = NULL WHERE linkedTransactionId = :transactionId")
+    suspend fun unlinkTransactionsPointingTo(transactionId: Int)
+
+    @androidx.room.Transaction
+    suspend fun deleteWithLinkCleanup(transaction: Transaction): String? {
+        unlinkTransactionsPointingTo(transaction.id)
+        delete(transaction)
+        return transaction.receiptImagePath
+    }
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()
 
@@ -324,14 +325,51 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp")
     suspend fun permanentlyDeletePending(cutoffTimestamp: Long)
 
+    @Query("SELECT id FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp")
+    suspend fun getIdsPendingDeletion(cutoffTimestamp: Long): List<Int>
+
     @Query("SELECT receiptImagePath FROM transactions WHERE pendingDeletionTimestamp IS NOT NULL AND pendingDeletionTimestamp < :cutoffTimestamp AND receiptImagePath IS NOT NULL")
     suspend fun getReceiptPathsPendingDeletion(cutoffTimestamp: Long): List<String>
+
+    @Query("UPDATE transactions SET linkedTransactionId = NULL WHERE linkedTransactionId IN (:transactionIds)")
+    suspend fun unlinkTransactionsPointingToAny(transactionIds: List<Int>)
+
+    @Query("SELECT receiptImagePath FROM transactions WHERE receiptImagePath IS NOT NULL")
+    suspend fun getAllReceiptPaths(): List<String>
+
+    @androidx.room.Transaction
+    suspend fun permanentlyDeletePendingWithLinkCleanup(cutoffTimestamp: Long): List<String> {
+        val ids = getIdsPendingDeletion(cutoffTimestamp)
+        val receiptPaths = getReceiptPathsPendingDeletion(cutoffTimestamp)
+        if (ids.isNotEmpty()) unlinkTransactionsPointingToAny(ids)
+        permanentlyDeletePending(cutoffTimestamp)
+        return receiptPaths
+    }
 
     @Query("SELECT * FROM transactions WHERE type = 'DEBIT' AND senderOrReceiver = :sender AND isArchived = 0 AND linkedTransactionId IS NULL ORDER BY date DESC")
     suspend fun findPotentialDebitsForRefund(sender: String): List<Transaction>
 
     @Query("UPDATE transactions SET linkedTransactionId = NULL WHERE id = :transactionId")
     suspend fun unlinkTransaction(transactionId: Int)
+
+    @Query("UPDATE transactions SET linkedTransactionId = :linkedTransactionId WHERE id = :transactionId")
+    suspend fun setLinkedTransaction(transactionId: Int, linkedTransactionId: Int?)
+
+    @androidx.room.Transaction
+    suspend fun linkTransactionPair(firstId: Int, secondId: Int) {
+        setLinkedTransaction(firstId, secondId)
+        setLinkedTransaction(secondId, firstId)
+    }
+
+    @androidx.room.Transaction
+    suspend fun unlinkTransactionPair(transactionId: Int) {
+        val transaction = getTransactionByIdSync(transactionId) ?: return
+        setLinkedTransaction(transactionId, null)
+        transaction.linkedTransactionId?.let { linkedId ->
+            setLinkedTransaction(linkedId, null)
+        }
+        unlinkTransactionsPointingTo(transactionId)
+    }
 
     @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
     suspend fun updateCategoryName(oldCategory: String, newCategory: String)
@@ -362,7 +400,7 @@ interface TransactionDao {
         refundCategory: String
     ): List<Transaction>
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND category != :refundCategory AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND (category IS NULL OR category != :refundCategory) AND date BETWEEN :startDate AND :endDate AND isArchived = 0 AND pendingDeletionTimestamp IS NULL")
     suspend fun getSpentAmountPaiseInRangeSync(
         startDate: Long,
         endDate: Long,

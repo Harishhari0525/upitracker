@@ -477,6 +477,9 @@ private fun TestPatternSheetContent(
                                 detectedBank = bank
 
                                 val customList = if (newRegex.isNotBlank()) {
+                                    RegexPreference
+                                        .validationError(newRegex.trim())
+                                        ?.let { throw IllegalArgumentException(it) }
                                     listOf(Regex(newRegex.trim(), RegexOption.IGNORE_CASE))
                                 } else emptyList()
 

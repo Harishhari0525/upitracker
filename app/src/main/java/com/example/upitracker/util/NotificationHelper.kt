@@ -13,6 +13,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import com.example.upitracker.R
 import com.example.upitracker.data.Budget
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_CATEGORY
+import com.example.upitracker.data.OVERALL_MONTHLY_BUDGET_LABEL
 import com.example.upitracker.data.RecurringRule
 import com.example.upitracker.network.GitHubRelease
 import java.text.NumberFormat
@@ -138,14 +140,26 @@ object NotificationHelper {
 
         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
         val overspendAmount = spentAmount - budget.budgetAmount
+        val budgetLabel = if (budget.categoryName == OVERALL_MONTHLY_BUDGET_CATEGORY) {
+            OVERALL_MONTHLY_BUDGET_LABEL
+        } else {
+            budget.categoryName
+        }
+        val alertText = if (overspendAmount > 0.0) {
+            "You've spent ${currencyFormatter.format(spentAmount)}, overspending by ${
+                currencyFormatter.format(overspendAmount)
+            }."
+        } else {
+            "You've reached the ${currencyFormatter.format(budget.budgetAmount)} limit."
+        }
         val notificationId = budget.id + 1000 // Use a unique ID based on the budget ID
 
         val builder = NotificationCompat.Builder(context, BUDGET_ALERTS_CHANNEL_ID) // ✨ Ensure we use the correct Channel ID ✨
             .setSmallIcon(R.drawable.ic_stat_notifications)
-            .setContentTitle("Budget Alert: ${budget.categoryName}")
-            .setContentText("You've spent ${currencyFormatter.format(spentAmount)}, overspending by ${currencyFormatter.format(overspendAmount)}.")
+            .setContentTitle("Budget Alert: $budgetLabel")
+            .setContentText(alertText)
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("You've spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}', overspending by ${currencyFormatter.format(overspendAmount)}."))
+                .bigText(alertText))
             .setPriority(NotificationCompat.PRIORITY_HIGH) // High priority to make it pop up
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
@@ -160,14 +174,19 @@ object NotificationHelper {
 
         val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
         val percentage = (spentAmount / budget.budgetAmount * 100).toInt()
+        val budgetLabel = if (budget.categoryName == OVERALL_MONTHLY_BUDGET_CATEGORY) {
+            OVERALL_MONTHLY_BUDGET_LABEL
+        } else {
+            budget.categoryName
+        }
         val notificationId = budget.id + 2000 // Use a unique ID based on the budget ID to distinguish warnings from exceeded alerts
 
         val builder = NotificationCompat.Builder(context, BUDGET_ALERTS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notifications)
-            .setContentTitle("Budget Warning: ${budget.categoryName}")
+            .setContentTitle("Budget Warning: $budgetLabel")
             .setContentText("You have spent ${percentage}% (${currencyFormatter.format(spentAmount)}) of your budget.")
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("You have spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '${budget.categoryName}' (${percentage}% reached). Time to budget wisely!"))
+                .bigText("You have spent ${currencyFormatter.format(spentAmount)} of your ${currencyFormatter.format(budget.budgetAmount)} budget for '$budgetLabel' (${percentage}% reached)."))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)

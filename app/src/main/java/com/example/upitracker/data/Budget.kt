@@ -13,6 +13,9 @@ enum class BudgetPeriod {
     YEARLY
 }
 
+const val OVERALL_MONTHLY_BUDGET_CATEGORY = "__overall_monthly_budget__"
+const val OVERALL_MONTHLY_BUDGET_LABEL = "Overall monthly limit"
+
 @Entity(tableName = "budgets")
 data class Budget(
     @PrimaryKey(autoGenerate = true)

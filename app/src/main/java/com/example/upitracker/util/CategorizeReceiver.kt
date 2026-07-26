@@ -27,7 +27,7 @@ class CategorizeReceiver : BroadcastReceiver() {
         val category = (typedCategory ?: quickCategory)
             ?.trim()
             ?.replace(Regex("\\s+"), " ")
-            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { it.isNotBlank() && it.length <= 50 }
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
 
         if (transactionId != -1 && category != null) {

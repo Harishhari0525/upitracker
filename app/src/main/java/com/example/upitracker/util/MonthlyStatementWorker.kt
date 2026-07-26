@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 class MonthlyStatementWorker(
     appContext: Context,
@@ -30,20 +31,23 @@ class MonthlyStatementWorker(
 
         try {
             val staleCutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(2)
-            context.cacheDir.listFiles { file ->
+            val statementDirectory = File(context.cacheDir, "statements").apply {
+                if (!exists() && !mkdirs()) {
+                    throw java.io.IOException("Unable to create statement cache directory")
+                }
+            }
+            statementDirectory.listFiles { file ->
                 file.isFile && file.name.startsWith("UPI_Tracker_Statement_") && file.extension == "pdf"
             }?.filter { it.lastModified() < staleCutoff }?.forEach { it.delete() }
 
             val calendar = Calendar.getInstance()
-            
-            // Only run this logic if it's the 1st day of the month
-            if (calendar.get(Calendar.DAY_OF_MONTH) != 1) {
-                Log.d(WORK_NAME, "Not the 1st of the month. Skipping statement generation.")
+            calendar.add(Calendar.MONTH, -1)
+            val periodKey = SimpleDateFormat("yyyy-MM", Locale.ROOT).format(calendar.time)
+            val lastGeneratedPeriod =
+                ThemePreference.getLastMonthlyStatementPeriodFlow(context).first()
+            if (lastGeneratedPeriod == periodKey) {
                 return Result.success()
             }
-            
-            // Get the previous month's date range
-            calendar.add(Calendar.MONTH, -1)
             
             // Format month name for display
             val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
@@ -67,12 +71,13 @@ class MonthlyStatementWorker(
 
             if (monthTransactions.isEmpty()) {
                 Log.d(WORK_NAME, "No transactions found for $monthName. Skipping statement.")
+                ThemePreference.setLastMonthlyStatementPeriod(context, periodKey)
                 return Result.success()
             }
 
             // Generate the PDF file in the cache directory
             val fileName = "UPI_Tracker_Statement_${monthName.replace(" ", "_")}.pdf"
-            val file = File(context.cacheDir, fileName)
+            val file = File(statementDirectory, fileName)
             if (file.exists() && !file.delete()) {
                 throw java.io.IOException("Unable to replace previous statement")
             }
@@ -94,6 +99,7 @@ class MonthlyStatementWorker(
 
             // Show the notification with the intent to email the generated PDF
             NotificationHelper.showMonthlyStatementNotification(context, uri, monthName)
+            ThemePreference.setLastMonthlyStatementPeriod(context, periodKey)
 
             Log.d(WORK_NAME, "Successfully generated and notified statement for $monthName.")
             return Result.success()
