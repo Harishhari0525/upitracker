@@ -23,10 +23,10 @@ subprojects {
         resolutionStrategy {
             force("org.jdom:jdom2:2.0.6.1")
             force("org.bitbucket.b_c:jose4j:0.9.6")
-            force("io.netty:netty-codec-http2:4.1.135.Final")
-            force("io.netty:netty-handler:4.1.135.Final")
-            force("io.netty:netty-codec-http:4.1.135.Final")
-            force("io.netty:netty-codec:4.1.135.Final")
+            force("io.netty:netty-codec-http2:4.1.136.Final")
+            force("io.netty:netty-handler:4.1.136.Final")
+            force("io.netty:netty-codec-http:4.1.136.Final")
+            force("io.netty:netty-codec:4.1.136.Final")
         }
     }
 }
